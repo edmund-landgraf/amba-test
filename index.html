@@ -87,27 +87,27 @@
 
     <section class="band">
       <div class="section-head">
-        <p class="eyebrow">Trust model</p>
+        <p class="eyebrow">Privacy model</p>
         <h2>Trusted communities first</h2>
       </div>
-      <p class="wide-copy">This early test will be shared in trusted communities while the signup plumbing matures. The public session view uses anonymous handles, hides email addresses, and keeps the group focused on scheduling, feedback, and the AMBA/WG/Owlbear workflow.</p>
+      <p class="wide-copy">This early test will be shared in trusted communities. The site does not store AMBA, WG, Owlbear, or Discord credentials. The only private thing in the signup flow is an email address, and public session views use anonymous handles instead.</p>
       <div class="security-roadmap">
         <article>
           <h3>Live now</h3>
           <ul>
             <li>Anonymous session handles</li>
-            <li>Private email shown only in Profile</li>
+            <li>Email hidden from shared session rows</li>
             <li>Email-based handle recovery</li>
             <li>Delete account control</li>
           </ul>
         </article>
         <article>
-          <h3>Next security layer</h3>
+          <h3>Later plumbing</h3>
           <ul>
             <li>Email verification before confirming a spot</li>
-            <li>Password-based login</li>
+            <li>Basic password login if needed</li>
             <li>Session admin controls</li>
-            <li>Rate limits and abuse review</li>
+            <li>Clear email retention and deletion rules</li>
           </ul>
         </article>
       </div>
@@ -152,7 +152,7 @@
           <button class="button primary" type="submit">Add availability row</button>
           <button class="button secondary" id="exportCsv" type="button">Download CSV</button>
         </div>
-        <p class="form-note" id="formNote">For now, the shared session sheet uses anonymous handles and hides email addresses. Later, login can become email verification, then password-based accounts.</p>
+        <p class="form-note" id="formNote">For now, the shared session sheet uses anonymous handles and hides email addresses. No game-service credentials are stored here.</p>
       </form>
 
       <div class="spreadsheet" aria-live="polite">
@@ -248,7 +248,7 @@
       <button class="modal-close" id="closeLogin" type="button" aria-label="Close login">x</button>
       <p class="eyebrow">Returning signup</p>
       <h2 id="loginTitle">Log in by email</h2>
-      <p class="modal-copy">For now, enter the email you used to sign up and we will restore your session handle. Passwords can come later.</p>
+      <p class="modal-copy">For now, enter the email you used to sign up and we will restore your session handle. This site does not ask for AMBA, WG, Owlbear, or Discord credentials.</p>
       <form id="loginForm">
         <label>Email <input required type="email" name="email" autocomplete="email" placeholder="you@example.com"></label>
         <button class="button primary" type="submit">Find my handle</button>
@@ -272,7 +272,7 @@
           <strong id="profileEmail">Not signed in</strong>
         </div>
       </div>
-      <p class="modal-copy">Your handle is used in the shared session sheet. Your email is private and used only to log back in or verify your account later.</p>
+      <p class="modal-copy">Your handle is used in the shared session sheet. Your email is private and used only to log back in or verify your signup later.</p>
       <div class="form-actions">
         <button class="button danger" id="deleteAccount" type="button">Delete account</button>
         <button class="button secondary" id="profileLogin" type="button">Log in by email</button>

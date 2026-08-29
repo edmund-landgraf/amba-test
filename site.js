@@ -107,7 +107,7 @@ form?.addEventListener("submit", (event) => {
   localStorage.setItem(signupKey, JSON.stringify(signups));
   renderRows();
   form.reset();
-  formNote.textContent = "Thanks for signing up to play test. In the future, this step can send a verification email before confirming your spot.";
+  formNote.textContent = "Thanks for signing up to play test. Your email stays hidden from the shared session sheet.";
 });
 
 renderTimes();
