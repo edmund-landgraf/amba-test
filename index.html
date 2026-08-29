@@ -10,13 +10,30 @@
 <body>
   <header class="site-header">
     <a class="brand" href="index.html">AMBA Workflow Test</a>
-    <nav aria-label="Main navigation">
-      <a href="index.html">Signup</a>
-      <a href="session.html">Session</a>
-      <a href="amba-wg.html">AMBA/WG</a>
-      <a href="owlbear.html">Owlbear</a>
-      <a href="feedback.html">Feedback</a>
-    </nav>
+    <div class="header-actions">
+      <nav aria-label="Main navigation">
+        <a href="index.html">Signup</a>
+        <a href="session.html">Session</a>
+        <a href="amba-wg.html">AMBA/WG</a>
+        <a href="owlbear.html">Owlbear</a>
+        <a href="feedback.html">Feedback</a>
+      </nav>
+      <div class="account-menu">
+        <button class="avatar-button" id="accountButton" type="button" aria-haspopup="menu" aria-expanded="false">
+          <span id="accountInitials">?</span>
+        </button>
+        <div class="settings-menu" id="settingsMenu" role="menu" hidden>
+          <div class="menu-identity">
+            <span id="menuHandle">Not signed in</span>
+            <small id="menuEmail">Sign up or log in</small>
+          </div>
+          <button type="button" id="menuSettings" role="menuitem">Settings</button>
+          <button type="button" id="menuProfile" role="menuitem">Profile</button>
+          <button type="button" id="menuLogin" role="menuitem">Log in</button>
+          <button type="button" id="menuJoin" role="menuitem">Join the test</button>
+        </div>
+      </div>
+    </div>
   </header>
 
   <main>

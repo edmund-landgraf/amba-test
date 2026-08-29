@@ -43,6 +43,15 @@ const deleteAccount = document.querySelector("#deleteAccount");
 const profileLogin = document.querySelector("#profileLogin");
 const adminTimeForm = document.querySelector("#adminTimeForm");
 const sessionCount = document.querySelector("#sessionCount");
+const accountButton = document.querySelector("#accountButton");
+const accountInitials = document.querySelector("#accountInitials");
+const settingsMenu = document.querySelector("#settingsMenu");
+const menuHandle = document.querySelector("#menuHandle");
+const menuEmail = document.querySelector("#menuEmail");
+const menuSettings = document.querySelector("#menuSettings");
+const menuProfile = document.querySelector("#menuProfile");
+const menuLogin = document.querySelector("#menuLogin");
+const menuJoin = document.querySelector("#menuJoin");
 
 const adjectives = [
   "Brisk", "Copper", "Clever", "Dusky", "Gentle", "Hidden", "Lucky", "Merry",
@@ -110,6 +119,27 @@ function wireEvents() {
   });
 
   deleteAccount?.addEventListener("click", deleteProfile);
+  accountButton?.addEventListener("click", toggleSettingsMenu);
+  menuSettings?.addEventListener("click", () => {
+    closeSettingsMenu();
+    openProfileModal();
+  });
+  menuProfile?.addEventListener("click", () => {
+    closeSettingsMenu();
+    openProfileModal();
+  });
+  menuLogin?.addEventListener("click", () => {
+    closeSettingsMenu();
+    openLoginModal();
+  });
+  menuJoin?.addEventListener("click", () => {
+    closeSettingsMenu();
+    openSignupModal();
+  });
+  document.addEventListener("click", (event) => {
+    if (!settingsMenu || settingsMenu.hidden) return;
+    if (!event.target.closest(".account-menu")) closeSettingsMenu();
+  });
   exportCsv?.addEventListener("click", () => {
     window.location.href = "/api/export/signups.csv";
   });
@@ -299,6 +329,9 @@ function syncIdentity() {
   if (profileHandle) profileHandle.textContent = user?.handle || "Not signed in";
   if (profileEmail) profileEmail.textContent = user?.email || "Not signed in";
   if (profileRole) profileRole.textContent = user?.role || "Not signed in";
+  if (accountInitials) accountInitials.textContent = user?.handle ? initialsForHandle(user.handle) : "?";
+  if (menuHandle) menuHandle.textContent = user?.handle ? `Welcome, ${user.handle}` : "Not signed in";
+  if (menuEmail) menuEmail.textContent = user?.email || "Sign up or log in";
 }
 
 function openSignupModal() {
@@ -333,6 +366,18 @@ function openProfileModal() {
 
 function closeProfileModal() {
   if (profileModal) profileModal.hidden = true;
+}
+
+function toggleSettingsMenu() {
+  if (!settingsMenu || !accountButton) return;
+  settingsMenu.hidden = !settingsMenu.hidden;
+  accountButton.setAttribute("aria-expanded", String(!settingsMenu.hidden));
+}
+
+function closeSettingsMenu() {
+  if (!settingsMenu || !accountButton) return;
+  settingsMenu.hidden = true;
+  accountButton.setAttribute("aria-expanded", "false");
 }
 
 async function copyRowsAsCsv() {
@@ -375,6 +420,15 @@ function normalizeHandle(value) {
 
 function csvCell(value = "") {
   return `"${String(value).replaceAll('"', '""')}"`;
+}
+
+function initialsForHandle(handle) {
+  const parts = String(handle || "")
+    .split(/[^a-z0-9]+/i)
+    .filter(Boolean);
+  if (!parts.length) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
 }
 
 function escapeHtml(value) {
