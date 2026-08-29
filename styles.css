@@ -581,6 +581,20 @@ footer {
   overflow-wrap: anywhere;
 }
 
+.security-roadmap {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 24px;
+}
+
+.security-roadmap article {
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
 @media (max-width: 860px) {
   .site-header,
   .split,
@@ -593,7 +607,8 @@ footer {
   .timeline article,
   .checklist,
   .time-card,
-  .handle-row {
+  .handle-row,
+  .security-roadmap {
     grid-template-columns: 1fr;
   }
 
