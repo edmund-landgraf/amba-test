@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AMBA + WG + Owlbear Workflow Test</title>
+  <meta name="description" content="Signup and guide site for a remote AMBA, Wanders' Guide, and Owlbear Rodeo workflow test.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="index.html">AMBA Workflow Test</a>
+    <nav aria-label="Main navigation">
+      <a href="index.html">Signup</a>
+      <a href="session.html">Session</a>
+      <a href="amba-wg.html">AMBA/WG</a>
+      <a href="owlbear.html">Owlbear</a>
+      <a href="feedback.html">Feedback</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero split">
+      <div>
+        <p class="eyebrow">Remote tooling session</p>
+        <h1>Explore AMBA, WG, and Owlbear together</h1>
+        <p class="lede">A four-player workflow test for character joining, encounter export, Owlbear scene setup, and a short WG UI combat/DC challenge run.</p>
+        <div class="actions">
+          <a class="button primary" href="https://amba.wandersguide.site/">Sign up on AMBA</a>
+          <a class="button secondary" href="#times">Help choose a time</a>
+        </div>
+      </div>
+      <aside class="status-panel" aria-label="Session summary">
+        <div>
+          <span class="stat">4</span>
+          <span>target players</span>
+        </div>
+        <div>
+          <span class="stat">Remote</span>
+          <span>Discord voice and screen share</span>
+        </div>
+        <div>
+          <span class="stat">No actual play</span>
+          <span>Workflow test first</span>
+        </div>
+      </aside>
+    </section>
+
+    <section class="band">
+      <div class="section-head">
+        <p class="eyebrow">What this is</p>
+        <h2>Not a campaign session yet</h2>
+      </div>
+      <p class="wide-copy">This first session is about watching the tools work together. The GM will create an AMBA campaign, share the join key, screen share the GM view, and guide everyone through the test. We will learn what the GM can see after player characters join, then try the export path into WG and Owlbear.</p>
+    </section>
+
+    <section class="grid three">
+      <article class="card">
+        <h3>Requirements</h3>
+        <ul>
+          <li>Discord for voice/chat</li>
+          <li>PC or Mac</li>
+          <li>Modern browser</li>
+          <li>AMBA/WG account for your character</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h3>What to bring</h3>
+        <ul>
+          <li>One test character, or time to create one</li>
+          <li>Your Discord handle</li>
+          <li>Availability for proposed session times</li>
+          <li>Questions about AMBA, WG, or Owlbear</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h3>What not to bring</h3>
+        <ul>
+          <li>No API keys</li>
+          <li>No account passwords</li>
+          <li>No campaign prep required</li>
+          <li>No actual play expectations yet</li>
+        </ul>
+      </article>
+    </section>
+
+    <section id="times" class="band">
+      <div class="section-head">
+        <p class="eyebrow">Time coordination</p>
+        <h2>Mark times that work</h2>
+      </div>
+      <p class="wide-copy">The GM will seed a few possible times. Mark each one as works, maybe, or no. If none of the listed times fit, suggest a new one. We are looking for a time that works for four players.</p>
+
+      <form class="signup-form" id="signupForm">
+        <div class="form-grid">
+          <label>Name <input required name="name" autocomplete="name"></label>
+          <label>Email <input required type="email" name="email" autocomplete="email"></label>
+          <label>Discord handle <input required name="discord" placeholder="name#0000 or username"></label>
+          <label>Time zone <input name="timezone" placeholder="Pacific, Eastern, GMT..."></label>
+        </div>
+
+        <div class="time-list" id="timeList" aria-live="polite"></div>
+
+        <fieldset class="suggest">
+          <legend>Suggest another time</legend>
+          <label>Date <input type="date" name="suggestDate"></label>
+          <label>Time <input type="time" name="suggestTime"></label>
+          <label>Time zone <input name="suggestZone" placeholder="Pacific"></label>
+          <label>Note <input name="suggestNote" placeholder="Optional"></label>
+        </fieldset>
+
+        <label class="full">Anything you especially want to test?
+          <textarea name="notes" rows="4" placeholder="Character joining, export behavior, token ownership, WG permissions..."></textarea>
+        </label>
+
+        <div class="form-actions">
+          <button class="button primary" type="submit">Add signup row</button>
+          <button class="button secondary" id="exportCsv" type="button">Download CSV</button>
+        </div>
+        <p class="form-note" id="formNote">For now, signups are anonymous spreadsheet rows saved in this browser. Later, this can become email-verified signup: "Thanks for signing up to play test. Verify your email to confirm your spot."</p>
+      </form>
+
+      <div class="spreadsheet" aria-live="polite">
+        <div class="spreadsheet-head">
+          <h3>Signup Spreadsheet Preview</h3>
+          <button class="choice" id="copyRows" type="button">Copy rows</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Discord</th>
+                <th>Timezone</th>
+                <th>Availability</th>
+                <th>Suggested time</th>
+              </tr>
+            </thead>
+            <tbody id="signupRows"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" id="feedback">
+      <div class="section-head">
+        <p class="eyebrow">Suggestions</p>
+        <h2>Help shape the test</h2>
+      </div>
+      <form class="signup-form" id="feedbackForm">
+        <div class="form-grid">
+          <label>Name or handle <input name="name" placeholder="Optional"></label>
+          <label>Topic
+            <select name="topic">
+              <option>AMBA character joining</option>
+              <option>WG UI combat</option>
+              <option>WG DC challenge</option>
+              <option>Owlbear room setup</option>
+              <option>Scheduling</option>
+              <option>Other</option>
+            </select>
+          </label>
+        </div>
+        <label class="full">Suggestion or concern
+          <textarea required name="message" rows="4" placeholder="What should we test, explain, or avoid?"></textarea>
+        </label>
+        <button class="button primary" type="submit">Save suggestion</button>
+        <p class="form-note" id="feedbackNote">Suggestions are saved locally for this prototype.</p>
+      </form>
+    </section>
+  </main>
+
+  <footer>
+    <p>Theme direction: HTMLrev Huddle-style event/workshop site. Signup destination: <a href="https://amba.wandersguide.site/">amba.wandersguide.site</a>.</p>
+  </footer>
+
+  <script src="site.js"></script>
+</body>
+</html>

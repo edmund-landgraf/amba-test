@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Feedback | AMBA Workflow Test</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="index.html">AMBA Workflow Test</a>
+    <nav aria-label="Main navigation">
+      <a href="index.html">Signup</a>
+      <a href="session.html">Session</a>
+      <a href="amba-wg.html">AMBA/WG</a>
+      <a href="owlbear.html">Owlbear</a>
+      <a href="feedback.html">Feedback</a>
+    </nav>
+  </header>
+  <main>
+    <section class="page-hero">
+      <p class="eyebrow">Suggestions</p>
+      <h1>Feedback Area</h1>
+      <p class="lede">Capture what people want to test before the session and what needs follow-up after the workflow run.</p>
+    </section>
+
+    <section class="grid two">
+      <article class="card">
+        <h2>Good feedback topics</h2>
+        <ul>
+          <li>AMBA campaign join flow</li>
+          <li>WG player vs GM permissions</li>
+          <li>Export format surprises</li>
+          <li>Owlbear token and scene setup</li>
+          <li>Discord screen share clarity</li>
+          <li>Whether this needs one or two sessions</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h2>After-session notes</h2>
+        <ul>
+          <li>What worked smoothly</li>
+          <li>What blocked progress</li>
+          <li>Which guide needs screenshots</li>
+          <li>What to automate before real play</li>
+          <li>What players need before joining next time</li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="band">
+      <div class="section-head">
+        <p class="eyebrow">Submit</p>
+        <h2>Leave a suggestion</h2>
+      </div>
+      <form class="signup-form" id="feedbackForm">
+        <div class="form-grid">
+          <label>Name or handle <input name="name" placeholder="Optional"></label>
+          <label>Topic
+            <select name="topic">
+              <option>AMBA character joining</option>
+              <option>WG UI combat</option>
+              <option>WG DC challenge</option>
+              <option>Owlbear room setup</option>
+              <option>Scheduling</option>
+              <option>Other</option>
+            </select>
+          </label>
+        </div>
+        <label class="full">Suggestion or concern
+          <textarea required name="message" rows="5" placeholder="What should we test, explain, or avoid?"></textarea>
+        </label>
+        <button class="button primary" type="submit">Save suggestion</button>
+        <p class="form-note" id="feedbackNote">Suggestions are saved locally for this prototype.</p>
+      </form>
+    </section>
+  </main>
+  <footer><p><a href="index.html">Back to signup</a></p></footer>
+  <script src="site.js"></script>
+</body>
+</html>
