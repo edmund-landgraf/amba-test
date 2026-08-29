@@ -15,17 +15,25 @@ const feedbackForm = document.querySelector("#feedbackForm");
 const feedbackNote = document.querySelector("#feedbackNote");
 const openSignup = document.querySelector("#openSignup");
 const openSignupInline = document.querySelector("#openSignupInline");
+const openLogin = document.querySelector("#openLogin");
+const openLoginInline = document.querySelector("#openLoginInline");
 const closeSignup = document.querySelector("#closeSignup");
+const closeLogin = document.querySelector("#closeLogin");
 const signupModal = document.querySelector("#signupModal");
+const loginModal = document.querySelector("#loginModal");
 const identityForm = document.querySelector("#identityForm");
+const loginForm = document.querySelector("#loginForm");
 const generatedHandle = document.querySelector("#generatedHandle");
 const rerollHandle = document.querySelector("#rerollHandle");
 const currentHandle = document.querySelector("#currentHandle");
+const welcomeLine = document.querySelector("#welcomeLine");
 const feedbackHandle = document.querySelector("#feedbackHandle");
+const loginNote = document.querySelector("#loginNote");
 
 const signupKey = "ambaWorkflowSignups";
 const feedbackKey = "ambaWorkflowFeedback";
 const identityKey = "ambaWorkflowIdentity";
+const profilesKey = "ambaWorkflowProfiles";
 
 const adjectives = [
   "Brisk", "Copper", "Clever", "Dusky", "Gentle", "Hidden", "Lucky", "Merry",
@@ -79,7 +87,15 @@ form?.addEventListener("submit", (event) => {
 
   const data = Object.fromEntries(new FormData(form).entries());
   const signups = getJson(signupKey);
-  signups.push({ ...identity, ...data, votes: { ...votes }, createdAt: new Date().toISOString() });
+  signups.push({
+    handle: identity.handle,
+    discord: identity.discord,
+    timezone: identity.timezone,
+    characterStatus: identity.characterStatus,
+    ...data,
+    votes: { ...votes },
+    createdAt: new Date().toISOString()
+  });
   localStorage.setItem(signupKey, JSON.stringify(signups));
   renderRows();
   form.reset();
@@ -103,9 +119,15 @@ feedbackForm?.addEventListener("submit", (event) => {
 
 openSignup?.addEventListener("click", openModal);
 openSignupInline?.addEventListener("click", openModal);
+openLogin?.addEventListener("click", openLoginModal);
+openLoginInline?.addEventListener("click", openLoginModal);
 closeSignup?.addEventListener("click", closeModal);
+closeLogin?.addEventListener("click", closeLoginModal);
 signupModal?.addEventListener("click", (event) => {
   if (event.target === signupModal) closeModal();
+});
+loginModal?.addEventListener("click", (event) => {
+  if (event.target === loginModal) closeLoginModal();
 });
 
 rerollHandle?.addEventListener("click", () => {
@@ -116,10 +138,29 @@ identityForm?.addEventListener("submit", (event) => {
   event.preventDefault();
   const identity = Object.fromEntries(new FormData(identityForm).entries());
   identity.handle = normalizeHandle(identity.handle || createHandle());
+  identity.email = normalizeEmail(identity.email);
+  const profiles = getJson(profilesKey).filter((profile) => normalizeEmail(profile.email) !== identity.email);
+  profiles.push(identity);
+  localStorage.setItem(profilesKey, JSON.stringify(profiles));
   localStorage.setItem(identityKey, JSON.stringify(identity));
   syncIdentity();
   closeModal();
   formNote.textContent = `You are signed up as ${identity.handle}. Use that handle for availability and feedback.`;
+});
+
+loginForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const email = normalizeEmail(new FormData(loginForm).get("email"));
+  const profile = getJson(profilesKey).find((item) => normalizeEmail(item.email) === email);
+  if (!profile) {
+    loginNote.textContent = "No local signup found for that email yet. Join the test to create a handle.";
+    return;
+  }
+
+  localStorage.setItem(identityKey, JSON.stringify(profile));
+  syncIdentity();
+  closeLoginModal();
+  formNote.textContent = `Welcome, ${profile.handle}. Your email stays hidden from the session sheet.`;
 });
 
 exportCsv?.addEventListener("click", () => {
@@ -172,10 +213,9 @@ function formatSuggestion(row) {
 }
 
 function rowsToCsv(rows) {
-  const header = ["handle", "email", "discord", "timezone", "character_status", "availability", "suggested_time", "notes", "created_at"];
+  const header = ["handle", "discord", "timezone", "character_status", "availability", "suggested_time", "notes", "created_at"];
   const body = rows.map((row) => [
     row.handle,
-    row.email,
     row.discord,
     row.timezone,
     row.characterStatus,
@@ -229,6 +269,10 @@ function normalizeHandle(value) {
     .join("-");
 }
 
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
 function getIdentity() {
   try {
     return JSON.parse(localStorage.getItem(identityKey) || "null");
@@ -240,6 +284,9 @@ function getIdentity() {
 function syncIdentity() {
   const identity = getIdentity();
   if (currentHandle) currentHandle.textContent = identity?.handle || "Not joined yet";
+  if (welcomeLine) welcomeLine.textContent = identity?.handle
+    ? `Welcome, ${identity.handle}. Use this handle for this session.`
+    : "Sign up or log in with your email to recover your handle.";
   if (feedbackHandle && identity?.handle) feedbackHandle.value = identity.handle;
 }
 
@@ -253,6 +300,16 @@ function openModal() {
 
 function closeModal() {
   if (signupModal) signupModal.hidden = true;
+}
+
+function openLoginModal() {
+  if (!loginModal) return;
+  loginModal.hidden = false;
+  loginModal.querySelector("input")?.focus();
+}
+
+function closeLoginModal() {
+  if (loginModal) loginModal.hidden = true;
 }
 
 syncIdentity();

@@ -27,6 +27,7 @@
         <p class="lede">A four-player workflow test for character joining, encounter export, Owlbear scene setup, and a short WG UI combat/DC challenge run.</p>
         <div class="actions">
           <button class="button primary" id="openSignup" type="button">Join the test</button>
+          <button class="button secondary" id="openLogin" type="button">Log in by email</button>
           <a class="button secondary" href="#times">Help choose a time</a>
         </div>
       </div>
@@ -94,10 +95,14 @@
       <form class="signup-form" id="signupForm">
         <div class="identity-strip">
           <div>
-            <span class="label">Your test handle</span>
+            <span class="label">Current session identity</span>
             <strong id="currentHandle">Not joined yet</strong>
+            <span id="welcomeLine">Sign up or log in with your email to recover your handle.</span>
           </div>
-          <button class="button secondary" id="openSignupInline" type="button">Get a handle</button>
+          <div class="mini-actions">
+            <button class="button secondary" id="openSignupInline" type="button">Get a handle</button>
+            <button class="button secondary" id="openLoginInline" type="button">Log in</button>
+          </div>
         </div>
 
         <div class="time-list" id="timeList" aria-live="polite"></div>
@@ -118,7 +123,7 @@
           <button class="button primary" type="submit">Add availability row</button>
           <button class="button secondary" id="exportCsv" type="button">Download CSV</button>
         </div>
-        <p class="form-note" id="formNote">For now, signups are anonymous spreadsheet rows saved in this browser. Later, this can become email-verified signup: "Thanks for signing up to play test. Verify your email to confirm your spot."</p>
+        <p class="form-note" id="formNote">For now, the shared session sheet uses anonymous handles and hides email addresses. Later, login can become email verification, then password-based accounts.</p>
       </form>
 
       <div class="spreadsheet" aria-live="polite">
@@ -180,7 +185,7 @@
       <button class="modal-close" id="closeSignup" type="button" aria-label="Close signup">x</button>
       <p class="eyebrow">Anonymous signup</p>
       <h2 id="signupTitle">Get your test handle</h2>
-      <p class="modal-copy">You will use this handle throughout the AMBA test for scheduling and feedback. Example: <strong>Slippery-Beetle</strong>.</p>
+      <p class="modal-copy">You will use this handle throughout this session for scheduling and feedback. Your email stays private and is only used to recover this handle later.</p>
       <form id="identityForm">
         <label>Your generated handle
           <div class="handle-row">
@@ -189,7 +194,7 @@
           </div>
         </label>
         <div class="form-grid compact">
-          <label>Email for future verification <input type="email" name="email" autocomplete="email" placeholder="Optional for prototype"></label>
+          <label>Email <input required type="email" name="email" autocomplete="email" placeholder="you@example.com"></label>
           <label>Discord handle <input name="discord" autocomplete="off" placeholder="Optional"></label>
           <label>Time zone <input name="timezone" placeholder="Pacific, Eastern, GMT..."></label>
           <label>Character status
@@ -205,6 +210,20 @@
           <a class="button secondary" href="https://amba.wandersguide.site/">Open AMBA</a>
         </div>
         <p class="form-note">Later, this can send: "Thanks for signing up to play test. Verify your email to confirm your spot."</p>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="loginModal" hidden>
+    <div class="modal small-modal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+      <button class="modal-close" id="closeLogin" type="button" aria-label="Close login">x</button>
+      <p class="eyebrow">Returning signup</p>
+      <h2 id="loginTitle">Log in by email</h2>
+      <p class="modal-copy">For now, enter the email you used to sign up and we will restore your session handle. Passwords can come later.</p>
+      <form id="loginForm">
+        <label>Email <input required type="email" name="email" autocomplete="email" placeholder="you@example.com"></label>
+        <button class="button primary" type="submit">Find my handle</button>
+        <p class="form-note" id="loginNote">Your public signup identity remains your generated handle.</p>
       </form>
     </div>
   </div>
