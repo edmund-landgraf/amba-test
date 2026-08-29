@@ -189,29 +189,29 @@ p {
 }
 
 h1 {
-  max-width: 680px;
+  max-width: 620px;
   margin: 0;
-  font-size: clamp(2.25rem, 4.4vw, 3.75rem);
-  line-height: 1.04;
+  font-size: clamp(1.7rem, 3vw, 2.25rem);
+  line-height: 1.12;
   letter-spacing: 0;
 }
 
 h2 {
   margin: 0 0 12px;
-  font-size: clamp(1.65rem, 3vw, 2.6rem);
-  line-height: 1.05;
+  font-size: clamp(1.2rem, 2vw, 1.55rem);
+  line-height: 1.2;
 }
 
 h3 {
   margin: 0 0 10px;
-  font-size: 1.1rem;
+  font-size: 1rem;
 }
 
 .lede {
   max-width: 640px;
   margin: 22px 0 0;
   color: var(--muted);
-  font-size: 1.08rem;
+  font-size: 1rem;
 }
 
 .actions {
@@ -283,8 +283,8 @@ h3 {
 .preview-top strong {
   display: block;
   margin-top: 8px;
-  font-size: clamp(1.8rem, 4vw, 2.6rem);
-  line-height: 1;
+  font-size: 1.35rem;
+  line-height: 1.1;
 }
 
 .preview-top p {
@@ -325,7 +325,7 @@ h3 {
 .wide-copy {
   max-width: 860px;
   color: var(--muted);
-  font-size: 1.08rem;
+  font-size: 1rem;
 }
 
 .grid {
@@ -419,7 +419,7 @@ li + li {
 
 .identity-strip strong {
   display: block;
-  font-size: 1.35rem;
+  font-size: 1.05rem;
 }
 
 .identity-strip span:not(.label) {
@@ -497,7 +497,7 @@ fieldset {
 
 .time-card strong {
   display: block;
-  font-size: 1.05rem;
+  font-size: 1rem;
 }
 
 .time-card small {
@@ -592,7 +592,7 @@ th {
 
 .timeline article {
   display: grid;
-  grid-template-columns: 52px 240px 1fr;
+  grid-template-columns: 48px 180px 1fr;
   gap: 18px;
   align-items: start;
   padding: 20px;
@@ -603,8 +603,8 @@ th {
 
 .timeline span {
   display: grid;
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   place-items: center;
   border-radius: 50%;
   background: var(--gold);
@@ -614,6 +614,11 @@ th {
 .timeline h2,
 .timeline p {
   margin: 0;
+}
+
+.timeline h2 {
+  font-size: 1.25rem;
+  line-height: 1.2;
 }
 
 .checklist {
@@ -726,7 +731,7 @@ footer {
 .profile-details strong {
   display: block;
   margin-top: 4px;
-  font-size: 1.08rem;
+  font-size: 1rem;
   overflow-wrap: anywhere;
 }
 
@@ -805,6 +810,6 @@ footer {
   }
 
   h1 {
-    font-size: clamp(2.1rem, 10vw, 3.15rem);
+    font-size: clamp(1.55rem, 7vw, 2rem);
   }
 }
