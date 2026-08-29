@@ -1,14 +1,15 @@
 :root {
   --ink: #1c2430;
   --muted: #586170;
-  --paper: #fbfaf7;
+  --paper: #f6f3ed;
   --panel: #ffffff;
-  --line: #d9ded7;
+  --line: #ded7c9;
   --accent: #2f6f5e;
   --accent-strong: #1f4f43;
   --warm: #b85f38;
   --gold: #d7aa43;
   --sky: #e8f1ee;
+  --shadow: 0 18px 60px rgba(28, 36, 48, 0.1);
 }
 
 * {
@@ -19,7 +20,9 @@ body {
   margin: 0;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--ink);
-  background: var(--paper);
+  background:
+    radial-gradient(circle at top left, rgba(215, 170, 67, 0.14), transparent 34rem),
+    linear-gradient(180deg, #fffdf8 0%, var(--paper) 44%, #f8f7f3 100%);
   line-height: 1.55;
 }
 
@@ -36,7 +39,7 @@ a {
   justify-content: space-between;
   gap: 24px;
   padding: 18px clamp(18px, 4vw, 56px);
-  background: rgba(251, 250, 247, 0.94);
+  background: rgba(255, 253, 248, 0.92);
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(12px);
 }
@@ -78,14 +81,14 @@ main {
 }
 
 .hero {
-  min-height: 500px;
-  padding: 58px 0 48px;
+  min-height: 520px;
+  padding: 62px 0 50px;
   align-items: center;
 }
 
 .split {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
   gap: clamp(30px, 6vw, 78px);
 }
 
@@ -108,8 +111,8 @@ p {
 h1 {
   max-width: 680px;
   margin: 0;
-  font-size: clamp(2.25rem, 5vw, 4.1rem);
-  line-height: 1.02;
+  font-size: clamp(2.25rem, 4.4vw, 3.75rem);
+  line-height: 1.04;
   letter-spacing: 0;
 }
 
@@ -168,34 +171,68 @@ h3 {
   color: #fff;
 }
 
-.status-panel {
-  display: grid;
+.signup-preview {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   gap: 14px;
-  padding: 18px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background:
-    linear-gradient(135deg, rgba(232, 241, 238, 0.94), rgba(255, 255, 255, 0.96)),
-    repeating-linear-gradient(45deg, rgba(47, 111, 94, 0.08) 0 1px, transparent 1px 11px);
+  padding: 26px;
+  border: 1px solid rgba(31, 79, 67, 0.18);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: var(--shadow);
 }
 
-.status-panel div {
-  padding: 18px;
-  background: var(--panel);
+.preview-top {
+  padding: 24px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(232, 241, 238, 0.9), rgba(255, 255, 255, 0.92));
   border: 1px solid var(--line);
-  border-radius: 6px;
 }
 
-.stat {
+.preview-top .label,
+.identity-strip .label {
   display: block;
-  font-size: 1.45rem;
-  font-weight: 900;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.preview-top strong {
+  display: block;
+  margin-top: 8px;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  line-height: 1;
+}
+
+.preview-top p {
+  margin: 12px 0 0;
+  color: var(--muted);
+}
+
+.preview-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 15px 2px;
+  border-bottom: 1px solid var(--line);
+}
+
+.preview-row span {
+  color: var(--muted);
+}
+
+.preview-row strong {
+  text-align: right;
 }
 
 .band,
 .note {
-  padding: 54px 0;
-  border-top: 1px solid var(--line);
+  padding: 58px 0;
+  border-top: 1px solid rgba(222, 215, 201, 0.86);
 }
 
 .section-head {
@@ -226,10 +263,11 @@ h3 {
 }
 
 .card {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 24px;
-  background: var(--panel);
+  border: 1px solid rgba(31, 79, 67, 0.12);
+  border-radius: 14px;
+  padding: 26px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 12px 34px rgba(28, 36, 48, 0.06);
 }
 
 ul,
@@ -244,10 +282,47 @@ li + li {
 
 .signup-form {
   margin-top: 24px;
+  padding: 26px;
+  border: 1px solid rgba(31, 79, 67, 0.14);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: var(--shadow);
+}
+
+.admin-panel {
+  display: grid;
+  gap: 18px;
+  margin-top: 22px;
   padding: 22px;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(31, 79, 67, 0.14);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 12px 34px rgba(28, 36, 48, 0.06);
+}
+
+.admin-panel h3,
+.admin-panel p {
+  margin: 0;
+}
+
+.admin-panel p {
+  color: var(--muted);
+}
+
+.admin-panel .label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.empty-state {
+  padding: 18px;
+  border: 1px dashed var(--line);
   border-radius: 8px;
-  background: var(--panel);
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.68);
 }
 
 .identity-strip {
@@ -260,14 +335,6 @@ li + li {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--sky);
-}
-
-.identity-strip .label {
-  display: block;
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 800;
-  text-transform: uppercase;
 }
 
 .identity-strip strong {
@@ -317,6 +384,7 @@ select {
   font: inherit;
   color: var(--ink);
   background: #fff;
+  box-shadow: inset 0 1px 0 rgba(28, 36, 48, 0.03);
 }
 
 fieldset {
@@ -344,7 +412,7 @@ fieldset {
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--sky);
+  background: linear-gradient(135deg, rgba(232, 241, 238, 0.86), rgba(255, 255, 255, 0.9));
 }
 
 .time-card strong {
@@ -394,10 +462,11 @@ fieldset {
 
 .spreadsheet {
   margin-top: 22px;
-  padding: 18px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fff;
+  padding: 20px;
+  border: 1px solid rgba(31, 79, 67, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 12px 34px rgba(28, 36, 48, 0.06);
 }
 
 .spreadsheet h3 {
@@ -519,7 +588,7 @@ footer {
   overflow: auto;
   padding: 28px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 16px;
   background: var(--panel);
   box-shadow: 0 28px 80px rgba(28, 36, 48, 0.24);
 }
@@ -623,6 +692,6 @@ footer {
   }
 
   h1 {
-    font-size: clamp(2.8rem, 16vw, 4.6rem);
+    font-size: clamp(2.1rem, 10vw, 3.15rem);
   }
 }

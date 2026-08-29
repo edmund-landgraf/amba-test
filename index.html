@@ -31,18 +31,23 @@
           <a class="button secondary" href="#times">Help choose a time</a>
         </div>
       </div>
-      <aside class="status-panel" aria-label="Session summary">
-        <div>
-          <span class="stat">4</span>
-          <span>target players</span>
+      <aside class="signup-preview" aria-label="Session summary">
+        <div class="preview-top">
+          <span class="label">Session identity</span>
+          <strong>Slippery-Beetle</strong>
+          <p>Anonymous handle for scheduling and feedback.</p>
         </div>
-        <div>
-          <span class="stat">Remote</span>
-          <span>Discord voice and screen share</span>
+        <div class="preview-row">
+          <span>Players</span>
+          <strong id="sessionCount">0 / 4</strong>
         </div>
-        <div>
-          <span class="stat">No actual play</span>
-          <span>Workflow test first</span>
+        <div class="preview-row">
+          <span>Format</span>
+          <strong>Remote</strong>
+        </div>
+        <div class="preview-row">
+          <span>Scope</span>
+          <strong>Workflow test</strong>
         </div>
       </aside>
     </section>
@@ -105,7 +110,7 @@
           <h3>Later plumbing</h3>
           <ul>
             <li>Email verification before confirming a spot</li>
-            <li>Basic password login if needed</li>
+            <li>Email verification if needed</li>
             <li>Session admin controls</li>
             <li>Clear email retention and deletion rules</li>
           </ul>
@@ -152,12 +157,25 @@
           <button class="button primary" type="submit">Add availability row</button>
           <button class="button secondary" id="exportCsv" type="button">Download CSV</button>
         </div>
-        <p class="form-note" id="formNote">For now, the shared session sheet uses anonymous handles and hides email addresses. No game-service credentials are stored here.</p>
+        <p class="form-note" id="formNote">The shared session sheet uses anonymous handles and hides email addresses. No game-service credentials are stored here.</p>
+      </form>
+
+      <form class="admin-panel" id="adminTimeForm">
+        <div>
+          <span class="label">Admin</span>
+          <h3>Add a proposed time</h3>
+          <p>Everyone is an admin for now, so anyone can add times.</p>
+        </div>
+        <div class="form-grid compact">
+          <label>Session time <input required name="title" placeholder="Saturday, 1:00 PM Pacific"></label>
+          <label>Note <input name="note" placeholder="Optional"></label>
+        </div>
+        <button class="button secondary" type="submit">Add time</button>
       </form>
 
       <div class="spreadsheet" aria-live="polite">
         <div class="spreadsheet-head">
-          <h3>Signup Spreadsheet Preview</h3>
+          <h3>Session Signups</h3>
           <button class="choice" id="copyRows" type="button">Copy rows</button>
         </div>
         <div class="table-wrap">
@@ -167,6 +185,7 @@
                 <th>Handle</th>
                 <th>Discord</th>
                 <th>Timezone</th>
+                <th>Role</th>
                 <th>Availability</th>
                 <th>Suggested time</th>
               </tr>
@@ -200,13 +219,13 @@
           <textarea required name="message" rows="4" placeholder="What should we test, explain, or avoid?"></textarea>
         </label>
         <button class="button primary" type="submit">Save suggestion</button>
-        <p class="form-note" id="feedbackNote">Suggestions are saved locally for this prototype.</p>
+        <p class="form-note" id="feedbackNote">Suggestions are saved to the session.</p>
       </form>
     </section>
   </main>
 
   <footer>
-    <p>Theme direction: HTMLrev Huddle-style event/workshop site. Signup destination: <a href="https://amba.wandersguide.site/">amba.wandersguide.site</a>.</p>
+    <p>Signup destination: <a href="https://amba.wandersguide.site/">amba.wandersguide.site</a>.</p>
   </footer>
 
   <div class="modal-backdrop" id="signupModal" hidden>
@@ -271,13 +290,17 @@
           <span>Email</span>
           <strong id="profileEmail">Not signed in</strong>
         </div>
+        <div>
+          <span>Role</span>
+          <strong id="profileRole">Not signed in</strong>
+        </div>
       </div>
       <p class="modal-copy">Your handle is used in the shared session sheet. Your email is private and used only to log back in or verify your signup later.</p>
       <div class="form-actions">
         <button class="button danger" id="deleteAccount" type="button">Delete account</button>
         <button class="button secondary" id="profileLogin" type="button">Log in by email</button>
       </div>
-      <p class="form-note" id="profileNote">Deleting clears your local profile and current session on this prototype.</p>
+      <p class="form-note" id="profileNote">Deleting removes your profile, availability, and feedback.</p>
     </div>
   </div>
 

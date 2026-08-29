@@ -1,0 +1,10 @@
+[
+  {
+    "id": "amba-workflow-test-1",
+    "title": "AMBA Workflow Test",
+    "targetPlayers": 4,
+    "format": "Remote",
+    "scope": "Workflow test",
+    "times": []
+  }
+]
