@@ -17,10 +17,13 @@ const openSignup = document.querySelector("#openSignup");
 const openSignupInline = document.querySelector("#openSignupInline");
 const openLogin = document.querySelector("#openLogin");
 const openLoginInline = document.querySelector("#openLoginInline");
+const openProfileInline = document.querySelector("#openProfileInline");
 const closeSignup = document.querySelector("#closeSignup");
 const closeLogin = document.querySelector("#closeLogin");
+const closeProfile = document.querySelector("#closeProfile");
 const signupModal = document.querySelector("#signupModal");
 const loginModal = document.querySelector("#loginModal");
+const profileModal = document.querySelector("#profileModal");
 const identityForm = document.querySelector("#identityForm");
 const loginForm = document.querySelector("#loginForm");
 const generatedHandle = document.querySelector("#generatedHandle");
@@ -29,6 +32,11 @@ const currentHandle = document.querySelector("#currentHandle");
 const welcomeLine = document.querySelector("#welcomeLine");
 const feedbackHandle = document.querySelector("#feedbackHandle");
 const loginNote = document.querySelector("#loginNote");
+const profileHandle = document.querySelector("#profileHandle");
+const profileEmail = document.querySelector("#profileEmail");
+const profileNote = document.querySelector("#profileNote");
+const deleteAccount = document.querySelector("#deleteAccount");
+const profileLogin = document.querySelector("#profileLogin");
 
 const signupKey = "ambaWorkflowSignups";
 const feedbackKey = "ambaWorkflowFeedback";
@@ -121,13 +129,18 @@ openSignup?.addEventListener("click", openModal);
 openSignupInline?.addEventListener("click", openModal);
 openLogin?.addEventListener("click", openLoginModal);
 openLoginInline?.addEventListener("click", openLoginModal);
+openProfileInline?.addEventListener("click", openProfileModal);
 closeSignup?.addEventListener("click", closeModal);
 closeLogin?.addEventListener("click", closeLoginModal);
+closeProfile?.addEventListener("click", closeProfileModal);
 signupModal?.addEventListener("click", (event) => {
   if (event.target === signupModal) closeModal();
 });
 loginModal?.addEventListener("click", (event) => {
   if (event.target === loginModal) closeLoginModal();
+});
+profileModal?.addEventListener("click", (event) => {
+  if (event.target === profileModal) closeProfileModal();
 });
 
 rerollHandle?.addEventListener("click", () => {
@@ -161,6 +174,32 @@ loginForm?.addEventListener("submit", (event) => {
   syncIdentity();
   closeLoginModal();
   formNote.textContent = `Welcome, ${profile.handle}. Your email stays hidden from the session sheet.`;
+});
+
+profileLogin?.addEventListener("click", () => {
+  closeProfileModal();
+  openLoginModal();
+});
+
+deleteAccount?.addEventListener("click", () => {
+  const identity = getIdentity();
+  if (!identity?.email) {
+    profileNote.textContent = "No signed-in profile to delete.";
+    return;
+  }
+
+  const email = normalizeEmail(identity.email);
+  const handle = identity.handle;
+  const profiles = getJson(profilesKey).filter((profile) => normalizeEmail(profile.email) !== email);
+  const signups = getJson(signupKey).filter((signup) => signup.handle !== handle);
+  const feedback = getJson(feedbackKey).filter((item) => item.handle !== handle && normalizeEmail(item.email) !== email);
+  localStorage.setItem(profilesKey, JSON.stringify(profiles));
+  localStorage.setItem(signupKey, JSON.stringify(signups));
+  localStorage.setItem(feedbackKey, JSON.stringify(feedback));
+  localStorage.removeItem(identityKey);
+  syncIdentity();
+  renderRows();
+  profileNote.textContent = "Account deleted from this prototype, including your local signup and feedback rows.";
 });
 
 exportCsv?.addEventListener("click", () => {
@@ -288,6 +327,8 @@ function syncIdentity() {
     ? `Welcome, ${identity.handle}. Use this handle for this session.`
     : "Sign up or log in with your email to recover your handle.";
   if (feedbackHandle && identity?.handle) feedbackHandle.value = identity.handle;
+  if (profileHandle) profileHandle.textContent = identity?.handle || "Not signed in";
+  if (profileEmail) profileEmail.textContent = identity?.email || "Not signed in";
 }
 
 function openModal() {
@@ -310,6 +351,20 @@ function openLoginModal() {
 
 function closeLoginModal() {
   if (loginModal) loginModal.hidden = true;
+}
+
+function openProfileModal() {
+  if (!profileModal) return;
+  syncIdentity();
+  const identity = getIdentity();
+  if (profileNote) profileNote.textContent = identity?.handle
+    ? "Deleting clears your local profile and current session on this prototype."
+    : "Log in by email to view your profile.";
+  profileModal.hidden = false;
+}
+
+function closeProfileModal() {
+  if (profileModal) profileModal.hidden = true;
 }
 
 syncIdentity();
