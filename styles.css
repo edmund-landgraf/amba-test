@@ -744,6 +744,29 @@ footer {
   background: var(--panel);
 }
 
+.guide-links {
+  width: min(1120px, calc(100% - 36px));
+  margin: 0 auto 58px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.guide-links a {
+  padding: 18px;
+  border: 1px solid rgba(31, 79, 67, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 12px 34px rgba(28, 36, 48, 0.06);
+  color: var(--ink);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.guide-links a:hover {
+  border-color: rgba(31, 79, 67, 0.34);
+}
+
 @media (max-width: 860px) {
   .site-header,
   .split,
@@ -757,7 +780,8 @@ footer {
   .checklist,
   .time-card,
   .handle-row,
-  .security-roadmap {
+  .security-roadmap,
+  .guide-links {
     grid-template-columns: 1fr;
   }
 
