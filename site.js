@@ -1,3 +1,5 @@
+import { TIMEZONES, timezoneLabel } from "./timezones.js";
+
 let appState = {
   session: null,
   user: null,
@@ -5,102 +7,117 @@ let appState = {
   feedback: []
 };
 
-const votes = {};
-const sessionEmailKey = "ambaWorkflowEmail";
+let currentEmail = "";
 
-const timeList = document.querySelector("#timeList");
-const form = document.querySelector("#signupForm");
-const formNote = document.querySelector("#formNote");
-const rowsBody = document.querySelector("#signupRows");
-const exportCsv = document.querySelector("#exportCsv");
-const copyRows = document.querySelector("#copyRows");
 const feedbackForm = document.querySelector("#feedbackForm");
 const feedbackNote = document.querySelector("#feedbackNote");
-const openSignup = document.querySelector("#openSignup");
-const openSignupInline = document.querySelector("#openSignupInline");
-const openLogin = document.querySelector("#openLogin");
-const openLoginInline = document.querySelector("#openLoginInline");
-const openProfileInline = document.querySelector("#openProfileInline");
-const closeSignup = document.querySelector("#closeSignup");
+const joinTest = document.querySelector("#joinTest");
 const closeLogin = document.querySelector("#closeLogin");
 const closeProfile = document.querySelector("#closeProfile");
-const signupModal = document.querySelector("#signupModal");
 const loginModal = document.querySelector("#loginModal");
 const profileModal = document.querySelector("#profileModal");
 const identityForm = document.querySelector("#identityForm");
 const loginForm = document.querySelector("#loginForm");
 const generatedHandle = document.querySelector("#generatedHandle");
-const rerollHandle = document.querySelector("#rerollHandle");
-const currentHandle = document.querySelector("#currentHandle");
-const welcomeLine = document.querySelector("#welcomeLine");
 const feedbackHandle = document.querySelector("#feedbackHandle");
-const loginNote = document.querySelector("#loginNote");
 const profileHandle = document.querySelector("#profileHandle");
 const profileEmail = document.querySelector("#profileEmail");
-const profileRole = document.querySelector("#profileRole");
+const profileTimezone = document.querySelector("#profileTimezone");
 const profileNote = document.querySelector("#profileNote");
 const deleteAccount = document.querySelector("#deleteAccount");
-const profileLogin = document.querySelector("#profileLogin");
-const adminTimeForm = document.querySelector("#adminTimeForm");
 const accountButton = document.querySelector("#accountButton");
 const accountInitials = document.querySelector("#accountInitials");
 const settingsMenu = document.querySelector("#settingsMenu");
 const menuHandle = document.querySelector("#menuHandle");
 const menuEmail = document.querySelector("#menuEmail");
 const menuSettings = document.querySelector("#menuSettings");
+const menuTimezone = document.querySelector("#menuTimezone");
 const menuProfile = document.querySelector("#menuProfile");
 const menuLogin = document.querySelector("#menuLogin");
-const menuJoin = document.querySelector("#menuJoin");
-
-const adjectives = [
-  "Brisk", "Copper", "Clever", "Dusky", "Gentle", "Hidden", "Lucky", "Merry",
-  "Nimble", "Quiet", "Rapid", "Silver", "Slippery", "Sturdy", "Velvet", "Witty"
-];
-
-const nouns = [
-  "Anchor", "Banner", "Beacon", "Beetle", "Candle", "Comet", "Compass", "Ember",
-  "Lantern", "Maple", "Orbit", "Pebble", "Quill", "Riddle", "Signal", "Thimble"
-];
+const menuLogout = document.querySelector("#menuLogout");
+const openAdmin = document.querySelector("#openAdmin");
+const closeAdmin = document.querySelector("#closeAdmin");
+const adminModal = document.querySelector("#adminModal");
+const adminForm = document.querySelector("#adminForm");
+const adminNote = document.querySelector("#adminNote");
+const timezoneModal = document.querySelector("#timezoneModal");
+const timezoneForm = document.querySelector("#timezoneForm");
+const timezoneSelect = document.querySelector("#timezoneSelect");
+const closeTimezone = document.querySelector("#closeTimezone");
+const openTimezoneFromProfile = document.querySelector("#openTimezoneFromProfile");
 
 start();
 
 async function start() {
+  fillTimezoneSelect();
   await loadState();
   wireEvents();
 }
 
+function fillTimezoneSelect(selected = "") {
+  if (!timezoneSelect) return;
+  timezoneSelect.replaceChildren();
+  const blank = document.createElement("option");
+  blank.value = "";
+  blank.textContent = "Choose a time zone";
+  timezoneSelect.append(blank);
+  for (const zone of TIMEZONES) {
+    const option = document.createElement("option");
+    option.value = zone.id;
+    option.textContent = zone.label;
+    timezoneSelect.append(option);
+  }
+  if (selected && ![...timezoneSelect.options].some((option) => option.value === selected)) {
+    const extra = document.createElement("option");
+    extra.value = selected;
+    extra.textContent = timezoneLabel(selected);
+    timezoneSelect.append(extra);
+  }
+  timezoneSelect.value = selected;
+}
+
 async function loadState() {
-  const email = localStorage.getItem(sessionEmailKey) || "";
-  appState = await api(`/api/state${email ? `?email=${encodeURIComponent(email)}` : ""}`);
-  syncUi();
+  appState = await api(`/api/state${currentEmail ? `?email=${encodeURIComponent(currentEmail)}` : ""}`);
+  syncIdentity();
+  window.dispatchEvent(new CustomEvent("amba-auth", {
+    detail: {
+      email: currentEmail,
+      timezone: appState.user?.timezone || ""
+    }
+  }));
 }
 
 function wireEvents() {
-  timeList?.addEventListener("click", (event) => {
-    const button = event.target.closest("button[data-id]");
-    if (!button) return;
-    votes[button.dataset.id] = button.dataset.value;
-    renderTimes();
-  });
-
-  form?.addEventListener("submit", saveAvailability);
   feedbackForm?.addEventListener("submit", saveFeedback);
   identityForm?.addEventListener("submit", saveIdentity);
   loginForm?.addEventListener("submit", login);
-  adminTimeForm?.addEventListener("submit", addTime);
-
-  openSignup?.addEventListener("click", openSignupModal);
-  openSignupInline?.addEventListener("click", openSignupModal);
-  openLogin?.addEventListener("click", openLoginModal);
-  openLoginInline?.addEventListener("click", openLoginModal);
-  openProfileInline?.addEventListener("click", openProfileModal);
-  closeSignup?.addEventListener("click", closeSignupModal);
+  joinTest?.addEventListener("click", joinTheTest);
+  openAdmin?.addEventListener("click", () => adminModal?.showModal());
+  closeAdmin?.addEventListener("click", () => adminModal?.open && adminModal.close());
+  adminForm?.addEventListener("submit", adminLogin);
+  adminModal?.addEventListener("click", (event) => {
+    if (event.target === adminModal) adminModal.close();
+  });
   closeLogin?.addEventListener("click", closeLoginModal);
   closeProfile?.addEventListener("click", closeProfileModal);
-
-  signupModal?.addEventListener("click", (event) => {
-    if (event.target === signupModal) closeSignupModal();
+  window.addEventListener("amba-need-login", joinTheTest);
+  window.addEventListener("amba-need-timezone", () => {
+    if (!appState.user?.email) {
+      joinTheTest();
+      return;
+    }
+    openTimezoneModal();
   });
+  closeTimezone?.addEventListener("click", () => timezoneModal?.open && timezoneModal.close());
+  timezoneForm?.addEventListener("submit", saveTimezone);
+  timezoneModal?.addEventListener("click", (event) => {
+    if (event.target === timezoneModal) timezoneModal.close();
+  });
+  openTimezoneFromProfile?.addEventListener("click", () => {
+    closeProfileModal();
+    openTimezoneModal();
+  });
+
   loginModal?.addEventListener("click", (event) => {
     if (event.target === loginModal) closeLoginModal();
   });
@@ -108,20 +125,15 @@ function wireEvents() {
     if (event.target === profileModal) closeProfileModal();
   });
 
-  rerollHandle?.addEventListener("click", () => {
-    generatedHandle.value = createHandle();
-  });
-
-  profileLogin?.addEventListener("click", () => {
-    closeProfileModal();
-    openLoginModal();
-  });
-
   deleteAccount?.addEventListener("click", deleteProfile);
   accountButton?.addEventListener("click", toggleSettingsMenu);
   menuSettings?.addEventListener("click", () => {
     closeSettingsMenu();
-    openProfileModal();
+    openTimezoneModal();
+  });
+  menuTimezone?.addEventListener("click", () => {
+    closeSettingsMenu();
+    openTimezoneModal();
   });
   menuProfile?.addEventListener("click", () => {
     closeSettingsMenu();
@@ -129,146 +141,70 @@ function wireEvents() {
   });
   menuLogin?.addEventListener("click", () => {
     closeSettingsMenu();
-    openLoginModal();
+    joinTheTest();
   });
-  menuJoin?.addEventListener("click", () => {
+  menuLogout?.addEventListener("click", () => {
     closeSettingsMenu();
-    openSignupModal();
+    logout();
   });
   document.addEventListener("click", (event) => {
     if (!settingsMenu || settingsMenu.hidden) return;
     if (!event.target.closest(".account-menu")) closeSettingsMenu();
   });
-  exportCsv?.addEventListener("click", () => {
-    window.location.href = "/api/export/signups.csv";
-  });
-  copyRows?.addEventListener("click", copyRowsAsCsv);
 }
 
-function syncUi() {
-  renderTimes();
-  renderRows();
-  syncIdentity();
+async function adminLogin(event) {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(adminForm).entries());
+  try {
+    const result = await api("/api/admin/login", { method: "POST", body: data });
+    sessionStorage.setItem("ambaAdminToken", result.token);
+    window.location.href = "admin.html";
+  } catch {
+    if (adminNote) adminNote.textContent = "Wrong password.";
+  }
 }
 
-function renderTimes() {
-  if (!timeList) return;
-  const times = appState.session?.times || [];
-
-  if (!times.length) {
-    timeList.innerHTML = '<div class="empty-state">No proposed times yet. Add one below, or suggest a time with your availability.</div>';
+function joinTheTest() {
+  document.querySelector("#times")?.scrollIntoView({ behavior: "smooth" });
+  if (!appState.user?.email) {
+    openLoginModal();
     return;
   }
-
-  timeList.innerHTML = times.map((time) => {
-    const selected = votes[time.id] || "";
-    const counts = countVotes(time.title);
-    const worksCount = counts.works + (selected === "works" ? 1 : 0);
-    const maybeCount = counts.maybe + (selected === "maybe" ? 1 : 0);
-    const ready = worksCount >= (appState.session?.targetPlayers || 4) ? " - target met" : "";
-
-    return `
-      <article class="time-card">
-        <div>
-          <strong>${escapeHtml(time.title)}</strong>
-          <small>${worksCount} works / ${maybeCount} maybe${ready}<br>${escapeHtml(time.note || "")}</small>
-        </div>
-        <div class="time-actions" role="group" aria-label="Availability for ${escapeHtml(time.title)}">
-          <button class="choice ${selected === "works" ? "active" : ""}" data-id="${time.id}" data-value="works" type="button">Works</button>
-          <button class="choice ${selected === "maybe" ? "active" : ""}" data-id="${time.id}" data-value="maybe" type="button">Maybe</button>
-          <button class="choice ${selected === "no" ? "active" : ""}" data-id="${time.id}" data-value="no" type="button">No</button>
-        </div>
-      </article>
-    `;
-  }).join("");
-}
-
-function renderRows() {
-  if (!rowsBody) return;
-  const signups = appState.signups || [];
-  if (!signups.length) {
-    rowsBody.innerHTML = '<tr><td colspan="6">No signup rows yet.</td></tr>';
-    return;
-  }
-
-  rowsBody.innerHTML = signups.map((row) => `
-    <tr>
-      <td>${escapeHtml(row.handle || "Anonymous")}</td>
-      <td>${escapeHtml(row.discord || "")}</td>
-      <td>${escapeHtml(row.timezone || "")}</td>
-      <td>${escapeHtml(row.role || "")}</td>
-      <td>${escapeHtml(row.availability || "")}</td>
-      <td>${escapeHtml(row.suggestedTime || "")}</td>
-    </tr>
-  `).join("");
+  if (!appState.user.timezone) openTimezoneModal();
 }
 
 async function saveIdentity(event) {
   event.preventDefault();
+  if (!appState.user?.email) {
+    joinTheTest();
+    return;
+  }
   const data = Object.fromEntries(new FormData(identityForm).entries());
-  data.handle = normalizeHandle(data.handle || createHandle());
+  data.email = appState.user.email;
+  data.handle = appState.user.handle;
+  data.timezone = appState.user.timezone;
   const result = await api("/api/signup", { method: "POST", body: data });
   appState.user = result.user;
-  localStorage.setItem(sessionEmailKey, result.user.email);
-  closeSignupModal();
+  closeProfileModal();
   await loadState();
-  formNote.textContent = `Welcome, ${result.user.handle}. Everyone is an admin for now.`;
 }
 
 async function login(event) {
   event.preventDefault();
   const data = Object.fromEntries(new FormData(loginForm).entries());
-  try {
-    const result = await api("/api/login", { method: "POST", body: data });
-    appState.user = result.user;
-    localStorage.setItem(sessionEmailKey, result.user.email);
-    closeLoginModal();
-    await loadState();
-    formNote.textContent = `Welcome, ${result.user.handle}.`;
-  } catch {
-    loginNote.textContent = "No signup found for that email yet.";
-  }
+  const result = await api("/api/login", { method: "POST", body: data });
+  currentEmail = result.user.email;
+  closeLoginModal();
+  await loadState();
+  document.querySelector("#times")?.scrollIntoView({ behavior: "smooth" });
+  if (!appState.user?.timezone) openTimezoneModal();
 }
 
-async function addTime(event) {
-  event.preventDefault();
-  if (!requireUser()) return;
-  const data = Object.fromEntries(new FormData(adminTimeForm).entries());
-  await api("/api/times", { method: "POST", body: { ...data, email: appState.user.email } });
-  adminTimeForm.reset();
+async function logout() {
+  currentEmail = "";
+  appState.user = null;
   await loadState();
-  formNote.textContent = "Proposed time added.";
-}
-
-async function saveAvailability(event) {
-  event.preventDefault();
-  if (!requireUser()) return;
-
-  const data = Object.fromEntries(new FormData(form).entries());
-  const namedVotes = {};
-  for (const time of appState.session?.times || []) {
-    if (votes[time.id]) namedVotes[time.title] = votes[time.id];
-  }
-
-  const suggestedTitle = [data.suggestDate, data.suggestTime, data.suggestZone].filter(Boolean).join(" ");
-  const suggestedTime = suggestedTitle
-    ? { title: suggestedTitle, note: data.suggestNote || "" }
-    : null;
-
-  await api("/api/availability", {
-    method: "POST",
-    body: {
-      email: appState.user.email,
-      votes: namedVotes,
-      suggestedTime,
-      notes: data.notes || ""
-    }
-  });
-
-  form.reset();
-  Object.keys(votes).forEach((key) => delete votes[key]);
-  await loadState();
-  formNote.textContent = "Availability saved. Your email is hidden from the session sheet.";
 }
 
 async function saveFeedback(event) {
@@ -284,7 +220,6 @@ async function saveFeedback(event) {
     }
   });
   feedbackForm.reset();
-  await loadState();
   feedbackNote.textContent = "Suggestion saved.";
 }
 
@@ -295,62 +230,33 @@ async function deleteProfile() {
   }
 
   await api("/api/delete-account", { method: "POST", body: { email: appState.user.email } });
-  localStorage.removeItem(sessionEmailKey);
+  currentEmail = "";
   appState.user = null;
   closeProfileModal();
   await loadState();
-  formNote.textContent = "Account deleted.";
-}
-
-function requireUser() {
-  if (appState.user?.email) return true;
-  openSignupModal();
-  formNote.textContent = "Sign up or log in first.";
-  return false;
-}
-
-function countVotes(timeTitle) {
-  return (appState.signups || []).reduce((counts, signup) => {
-    if (signup.availability?.includes(`${timeTitle}: works`)) counts.works += 1;
-    if (signup.availability?.includes(`${timeTitle}: maybe`)) counts.maybe += 1;
-    return counts;
-  }, { works: 0, maybe: 0 });
 }
 
 function syncIdentity() {
   const user = appState.user;
-  if (currentHandle) currentHandle.textContent = user?.handle || "Not joined yet";
-  if (welcomeLine) welcomeLine.textContent = user
-    ? `Welcome, ${user.handle}. Role: ${user.role}.`
-    : "Sign up or log in with your email to recover your handle.";
   if (feedbackHandle && user?.handle) feedbackHandle.value = user.handle;
   if (profileHandle) profileHandle.textContent = user?.handle || "Not signed in";
   if (profileEmail) profileEmail.textContent = user?.email || "Not signed in";
-  if (profileRole) profileRole.textContent = user?.role || "Not signed in";
+  if (profileTimezone) profileTimezone.textContent = user?.timezone ? timezoneLabel(user.timezone) : "Not set";
   if (accountInitials) accountInitials.textContent = user?.handle ? initialsForHandle(user.handle) : "?";
   if (menuHandle) menuHandle.textContent = user?.handle ? `Welcome, ${user.handle}` : "Not signed in";
-  if (menuEmail) menuEmail.textContent = user?.email || "Sign up or log in";
-}
-
-function openSignupModal() {
-  if (!signupModal) return;
-  generatedHandle.value = appState.user?.handle || createHandle();
-  signupModal.hidden = false;
-  generatedHandle.focus();
-}
-
-function closeSignupModal() {
-  if (signupModal) signupModal.hidden = true;
+  if (menuEmail) menuEmail.textContent = user?.email || "Log in by email";
+  if (generatedHandle && user?.handle) generatedHandle.value = user.handle;
+  document.body.classList.toggle("is-logged-in", Boolean(user?.email));
 }
 
 function openLoginModal() {
   if (!loginModal) return;
-  loginModal.hidden = false;
+  loginModal.showModal();
   loginModal.querySelector("input")?.focus();
 }
 
 function closeLoginModal() {
-  if (loginModal) loginModal.hidden = true;
+  if (loginModal?.open) loginModal.close();
 }
 
 function openProfileModal() {
@@ -359,11 +265,47 @@ function openProfileModal() {
   if (profileNote) profileNote.textContent = appState.user
     ? "Delete account removes this user, their availability, and their feedback."
     : "Log in by email to view your profile.";
-  profileModal.hidden = false;
+  if (identityForm && appState.user) {
+    identityForm.discord.value = appState.user.discord || "";
+    if (appState.user.characterStatus) identityForm.characterStatus.value = appState.user.characterStatus;
+  }
+  profileModal.showModal();
 }
 
 function closeProfileModal() {
-  if (profileModal) profileModal.hidden = true;
+  if (profileModal?.open) profileModal.close();
+}
+
+function openTimezoneModal() {
+  if (!timezoneModal) return;
+  if (!appState.user?.email) {
+    openLoginModal();
+    return;
+  }
+  fillTimezoneSelect(appState.user.timezone || "");
+  timezoneModal.showModal();
+}
+
+async function saveTimezone(event) {
+  event.preventDefault();
+  if (!appState.user?.email) {
+    joinTheTest();
+    return;
+  }
+  const data = Object.fromEntries(new FormData(timezoneForm).entries());
+  const result = await api("/api/signup", {
+    method: "POST",
+    body: {
+      email: appState.user.email,
+      handle: appState.user.handle,
+      timezone: data.timezone,
+      discord: appState.user.discord,
+      characterStatus: appState.user.characterStatus
+    }
+  });
+  appState.user = result.user;
+  if (timezoneModal?.open) timezoneModal.close();
+  await loadState();
 }
 
 function toggleSettingsMenu() {
@@ -378,16 +320,6 @@ function closeSettingsMenu() {
   accountButton.setAttribute("aria-expanded", "false");
 }
 
-async function copyRowsAsCsv() {
-  const rows = appState.signups || [];
-  const fields = ["handle", "discord", "timezone", "role", "availability", "suggestedTime"];
-  const csv = [fields, ...rows.map((row) => fields.map((field) => row[field] || ""))]
-    .map((line) => line.map(csvCell).join(","))
-    .join("\n");
-  await navigator.clipboard.writeText(csv);
-  formNote.textContent = "Signup rows copied as CSV.";
-}
-
 async function api(url, options = {}) {
   const response = await fetch(url, {
     method: options.method || "GET",
@@ -398,28 +330,6 @@ async function api(url, options = {}) {
   return response.json();
 }
 
-function createHandle() {
-  const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
-  const noun = nouns[Math.floor(Math.random() * nouns.length)];
-  return `${adjective}-${noun}`;
-}
-
-function normalizeHandle(value) {
-  return String(value || "")
-    .trim()
-    .replace(/[^a-z0-9]+/gi, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-{2,}/g, "-")
-    .split("-")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join("-");
-}
-
-function csvCell(value = "") {
-  return `"${String(value).replaceAll('"', '""')}"`;
-}
-
 function initialsForHandle(handle) {
   const parts = String(handle || "")
     .split(/[^a-z0-9]+/i)
@@ -427,14 +337,4 @@ function initialsForHandle(handle) {
   if (!parts.length) return "?";
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-}
-
-function escapeHtml(value) {
-  return String(value || "").replace(/[&<>"']/g, (char) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#039;"
-  }[char]));
 }

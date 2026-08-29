@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Owlbear Guide | AMBA Workflow Test</title>
+  <title>Owlbear | AMBA Workflow Test</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -12,62 +12,47 @@
     <nav aria-label="Main navigation">
       <a href="index.html">Signup</a>
       <a href="session.html">Session</a>
-      <a href="amba-wg.html">AMBA/WG</a>
+      <a href="amba.html">AMBA</a>
+      <a href="wg.html">WG</a>
       <a href="owlbear.html">Owlbear</a>
       <a href="feedback.html">Feedback</a>
     </nav>
   </header>
   <main>
     <section class="page-hero">
-      <p class="eyebrow">Guide</p>
-      <h1>Owlbear Room Instructions</h1>
-      <p class="lede">Players can join by room invite link. They only need an Owlbear account if they want to upload or use their own images.</p>
+      <p class="eyebrow">Owlbear Rodeo</p>
+      <h1>Share a room link, then put tokens on one scene</h1>
+      <p class="lede">Owlbear is the battle map. The GM owns the room. Players open a URL, ask to join, and wait to be admitted. They do not need an Owlbear account unless they want to upload their own token image.</p>
     </section>
 
-    <section class="grid two">
-      <article class="card">
-        <h2>GM setup</h2>
-        <ol>
-          <li>Create or open your Owlbear Rodeo room.</li>
-          <li>Prepare a simple scene for the sample encounter.</li>
-          <li>Use the Invite Players action or copy the room URL.</li>
-          <li>Share the room link in Discord.</li>
-          <li>Admit players when they request to join.</li>
-          <li>Import or place PC tokens, monster tokens, and encounter references after the AMBA/WG export step.</li>
-        </ol>
-      </article>
-      <article class="card">
-        <h2>Player join steps</h2>
-        <ol>
-          <li>Open the Owlbear room link from the GM.</li>
-          <li>Enter the waiting room and request to join.</li>
-          <li>Wait for the GM to admit you.</li>
-          <li>Use the scene only as directed during the workflow test.</li>
-          <li>Create a free Owlbear account only if you need to bring your own uploaded token image.</li>
-        </ol>
-      </article>
-    </section>
+    <section class="doc">
+      <p>Official product: <a href="https://owlbear.rodeo/">owlbear.rodeo</a>. Short GM walkthrough: <a href="https://docs.owlbear.rodeo/docs/getting-started/">Getting Started</a>. How rooms and invites work: <a href="https://docs.owlbear.rodeo/docs/rooms/">Rooms</a>. There is also a <a href="https://www.youtube.com/watch?v=Rgrn-B5HsK0">first-session video</a> if someone wants to see the UI before call night.</p>
 
-    <section class="band">
-      <div class="section-head">
-        <p class="eyebrow">What we test</p>
-        <h2>Scene and token flow</h2>
-      </div>
-      <div class="checklist">
-        <label><input type="checkbox"> Room link works for all players</label>
-        <label><input type="checkbox"> GM can admit everyone</label>
-        <label><input type="checkbox"> PC tokens appear or can be placed</label>
-        <label><input type="checkbox"> Monster tokens import or can be staged</label>
-        <label><input type="checkbox"> Monster stat blocks from WG are usable alongside the scene</label>
-        <label><input type="checkbox"> Player permissions feel right for movement and interaction</label>
-      </div>
-    </section>
+      <h2>GM: room, scene, invite</h2>
+      <p>Create a free GM account and a room from the profile page (<a href="https://docs.owlbear.rodeo/docs/getting-started/">Creating a Room</a>). Add one simple scene so you are not building a dungeon on the call. Copy the room URL from the address bar, or use Invite Players, and paste that link in Discord. When a join request pops up, admit the person. After <a href="amba.html">AMBA</a> export and <a href="wg.html">WG</a> join, place PC tokens and monster tokens on that scene. If export does not drop tokens for you, drag starter characters from the dock so the table still has something to move.</p>
+      <aside class="example">
+        <h3>Example</h3>
+        <p>GM creates room “AMBA workflow”, adds the basic Road map from a starter set, and posts <code>https://owlbear.rodeo/room/…</code> in Discord. Four join requests appear; GM admits each. They drop four PC tokens and two goblins, label one goblin “Goblin 1”, and ask Merry-Anchor to move only their token. If a player can delete the map, that is a permissions finding, not a reason to restart the room.</p>
+      </aside>
 
-    <section class="note">
-      <h2>Account expectation</h2>
-      <p>For this test, players should not need Owlbear accounts unless they want to upload their own image assets. The GM account owns the room, invites players by link, and admits join requests.</p>
+      <h2>Player: link, waiting room, no account required</h2>
+      <p>Open the GM’s room link in a browser. Set a display name (your test handle is fine). Ask to join and wait. Owlbear allows <a href="https://docs.owlbear.rodeo/docs/rooms/">anonymous players</a>: you can use tools that do not need saved assets. Create an account only if you must upload a custom token. Once admitted, move only what the GM said is yours. Keep WG on another window if you are checking stat blocks. You do not need AMBA as a player.</p>
+      <aside class="example">
+        <h3>Example</h3>
+        <p>Player opens the Discord link, types “Merry-Anchor”, clicks ask to join, and waits until the scene appears. They drag their scout token one square and stop. They do not need Google/Apple login for that. If they brought a PNG of the scout, they sign in first so the image can live on their account, then ask the GM how to add it to the scene.</p>
+      </aside>
+
+      <h2>What this test is actually checking</h2>
+      <p>Does the invite link work for everyone? Can the GM admit people without a room password? Do PC and monster tokens exist after export, or only after hand placement? Can players move their tokens without editing the GM’s map? Stat blocks may stay in <a href="wg.html">WG</a> beside the scene. If the two tools disagree, write both observations on <a href="feedback.html">feedback</a>.</p>
+
+      <nav class="related">
+        <a href="https://owlbear.rodeo/">Open Owlbear Rodeo</a>
+        <a href="https://docs.owlbear.rodeo/docs/getting-started/">Getting Started (account, room, scene, invite)</a>
+        <a href="https://docs.owlbear.rodeo/docs/rooms/">Rooms (invite URL, waiting room, anonymous users)</a>
+        <a href="wg.html">Wander’s Guide UI</a>
+      </nav>
     </section>
   </main>
-  <footer><p>Reference: <a href="https://docs.owlbear.rodeo/docs/rooms/">Owlbear Rooms documentation</a> and <a href="https://docs.owlbear.rodeo/docs/getting-started/">Getting Started guide</a>.</p></footer>
+  <footer><p>Docs: <a href="https://docs.owlbear.rodeo/docs/rooms/">Owlbear Rooms</a> · <a href="https://docs.owlbear.rodeo/docs/getting-started/">Getting Started</a></p></footer>
 </body>
 </html>

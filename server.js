@@ -1,11 +1,16 @@
 const http = require("node:http");
 const fs = require("node:fs/promises");
+const fsSync = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
+
+loadEnv();
 
 const root = __dirname;
 const dataDir = path.join(root, "data");
 const port = Number(process.env.PORT || 3000);
+const adminPassword = String(process.env.ADMIN_PASSWORD || "");
+const adminTokens = new Set();
 const currentSessionId = "amba-workflow-test-1";
 
 const jsonFiles = {
@@ -72,11 +77,7 @@ async function handleApi(req, res) {
 
   if (req.method === "POST" && url.pathname === "/api/login") {
     const body = await readBody(req);
-    const user = await findUserByEmail(body.email);
-    if (!user) {
-      sendJson(res, 404, { error: "not_found" });
-      return;
-    }
+    const user = await upsertUser({ email: body.email });
     sendJson(res, 200, { user: publicUser(user) });
     return;
   }
@@ -95,6 +96,13 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "POST" && url.pathname === "/api/slot") {
+    const body = await readBody(req);
+    const signup = await saveSlot(body);
+    sendJson(res, 200, { signup: publicSignup(signup) });
+    return;
+  }
+
   if (req.method === "POST" && url.pathname === "/api/availability") {
     const body = await readBody(req);
     const signup = await saveAvailability(body);
@@ -106,6 +114,37 @@ async function handleApi(req, res) {
     const body = await readBody(req);
     const item = await saveFeedback(body);
     sendJson(res, 200, { feedback: publicFeedback(item) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/admin/login") {
+    const body = await readBody(req);
+    if (!adminPassword || !passwordsMatch(body.password, adminPassword)) {
+      sendJson(res, 401, { error: "unauthorized" });
+      return;
+    }
+    const token = crypto.randomUUID();
+    adminTokens.add(token);
+    sendJson(res, 200, { token });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/admin/yes-emails") {
+    if (!requireAdmin(req, res)) return;
+    sendJson(res, 200, { emails: await yesEmails() });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/admin/delete-email") {
+    if (!requireAdmin(req, res)) return;
+    const body = await readBody(req);
+    const email = normalizeEmail(body.email);
+    if (!email) {
+      sendJson(res, 400, { error: "email_required" });
+      return;
+    }
+    await deleteAccount(email);
+    sendJson(res, 200, { ok: true, emails: await yesEmails() });
     return;
   }
 
@@ -152,9 +191,19 @@ async function getState(email) {
   const feedback = await readJson("feedback");
   const user = email ? await findUserByEmail(email) : null;
   const session = sessions.find((item) => item.id === currentSessionId);
+  const times = (session?.times || []).map((time) => ({
+    ...time,
+    participants: signups
+      .filter((signup) => signup.votes?.[time.id])
+      .map((signup) => ({
+        handle: signup.handle,
+        status: signup.votes[time.id] === "in" ? "" : signup.votes[time.id],
+        mine: Boolean(user && signup.email === user.email)
+      }))
+  }));
 
   return {
-    session,
+    session: session ? { ...session, times } : null,
     user: user ? publicUser(user) : null,
     signups: signups.map(publicSignup),
     feedback: feedback.map(publicFeedback)
@@ -167,7 +216,7 @@ async function upsertUser(data) {
 
   const users = await readJson("users");
   const existing = users.find((user) => user.email === email);
-  const handle = normalizeHandle(data.handle) || createHandle(users);
+  const handle = normalizeHandle(data.handle) || existing?.handle || createHandle(users);
 
   if (existing) {
     existing.handle = handle;
@@ -214,12 +263,20 @@ async function deleteAccount(email) {
 async function addTime(data) {
   const sessions = await readJson("sessions");
   const session = sessions.find((item) => item.id === currentSessionId);
-  const title = String(data.title || "").trim();
-  if (!title) throw new Error("Time title is required.");
+  const date = String(data.date || "").trim();
+  const clock = String(data.time || "").trim();
+  const lengthMinutes = Number(data.lengthMinutes || data.length || 0);
+  const timezone = String(data.timezone || "Pacific").trim() || "Pacific";
+  const title = String(data.title || "").trim() || [date, clock, timezone, lengthMinutes ? `${lengthMinutes} min` : ""].filter(Boolean).join(" ");
+  if (!title) throw new Error("Date, time, and session length are required.");
 
   const time = {
     id: crypto.randomUUID(),
     title,
+    date,
+    time: clock,
+    timezone,
+    lengthMinutes: lengthMinutes || null,
     note: String(data.note || "").trim(),
     createdBy: normalizeEmail(data.email),
     createdAt: new Date().toISOString()
@@ -228,6 +285,42 @@ async function addTime(data) {
   session.times.push(time);
   await writeJson("sessions", sessions);
   return time;
+}
+
+async function saveSlot(data) {
+  const user = await findUserByEmail(data.email);
+  if (!user) throw new Error("User is required.");
+
+  const timeId = String(data.timeId || "").trim();
+  if (!timeId) throw new Error("Time is required.");
+
+  const signups = await readJson("signups");
+  const existing = signups.find((item) => item.email === user.email);
+  const record = existing || {
+    id: crypto.randomUUID(),
+    email: user.email,
+    createdAt: new Date().toISOString()
+  };
+
+  record.handle = user.handle;
+  record.discord = user.discord;
+  record.timezone = user.timezone;
+  record.role = user.role;
+  record.characterStatus = user.characterStatus;
+  record.votes = { ...(record.votes || {}) };
+  record.updatedAt = new Date().toISOString();
+
+  if (data.status === "leave") {
+    delete record.votes[timeId];
+  } else if (data.status === "yes" || data.status === "maybe" || data.status === "no") {
+    record.votes[timeId] = data.status;
+  } else {
+    record.votes[timeId] = record.votes[timeId] || "in";
+  }
+
+  if (!existing) signups.push(record);
+  await writeJson("signups", signups);
+  return record;
 }
 
 async function saveAvailability(data) {
@@ -251,7 +344,7 @@ async function saveAvailability(data) {
   record.timezone = user.timezone;
   record.role = user.role;
   record.characterStatus = user.characterStatus;
-  record.votes = data.votes || {};
+  record.votes = { ...(record.votes || {}), ...(data.votes || {}) };
   record.suggestedTime = data.suggestedTime || null;
   record.notes = String(data.notes || "").trim();
   record.updatedAt = new Date().toISOString();
@@ -313,6 +406,15 @@ function publicFeedback(item) {
   };
 }
 
+function requireAdmin(req, res) {
+  const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+  if (!adminTokens.has(token)) {
+    sendJson(res, 401, { error: "unauthorized" });
+    return false;
+  }
+  return true;
+}
+
 function sendJson(res, status, value) {
   res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
   res.end(JSON.stringify(value));
@@ -342,6 +444,50 @@ function createHandle(users) {
 
 function pick(items) {
   return items[crypto.randomInt(0, items.length)];
+}
+
+function loadEnv() {
+  const envPath = path.join(__dirname, ".env");
+  if (!fsSync.existsSync(envPath)) return;
+  for (const line of fsSync.readFileSync(envPath, "utf8").split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if (
+      (value.startsWith("\"") && value.endsWith("\"")) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (process.env[key] === undefined) process.env[key] = value;
+  }
+}
+
+function passwordsMatch(given, expected) {
+  const left = Buffer.from(String(given || ""));
+  const right = Buffer.from(String(expected || ""));
+  if (left.length !== right.length) return false;
+  return crypto.timingSafeEqual(left, right);
+}
+
+async function yesEmails() {
+  const signups = await readJson("signups");
+  const seen = new Set();
+  const emails = [];
+  for (const signup of signups) {
+    const saidYes = Object.values(signup.votes || {}).includes("yes");
+    if (!saidYes || seen.has(signup.email)) continue;
+    seen.add(signup.email);
+    emails.push({
+      email: signup.email,
+      handle: signup.handle || ""
+    });
+  }
+  emails.sort((a, b) => a.handle.localeCompare(b.handle) || a.email.localeCompare(b.email));
+  return emails;
 }
 
 function normalizeEmail(value) {

@@ -35,9 +35,10 @@ a {
   top: 0;
   z-index: 10;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
+  gap: 16px 24px;
   padding: 18px clamp(18px, 4vw, 56px);
   background: rgba(255, 253, 248, 0.92);
   border-bottom: 1px solid var(--line);
@@ -62,8 +63,13 @@ nav a {
   color: var(--muted);
 }
 
-nav a:hover {
+nav a:hover,
+nav a[aria-current="page"] {
   color: var(--ink);
+}
+
+nav a[aria-current="page"] {
+  font-weight: 800;
 }
 
 .header-actions {
@@ -160,10 +166,28 @@ main {
   margin: 0 auto;
 }
 
+main:has(.doc) .page-hero,
+.doc,
+main:has(.doc) ~ footer {
+  width: min(760px, calc(100% - 48px));
+}
+
+main:has(.doc) h1,
+main:has(.doc) .lede {
+  max-width: none;
+}
+
 .hero {
-  min-height: 520px;
-  padding: 62px 0 50px;
-  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: start;
+  gap: 0;
+  padding: 36px 0 16px;
+  align-content: start;
+}
+
+.hero .button {
+  margin-top: 18px;
 }
 
 .split {
@@ -251,8 +275,13 @@ h3 {
   color: #fff;
 }
 
+.identity-strip .label,
+.identity-strip strong,
+.identity-strip #welcomeLine {
+  grid-column: 1;
+}
+
 .identity-strip .label {
-  display: block;
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 800;
@@ -261,7 +290,7 @@ h3 {
 
 .band,
 .note {
-  padding: 58px 0;
+  padding: 28px 0 58px;
   border-top: 1px solid rgba(222, 215, 201, 0.86);
 }
 
@@ -356,11 +385,11 @@ li + li {
 }
 
 .identity-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  gap: 8px 12px;
   align-items: center;
-  justify-content: space-between;
+  margin-top: 24px;
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -372,16 +401,17 @@ li + li {
   font-size: 1.05rem;
 }
 
-.identity-strip span:not(.label) {
-  display: block;
+.identity-strip #welcomeLine {
   color: var(--muted);
   font-size: 0.92rem;
 }
 
-.mini-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+body:not(.is-logged-in) #logoutInline {
+  display: none;
+}
+
+body.is-logged-in #openLoginInline {
+  display: none;
 }
 
 .form-grid,
@@ -436,28 +466,137 @@ fieldset {
 
 .time-card {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) auto;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  gap: 8px 12px;
   align-items: center;
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: linear-gradient(135deg, rgba(232, 241, 238, 0.86), rgba(255, 255, 255, 0.9));
+  cursor: pointer;
 }
 
-.time-card strong {
-  display: block;
+.time-card.joined {
+  cursor: default;
+}
+
+.time-card > strong {
+  grid-column: 1;
+  grid-row: 1;
   font-size: 1rem;
 }
 
-.time-card small {
+.time-card > small {
+  grid-column: 1;
+  grid-row: 2;
   color: var(--muted);
 }
 
-.time-actions {
+.people-count {
+  grid-column: 4;
+  grid-row: 1 / span 2;
+  display: grid;
+  grid-auto-flow: column;
+  gap: 6px;
+  align-items: center;
+  justify-self: end;
+  align-self: start;
+  margin: 0;
+  color: var(--accent-strong);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.hero-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.time-card > .attendee {
+  grid-row: 3;
+}
+
+.time-card > .choice {
+  grid-row: 4;
+  justify-self: start;
+}
+
+.attendee {
+  justify-self: start;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.attendee.mine {
+  cursor: pointer;
+  border-color: var(--accent);
+}
+
+.add-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+  margin: 18px 0 12px;
+}
+
+.scheduler {
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid rgba(31, 79, 67, 0.14);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 12px 34px rgba(28, 36, 48, 0.06);
+}
+
+#scheduler {
+  min-height: 480px;
+}
+
+.scheduler-grid {
+  height: 420px;
+  width: 100%;
+  --ag-row-height: 72px;
+  --ag-header-height: 48px;
+  --ag-cell-horizontal-padding: 16px;
+}
+
+.scheduler-grid .ag-cell {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  align-items: center;
+  line-height: 1.3;
+}
+
+.vote-cell {
+  display: grid;
+  grid-auto-flow: column;
+  gap: 6px;
+  justify-content: start;
+  align-items: center;
+  height: 100%;
+  cursor: pointer;
+}
+
+.grid-avatar {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.grid-avatar.mine {
+  outline: 2px solid var(--gold);
 }
 
 .choice {
@@ -480,14 +619,77 @@ fieldset {
   font-size: 0.92rem;
 }
 
-.form-actions,
-.spreadsheet-head {
-  display: flex;
-  flex-wrap: wrap;
+.form-actions {
+  display: grid;
+  grid-auto-flow: column;
   gap: 12px;
+  justify-content: start;
   align-items: center;
-  justify-content: space-between;
-  margin-top: 18px;
+}
+
+.form-actions .button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+pre {
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  overflow-x: auto;
+}
+
+.email-list {
+  margin: 0 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.email-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.8fr) minmax(12rem, 1.4fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.email-row:last-child {
+  border-bottom: 0;
+}
+
+.email-head {
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--sky);
+}
+
+.email-row .button {
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  justify-self: end;
+}
+
+.admin-gate {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.admin-gate:hover {
+  color: var(--ink);
 }
 
 .spreadsheet {
@@ -532,6 +734,10 @@ th {
 
 .page-hero {
   padding: 68px 0 44px;
+}
+
+main:has(.doc) .page-hero {
+  padding: 52px 0 20px;
 }
 
 .timeline {
@@ -592,6 +798,60 @@ th {
 .checklist input {
   width: auto;
   margin: 0;
+}
+
+.doc {
+  display: flex;
+  flex-direction: column;
+  width: min(760px, calc(100% - 48px));
+  margin: 0 auto 52px;
+}
+
+.doc > p:first-child {
+  color: var(--muted);
+}
+
+.doc h2 {
+  margin: 28px 0 8px;
+}
+
+.doc p {
+  margin: 0;
+  color: var(--ink);
+}
+
+.doc .example {
+  margin-top: 12px;
+}
+
+.doc code {
+  font-size: 0.92em;
+}
+
+.example {
+  display: grid;
+  gap: 10px;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--gold);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.example p {
+  color: var(--muted);
+}
+
+.related {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  padding: 22px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.related a {
+  font-weight: 750;
 }
 
 footer {
@@ -703,7 +963,7 @@ footer {
   width: min(1120px, calc(100% - 36px));
   margin: 0 auto 58px;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -723,7 +983,6 @@ footer {
 }
 
 @media (max-width: 860px) {
-  .site-header,
   .split,
   .section-head,
   .three,
@@ -734,20 +993,25 @@ footer {
   .timeline article,
   .checklist,
   .time-card,
+  .add-row,
+  .identity-strip,
   .handle-row,
   .security-roadmap,
   .guide-links {
     grid-template-columns: 1fr;
   }
 
-  .site-header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .header-actions {
-    width: 100%;
-    justify-content: space-between;
+  .identity-strip .label,
+  .identity-strip strong,
+  .identity-strip #welcomeLine,
+  .time-card > strong,
+  .time-card > small,
+  .people-count,
+  .time-card > .attendee,
+  .time-card > .choice {
+    grid-column: 1;
+    grid-row: auto;
+    justify-self: start;
   }
 
   .settings-menu {
@@ -755,8 +1019,7 @@ footer {
   }
 
   .hero {
-    min-height: auto;
-    padding-top: 48px;
+    padding-top: 28px;
   }
 
   h1 {

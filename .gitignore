@@ -1,1 +1,3 @@
 .git-safeconfig
+.env
+node_modules/

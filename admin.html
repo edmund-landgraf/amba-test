@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Yes emails | AMBA Workflow Test</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="index.html">AMBA Workflow Test</a>
+    <nav aria-label="Main navigation">
+      <a href="index.html">Signup</a>
+      <a href="session.html">Session</a>
+      <a href="amba.html">AMBA</a>
+      <a href="wg.html">WG</a>
+      <a href="owlbear.html">Owlbear</a>
+      <a href="feedback.html">Feedback</a>
+    </nav>
+  </header>
+  <main>
+    <section class="page-hero">
+      <p class="eyebrow">Admin</p>
+      <h1>Emails that said yes</h1>
+      <p class="lede">Copy this list to send mail yourself. The mail.amba.unwhelm.online button is not live yet.</p>
+    </section>
+    <section class="doc">
+      <p id="yesStatus">Loading…</p>
+      <div class="email-list" id="yesList"></div>
+      <p class="form-actions">
+        <button class="button primary" id="copyAll" type="button">Copy all</button>
+        <button class="button secondary" id="mailVia" type="button" disabled>Mail via mail.amba.unwhelm.online</button>
+      </p>
+      <p class="form-note" id="copyNote"></p>
+    </section>
+  </main>
+  <footer><p><a href="index.html">Back to signup</a></p></footer>
+  <script>
+    const token = sessionStorage.getItem("ambaAdminToken") || "";
+    const yesList = document.querySelector("#yesList");
+    const yesStatus = document.querySelector("#yesStatus");
+    const copyNote = document.querySelector("#copyNote");
+    let people = [];
+
+    async function load() {
+      const response = await fetch("/api/admin/yes-emails", {
+        headers: { authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        window.location.href = "index.html";
+        return;
+      }
+      const data = await response.json();
+      render(data.emails || []);
+    }
+
+    function render(nextPeople) {
+      people = nextPeople;
+      yesStatus.textContent = people.length ? `${people.length} yes` : "No yes emails yet.";
+      yesList.replaceChildren();
+      if (!people.length) return;
+
+      const header = document.createElement("div");
+      header.className = "email-row email-head";
+      header.innerHTML = "<span>Handle</span><span>Email</span><span></span>";
+      yesList.append(header);
+
+      for (const person of people) {
+        const row = document.createElement("div");
+        row.className = "email-row";
+        const handle = document.createElement("span");
+        handle.textContent = person.handle || "—";
+        const email = document.createElement("span");
+        email.textContent = person.email;
+        const remove = document.createElement("button");
+        remove.className = "button danger";
+        remove.type = "button";
+        remove.textContent = "Delete";
+        remove.addEventListener("click", () => deleteEmail(person));
+        row.append(handle, email, remove);
+        yesList.append(row);
+      }
+    }
+
+    async function deleteEmail(person) {
+      if (!confirm(`Delete ${person.email} from this site?`)) return;
+      const response = await fetch("/api/admin/delete-email", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({ email: person.email })
+      });
+      if (!response.ok) {
+        copyNote.textContent = "Could not delete that email.";
+        return;
+      }
+      const data = await response.json();
+      render(data.emails || []);
+      copyNote.textContent = `Deleted ${person.email}.`;
+    }
+
+    document.querySelector("#copyAll").addEventListener("click", async () => {
+      await navigator.clipboard.writeText(people.map((person) => person.email).join("; "));
+      copyNote.textContent = "Copied as a mail list (semicolon-separated).";
+    });
+
+    load();
+  </script>
+</body>
+</html>

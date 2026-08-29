@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Session Guide | AMBA Workflow Test</title>
+  <title>Session | AMBA Workflow Test</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -12,54 +12,48 @@
     <nav aria-label="Main navigation">
       <a href="index.html">Signup</a>
       <a href="session.html">Session</a>
-      <a href="amba-wg.html">AMBA/WG</a>
+      <a href="amba.html">AMBA</a>
+      <a href="wg.html">WG</a>
       <a href="owlbear.html">Owlbear</a>
       <a href="feedback.html">Feedback</a>
     </nav>
   </header>
   <main>
     <section class="page-hero">
-      <p class="eyebrow">Guide</p>
-      <h1>First Remote Session</h1>
-      <p class="lede">The goal is to test the toolchain together, not to run a real adventure yet.</p>
+      <p class="eyebrow">Session</p>
+      <h1>One call, four tools, no live campaign</h1>
+      <p class="lede">Pick a time on <a href="index.html">signup</a>, then run this order. Each step has its own page. Stop when the procedure is proven or broken. Do not start a real adventure.</p>
     </section>
 
-    <section class="note">
-      <h2>Community and access</h2>
-      <p>This first round is intended for trusted communities. The site does not store AMBA, WG, Owlbear, or Discord credentials. Signups use anonymous handles in the shared session view, and the only private signup detail to protect is the user's email address.</p>
-    </section>
+    <section class="doc">
+      <p>This round is for a trusted group. This site never stores AMBA, WG, Owlbear, Discord passwords, or the GM API key. The shared time grid shows handles, not emails.</p>
 
-    <section class="timeline">
-      <article>
-        <span>1</span>
-        <h2>Gather in Discord</h2>
-        <p>Everyone joins voice/chat. The GM starts screen sharing the AMBA GM view so the group can watch what appears from the campaign side.</p>
-      </article>
-      <article>
-        <span>2</span>
-        <h2>Create or select characters</h2>
-        <p>Players use their own accounts to create or choose one test character. The GM does not collect API keys, passwords, or account access.</p>
-      </article>
-      <article>
-        <span>3</span>
-        <h2>Join the AMBA campaign</h2>
-        <p>The GM shares the AMBA join key. Players join the campaign with their character, and the group confirms what becomes visible to the GM.</p>
-      </article>
-      <article>
-        <span>4</span>
-        <h2>Pick a sample encounter</h2>
-        <p>The group chooses a small set of monsters together, watches AMBA prepare/export encounter data, and notes anything confusing.</p>
-      </article>
-      <article>
-        <span>5</span>
-        <h2>Export and test</h2>
-        <p>Export to WG and Owlbear where supported. Run one short combat test and one DC challenge using WG UI.</p>
-      </article>
-      <article>
-        <span>6</span>
-        <h2>Capture next steps</h2>
-        <p>End by listing what worked, what broke, and whether this should become one longer session or two shorter sessions next time.</p>
-      </article>
+      <h2>1. Discord</h2>
+      <p>Everyone joins the same voice channel. The GM screen-shares AMBA and keeps that share. Players have WG open on their own machines. Then Owlbear when that step starts.</p>
+
+      <h2>2. GM campaign in AMBA, players in WG</h2>
+      <p>The GM creates the campaign in <a href="amba.html">AMBA</a> and connects with the API key there. They do not log into WG. Players follow <a href="wg.html">AMBA WG</a>: own login at <a href="https://wgui.wandersguide.site/">WGUI</a>, one test character, join key from Discord (not the API key). Confirm each player’s WG view matches what the GM expected from AMBA.</p>
+      <aside class="example">
+        <h3>Example</h3>
+        <p>Four handles are on the call. GM stays in AMBA. Each player says their character name from WG. If one name never appears, they retry once with their own WG account, then we note it and continue with three. Nobody shares the API key.</p>
+      </aside>
+
+      <h2>3. Sample encounter</h2>
+      <p>Pick a small monster set in AMBA. Fire one attack and one DC from AMBA; players resolve what they can see in WG. Talk out loud about who can click what.</p>
+
+      <h2>4. Owlbear scene</h2>
+      <p>GM sends the room URL from <a href="owlbear.html">Owlbear</a>. Players ask to join and wait. Place tokens. Move one PC token. If export did not bring monsters over, place two by hand so the permission test still happens.</p>
+
+      <h2>5. Write it down</h2>
+      <p>End on <a href="feedback.html">feedback</a> with what worked, what blocked, and whether the next run should be one longer call or two shorter ones.</p>
+
+      <nav class="related">
+        <a href="index.html">Choose a time</a>
+        <a href="amba.html">AMBA</a>
+        <a href="wg.html">WG</a>
+        <a href="owlbear.html">Owlbear</a>
+        <a href="feedback.html">Feedback</a>
+      </nav>
     </section>
   </main>
   <footer><p><a href="index.html">Back to signup</a></p></footer>

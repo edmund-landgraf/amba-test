@@ -1,1 +1,24 @@
-[]
+[
+  {
+    "id": "890de159-4506-4314-83ab-ee8e5b7d228f",
+    "email": "edmund.landgraf@gmail.com",
+    "handle": "Slippery-Signal",
+    "discord": "",
+    "timezone": "",
+    "characterStatus": "",
+    "role": "admin",
+    "createdAt": "2026-08-29T14:45:36.300Z",
+    "updatedAt": "2026-08-29T15:19:48.141Z"
+  },
+  {
+    "id": "1f9753fd-ed2e-4dc9-9000-993a8e994437",
+    "email": "joe@joe.com",
+    "handle": "Velvet-Compass",
+    "discord": "",
+    "timezone": "",
+    "characterStatus": "",
+    "role": "admin",
+    "createdAt": "2026-08-29T15:04:22.769Z",
+    "updatedAt": "2026-08-29T15:04:33.697Z"
+  }
+]

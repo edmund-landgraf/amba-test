@@ -5,6 +5,29 @@
     "targetPlayers": 4,
     "format": "Remote",
     "scope": "Workflow test",
-    "times": []
+    "times": [
+      {
+        "id": "0aa9ae5e-a99b-40eb-9fac-bc49435b4fd2",
+        "title": "2026-08-29 07:50 120 min",
+        "date": "2026-08-29",
+        "time": "07:50",
+        "lengthMinutes": 120,
+        "timezone": "Pacific",
+        "note": "",
+        "createdBy": "edmund.landgraf@gmail.com",
+        "createdAt": "2026-08-29T14:48:17.094Z"
+      },
+      {
+        "id": "1add7c14-ed4b-4791-875f-b3fe24ba7dba",
+        "title": "2026-08-26 19:00 120 min",
+        "date": "2026-08-26",
+        "time": "19:00",
+        "lengthMinutes": 120,
+        "timezone": "Pacific",
+        "note": "",
+        "createdBy": "edmund.landgraf@gmail.com",
+        "createdAt": "2026-08-29T14:51:16.307Z"
+      }
+    ]
   }
 ]
