@@ -78,8 +78,8 @@ main {
 }
 
 .hero {
-  min-height: 620px;
-  padding: 82px 0 60px;
+  min-height: 500px;
+  padding: 58px 0 48px;
   align-items: center;
 }
 
@@ -106,10 +106,10 @@ p {
 }
 
 h1 {
-  max-width: 860px;
+  max-width: 680px;
   margin: 0;
-  font-size: clamp(3rem, 8vw, 6.9rem);
-  line-height: 0.95;
+  font-size: clamp(2.25rem, 5vw, 4.1rem);
+  line-height: 1.02;
   letter-spacing: 0;
 }
 
@@ -125,10 +125,10 @@ h3 {
 }
 
 .lede {
-  max-width: 720px;
+  max-width: 640px;
   margin: 22px 0 0;
   color: var(--muted);
-  font-size: 1.2rem;
+  font-size: 1.08rem;
 }
 
 .actions {
