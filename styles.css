@@ -139,6 +139,7 @@ h3 {
 }
 
 .button {
+  appearance: none;
   display: inline-flex;
   min-height: 46px;
   align-items: center;
@@ -243,11 +244,41 @@ li + li {
   background: var(--panel);
 }
 
+.identity-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--sky);
+}
+
+.identity-strip .label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.identity-strip strong {
+  display: block;
+  font-size: 1.35rem;
+}
+
 .form-grid,
 .suggest {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
+}
+
+.compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 18px;
 }
 
 label,
@@ -449,6 +480,57 @@ footer {
   border-top: 1px solid var(--line);
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(28, 36, 48, 0.48);
+}
+
+.modal-backdrop[hidden] {
+  display: none;
+}
+
+.modal {
+  position: relative;
+  width: min(720px, 100%);
+  max-height: min(760px, calc(100vh - 40px));
+  overflow: auto;
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 28px 80px rgba(28, 36, 48, 0.24);
+}
+
+.modal-copy {
+  color: var(--muted);
+}
+
+.modal-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.handle-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
 @media (max-width: 860px) {
   .site-header,
   .split,
@@ -456,10 +538,12 @@ footer {
   .three,
   .two,
   .form-grid,
+  .compact,
   .suggest,
   .timeline article,
   .checklist,
-  .time-card {
+  .time-card,
+  .handle-row {
     grid-template-columns: 1fr;
   }
 
