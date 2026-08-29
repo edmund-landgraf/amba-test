@@ -42,7 +42,6 @@ const profileNote = document.querySelector("#profileNote");
 const deleteAccount = document.querySelector("#deleteAccount");
 const profileLogin = document.querySelector("#profileLogin");
 const adminTimeForm = document.querySelector("#adminTimeForm");
-const sessionCount = document.querySelector("#sessionCount");
 const accountButton = document.querySelector("#accountButton");
 const accountInitials = document.querySelector("#accountInitials");
 const settingsMenu = document.querySelector("#settingsMenu");
@@ -320,7 +319,6 @@ function countVotes(timeTitle) {
 
 function syncIdentity() {
   const user = appState.user;
-  if (sessionCount) sessionCount.textContent = `${appState.signups?.length || 0} / ${appState.session?.targetPlayers || 4}`;
   if (currentHandle) currentHandle.textContent = user?.handle || "Not joined yet";
   if (welcomeLine) welcomeLine.textContent = user
     ? `Welcome, ${user.handle}. Role: ${user.role}.`
