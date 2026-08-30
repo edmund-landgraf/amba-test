@@ -2,6 +2,7 @@
   const page = location.pathname.split("/").filter(Boolean).pop() || "index.html";
   const links = [
     ["index.html", "Signup"],
+    ["videos.html", "Videos"],
     ["session.html", "Session"],
     ["discord.html", "Discord"],
     ["amba.html", "AMBA"],
