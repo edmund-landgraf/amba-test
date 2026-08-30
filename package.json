@@ -5,7 +5,8 @@
   "scripts": {
     "start": "node server.js",
     "build": "vite build",
-    "dev": "vite build --watch"
+    "dev": "vite build --watch",
+    "clear-schedule": "node scripts/clear-schedule.js"
   },
   "engines": {
     "node": ">=18"

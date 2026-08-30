@@ -20,9 +20,7 @@
     "timezone": "",
     "role": "admin",
     "characterStatus": "",
-    "votes": {
-      "0aa9ae5e-a99b-40eb-9fac-bc49435b4fd2": "yes"
-    },
+    "votes": {},
     "updatedAt": "2026-08-29T15:04:35.410Z"
   }
 ]
