@@ -3,6 +3,7 @@ const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
+const zlib = require("node:zlib");
 
 loadEnv();
 
@@ -12,6 +13,7 @@ const port = Number(process.env.PORT || 3000);
 const adminPassword = String(process.env.ADMIN_PASSWORD || "");
 const adminTokens = new Set();
 const currentSessionId = "amba-workflow-test-1";
+const discordGuildId = "1534196054944121074";
 
 const jsonFiles = {
   users: path.join(dataDir, "users.json"),
@@ -19,6 +21,11 @@ const jsonFiles = {
   signups: path.join(dataDir, "signups.json"),
   feedback: path.join(dataDir, "feedback.json")
 };
+
+const JSON_BODY_MAX = 1024 * 1024;
+const WG_EXPORT_MAX_TOTAL = 50 * 1024 * 1024;
+const WG_EXPORT_DIR = path.join(dataDir, "wg-exports");
+const WG_EXPORT_INDEX = path.join(dataDir, "wg-exports-index.json");
 
 const mime = {
   ".html": "text/html; charset=utf-8",
@@ -28,7 +35,8 @@ const mime = {
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg"
+  ".jpeg": "image/jpeg",
+  ".zip": "application/zip"
 };
 
 const adjectives = [
@@ -50,6 +58,23 @@ const server = http.createServer(async (req, res) => {
 
     await serveStatic(req, res);
   } catch (error) {
+    const code = error.message;
+    if (code === "payload_too_large" || code === "quota") {
+      sendJson(res, 413, { error: code, detail: "File upload space is full." });
+      return;
+    }
+    if (code === "login_required") {
+      sendJson(res, 401, { error: code });
+      return;
+    }
+    if (code === "forbidden") {
+      sendJson(res, 403, { error: code });
+      return;
+    }
+    if (code === "bad_filename" || code === "invalid_json") {
+      sendJson(res, 400, { error: code });
+      return;
+    }
     sendJson(res, 500, { error: "server_error", detail: error.message });
   }
 });
@@ -61,10 +86,66 @@ server.listen(port, () => {
 async function handleApi(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
+  if (req.method === "GET" && url.pathname === "/api/discord-widget") {
+    sendJson(res, 200, await discordWidgetStatus());
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/api/state") {
     const email = normalizeEmail(url.searchParams.get("email"));
     const state = await getState(email);
     sendJson(res, 200, state);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/wg-exports") {
+    const email = normalizeEmail(url.searchParams.get("email"));
+    if (!await findUserByEmail(email)) {
+      sendJson(res, 401, { error: "login_required" });
+      return;
+    }
+    sendJson(res, 200, await listWgExports(email));
+    return;
+  }
+
+  if (req.method === "DELETE" && url.pathname === "/api/wg-exports/file") {
+    const result = await deleteWgExport({
+      email: url.searchParams.get("email"),
+      name: url.searchParams.get("name")
+    });
+    sendJson(res, 200, result);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/wg-exports/file") {
+    const email = normalizeEmail(url.searchParams.get("email"));
+    if (!await findUserByEmail(email)) {
+      sendJson(res, 401, { error: "login_required" });
+      return;
+    }
+    const name = safeExportName(url.searchParams.get("name"));
+    if (!name) {
+      sendJson(res, 400, { error: "bad_filename" });
+      return;
+    }
+    const filePath = path.join(WG_EXPORT_DIR, name);
+    try {
+      const file = await fs.readFile(filePath);
+      res.writeHead(200, {
+        "content-type": "application/zip",
+        "content-disposition": `attachment; filename="${name}"`
+      });
+      res.end(file);
+    } catch {
+      sendJson(res, 404, { error: "not_found" });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/wg-exports") {
+    const body = await readBody(req, WG_EXPORT_MAX_TOTAL + 64 * 1024);
+    const result = await saveWgExport(body);
+    sendJson(res, 200, result);
     return;
   }
 
@@ -182,6 +263,16 @@ async function serveStatic(req, res) {
   } catch {
     res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
     res.end("Not found");
+  }
+}
+
+async function discordWidgetStatus() {
+  try {
+    const response = await fetch(`https://discord.com/api/guilds/${discordGuildId}/widget.json`);
+    if (response.ok) return { enabled: true };
+    return { enabled: false };
+  } catch {
+    return { enabled: false };
   }
 }
 
@@ -420,10 +511,243 @@ function sendJson(res, status, value) {
   res.end(JSON.stringify(value));
 }
 
-async function readBody(req) {
-  let raw = "";
-  for await (const chunk of req) raw += chunk;
+async function readBody(req, maxBytes = JSON_BODY_MAX) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > maxBytes) {
+      req.destroy();
+      throw new Error("payload_too_large");
+    }
+    chunks.push(chunk);
+  }
+  const raw = Buffer.concat(chunks).toString("utf8");
   return raw ? JSON.parse(raw) : {};
+}
+
+function safeJsonExportName(name) {
+  const base = path.basename(String(name || "")).trim();
+  if (!/^[A-Za-z0-9._-]+\.json$/i.test(base) || base.length > 120) return "";
+  return base;
+}
+
+function safeZipExportName(name) {
+  const base = path.basename(String(name || "")).trim();
+  if (!/^[A-Za-z0-9._-]+\.zip$/i.test(base) || base.length > 120) return "";
+  return base;
+}
+
+function safeExportName(name) {
+  return safeZipExportName(name);
+}
+
+function zipNameForJson(jsonName) {
+  const json = safeJsonExportName(jsonName);
+  if (!json) return "";
+  return `${json.slice(0, -5)}.zip`;
+}
+
+const CRC32_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let i = 0; i < 256; i += 1) {
+    let crc = i;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = crc & 1 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1;
+    }
+    table[i] = crc >>> 0;
+  }
+  return table;
+})();
+
+function crc32(buffer) {
+  let crc = 0xffffffff;
+  for (let i = 0; i < buffer.length; i += 1) {
+    crc = CRC32_TABLE[(crc ^ buffer[i]) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function zipOneFile(entryName, data) {
+  const uncompressed = Buffer.isBuffer(data) ? data : Buffer.from(data, "utf8");
+  const compressed = zlib.deflateRawSync(uncompressed, { level: 9 });
+  const name = Buffer.from(entryName, "utf8");
+  const crc = crc32(uncompressed);
+  const local = Buffer.alloc(30);
+  local.writeUInt32LE(0x04034b50, 0);
+  local.writeUInt16LE(20, 4);
+  local.writeUInt16LE(0, 6);
+  local.writeUInt16LE(8, 8);
+  local.writeUInt16LE(0, 10);
+  local.writeUInt16LE(0, 12);
+  local.writeUInt32LE(crc, 14);
+  local.writeUInt32LE(compressed.length, 18);
+  local.writeUInt32LE(uncompressed.length, 22);
+  local.writeUInt16LE(name.length, 26);
+  local.writeUInt16LE(0, 28);
+  const central = Buffer.alloc(46);
+  central.writeUInt32LE(0x02014b50, 0);
+  central.writeUInt16LE(20, 4);
+  central.writeUInt16LE(20, 6);
+  central.writeUInt16LE(0, 8);
+  central.writeUInt16LE(8, 10);
+  central.writeUInt16LE(0, 12);
+  central.writeUInt16LE(0, 14);
+  central.writeUInt32LE(crc, 16);
+  central.writeUInt32LE(compressed.length, 20);
+  central.writeUInt32LE(uncompressed.length, 24);
+  central.writeUInt16LE(name.length, 28);
+  central.writeUInt16LE(0, 30);
+  central.writeUInt16LE(0, 32);
+  central.writeUInt16LE(0, 34);
+  central.writeUInt16LE(0, 36);
+  central.writeUInt32LE(0, 38);
+  central.writeUInt32LE(0, 42);
+  const eocd = Buffer.alloc(22);
+  const cdOffset = local.length + name.length + compressed.length;
+  const cdSize = central.length + name.length;
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(0, 4);
+  eocd.writeUInt16LE(0, 6);
+  eocd.writeUInt16LE(1, 8);
+  eocd.writeUInt16LE(1, 10);
+  eocd.writeUInt32LE(cdSize, 12);
+  eocd.writeUInt32LE(cdOffset, 16);
+  eocd.writeUInt16LE(0, 20);
+  return Buffer.concat([local, name, compressed, central, name, eocd]);
+}
+
+async function fileSizeOrZero(filePath) {
+  try {
+    return (await fs.stat(filePath)).size;
+  } catch {
+    return 0;
+  }
+}
+
+async function compressLeftoverJsonExports() {
+  await fs.mkdir(WG_EXPORT_DIR, { recursive: true });
+  const names = await fs.readdir(WG_EXPORT_DIR);
+  const index = await readExportIndex();
+  let changed = false;
+  for (const name of names) {
+    const jsonName = safeJsonExportName(name);
+    if (!jsonName) continue;
+    const zipName = zipNameForJson(jsonName);
+    const jsonPath = path.join(WG_EXPORT_DIR, jsonName);
+    const zipPath = path.join(WG_EXPORT_DIR, zipName);
+    const raw = await fs.readFile(jsonPath);
+    await fs.writeFile(zipPath, zipOneFile(jsonName, raw));
+    await fs.unlink(jsonPath);
+    if (index[jsonName]) {
+      index[zipName] = index[jsonName];
+      delete index[jsonName];
+      changed = true;
+    }
+  }
+  if (changed) await writeExportIndex(index);
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+async function readExportIndex() {
+  try {
+    return JSON.parse(await fs.readFile(WG_EXPORT_INDEX, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+async function writeExportIndex(value) {
+  await fs.writeFile(WG_EXPORT_INDEX, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+async function listWgExports(viewerEmail = "") {
+  await compressLeftoverJsonExports();
+  await fs.mkdir(WG_EXPORT_DIR, { recursive: true });
+  const index = await readExportIndex();
+  const viewer = normalizeEmail(viewerEmail);
+  const names = await fs.readdir(WG_EXPORT_DIR);
+  const files = [];
+  let usedBytes = 0;
+  for (const name of names) {
+    const safe = safeZipExportName(name);
+    if (!safe) continue;
+    const st = await fs.stat(path.join(WG_EXPORT_DIR, name));
+    usedBytes += st.size;
+    files.push({
+      name: safe,
+      size: st.size,
+      handle: index[safe]?.handle || "",
+      mine: Boolean(viewer && normalizeEmail(index[safe]?.email) === viewer),
+      updatedAt: index[safe]?.updatedAt || st.mtime.toISOString()
+    });
+  }
+  files.sort((a, b) => a.name.localeCompare(b.name));
+  return {
+    files,
+    usedBytes,
+    capBytes: WG_EXPORT_MAX_TOTAL,
+    usedLabel: formatBytes(usedBytes),
+    capLabel: "50 MB"
+  };
+}
+
+async function saveWgExport(data) {
+  const user = await findUserByEmail(data.email);
+  if (!user) throw new Error("login_required");
+  const jsonName = safeJsonExportName(data.filename);
+  const zipName = zipNameForJson(jsonName);
+  if (!jsonName || !zipName) throw new Error("bad_filename");
+  const content = String(data.content || "");
+  try {
+    JSON.parse(content);
+  } catch {
+    throw new Error("invalid_json");
+  }
+  const archive = zipOneFile(jsonName, content);
+  await compressLeftoverJsonExports();
+  await fs.mkdir(WG_EXPORT_DIR, { recursive: true });
+  const dest = path.join(WG_EXPORT_DIR, zipName);
+  const previous = await fileSizeOrZero(dest);
+  const listed = await listWgExports();
+  if (listed.usedBytes - previous + archive.length > WG_EXPORT_MAX_TOTAL) {
+    throw new Error("quota");
+  }
+  await fs.writeFile(dest, archive);
+  const index = await readExportIndex();
+  delete index[jsonName];
+  index[zipName] = {
+    handle: user.handle,
+    email: user.email,
+    updatedAt: new Date().toISOString()
+  };
+  await writeExportIndex(index);
+  return listWgExports(user.email);
+}
+
+async function deleteWgExport(data) {
+  const user = await findUserByEmail(data.email);
+  if (!user) throw new Error("login_required");
+  const zipName = safeZipExportName(data.name);
+  if (!zipName) throw new Error("bad_filename");
+  const index = await readExportIndex();
+  const record = index[zipName];
+  if (!record || normalizeEmail(record.email) !== user.email) {
+    throw new Error("forbidden");
+  }
+  try {
+    await fs.unlink(path.join(WG_EXPORT_DIR, zipName));
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  delete index[zipName];
+  await writeExportIndex(index);
+  return listWgExports(user.email);
 }
 
 async function readJson(name) {

@@ -7,48 +7,79 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="site-header">
-    <a class="brand" href="index.html">AMBA Workflow Test</a>
-    <nav aria-label="Main navigation">
-      <a href="index.html">Signup</a>
-      <a href="session.html">Session</a>
-      <a href="amba.html">AMBA</a>
-      <a href="wg.html">WG</a>
-      <a href="owlbear.html">Owlbear</a>
-      <a href="feedback.html">Feedback</a>
-    </nav>
-  </header>
   <main>
     <section class="page-hero">
       <p class="eyebrow">Session</p>
-      <h1>One call, four tools, no live campaign</h1>
+      <h1>One call, four tools, no live table</h1>
       <p class="lede">Pick a time on <a href="index.html">signup</a>, then run this order. Each step has its own page. Stop when the procedure is proven or broken. Do not start a real adventure.</p>
     </section>
 
     <section class="doc">
-      <p>This round is for a trusted group. This site never stores AMBA, WG, Owlbear, Discord passwords, or the GM API key. The shared time grid shows handles, not emails.</p>
+      <p>This round is for a trusted group that already plays PF2e (or close) with mixed tools—Pathbuilder plus Foundry, or Pathbuilder plus a Discord dice bot, or HeroLab plus a VTT. You do not need a new playstyle. We are swapping which window does which job. This site never stores AMBA, WG, Owlbear, Discord passwords, or the GM API key. The shared time grid shows handles, not emails.</p>
+      <p>Map it to a table you already run: <strong>Wanderer’s Guide</strong> is Pathbuilder (build the PC, export JSON). The <strong>new WG UI in combat</strong> is the live sheet and tracker—what you click in Foundry’s character sheet / combat tracker, not the map. <strong>AMBA</strong> is the GM’s module notes (the PDF, the Foundry journal, the stuff players never edit). <strong>Owlbear</strong> is the battle map only (Foundry canvas, Roll20 scene). Discord is still voice. In AMBA the GM builds a <em>module</em> or <em>adventure</em>; after export that is a <em>campaign</em> in WG—same table, two names. Old and new WG UI share one stack, so a join key works in either builder; combat on the call is new UI only.</p>
 
-      <h2>1. Discord</h2>
-      <p>Everyone joins the same voice channel. The GM screen-shares AMBA and keeps that share. Players have WG open on their own machines. Then Owlbear when that step starts.</p>
-
-      <h2>2. GM campaign in AMBA, players in WG</h2>
-      <p>The GM creates the campaign in <a href="amba.html">AMBA</a> and connects with the API key there. They do not log into WG. Players follow <a href="wg.html">AMBA WG</a>: own login at <a href="https://wgui.wandersguide.site/">WGUI</a>, one test character, join key from Discord (not the API key). Confirm each player’s WG view matches what the GM expected from AMBA.</p>
+      <h2>1. Log into AMBA WG, make two public characters, export both</h2>
+      <p>Before the call: sign in on AMBA’s WG clone. Build in <strong>old UI or new UI</strong> (try both if you can)—same job as Pathbuilder, two apps on one stack. Make <strong>two</strong> test characters that differ a bit, and turn on <strong>Public Character</strong> on each (like a shareable Pathbuilder link, not a private draft). Where that switch lives is on the <a href="wg.html">WG</a> page. Export each as WG JSON and drop both files on <a href="upload.html">Uploads</a>. Four people × two files is <strong>eight</strong> characters. Combat on the call uses <strong>new UI only</strong>.</p>
       <aside class="example">
         <h3>Example</h3>
-        <p>Four handles are on the call. GM stays in AMBA. Each player says their character name from WG. If one name never appears, they retry once with their own WG account, then we note it and continue with three. Nobody shares the API key.</p>
+        <p>Merry-Anchor makes a public scout and a public cleric, exports both, drops <code>scout.json</code> and <code>cleric.json</code> on Upload. We pick four of the eight when we first meet on Discord. The GM then downloads those four from the Upload file list and imports them as module PCs.</p>
       </aside>
 
-      <h2>3. Sample encounter</h2>
-      <p>Pick a small monster set in AMBA. Fire one attack and one DC from AMBA; players resolve what they can see in WG. Talk out loud about who can click what.</p>
+      <h2>2. Discord</h2>
+      <p>Everyone joins the same voice channel. Open the <a href="discord.html">Discord</a> page for the server widget, text channel, and voice toggle. When we first meet, pick <strong>four of the eight</strong> to play. Keep AMBA, Owlbear, and WGUI closed until the steps below call for them. The GM will screen-share; players watch unless a step says they click.</p>
 
-      <h2>4. Owlbear scene</h2>
-      <p>GM sends the room URL from <a href="owlbear.html">Owlbear</a>. Players ask to join and wait. Place tokens. Move one PC token. If export did not bring monsters over, place two by hand so the permission test still happens.</p>
+      <h2>3. Empty AMBA module first, then JSON import the four PCs</h2>
+      <p><strong>You cannot import PCs until there is an empty module (or adventure) container.</strong> The GM screen-shares <a href="amba.html">AMBA</a>, signs in, and creates a blank module or adventure—a stub with a name and nothing in it yet. Only after that stub exists does the GM download the <strong>four chosen JSON files</strong> from <a href="upload.html">Uploads</a> and import them as module PCs. Do not Create campaign, do not design acts, and do not export yet. Link WG later if the export step needs it.</p>
+      <aside class="example">
+        <h3>Example</h3>
+        <p>On Discord we pick scout, fighter, bard, kineticist. GM shares AMBA, creates module “workflow-test” with no content, then downloads those four files from Upload and JSON-imports them as four PCs. If import is greyed out, the stub is missing—make the empty module first, then import again.</p>
+      </aside>
 
-      <h2>5. Write it down</h2>
+      <h2>4. Owlbear: extensions, connect, PC tokens only</h2>
+      <p>Switch to <a href="owlbear.html">Owlbear</a>. The GM screen-shares, loads the AMBA-related extensions, connects that room to the stub module, and runs <strong>import PCs and character sheets</strong>. Nothing else yet: no Watabou map, no monsters, no second export. Players join the room, take <strong>ownership of their own token</strong>, and practice moving it on the scene.</p>
+      <aside class="example">
+        <h3>Example</h3>
+        <p>GM shares Owlbear, enables the extensions, connects to “workflow-test”, imports the four PCs. Merry-Anchor claims the scout token and walks it two squares. Nobody places goblins yet.</p>
+      </aside>
+
+      <h2>5. Back to AMBA: first act, scene, encounter</h2>
+      <p>Screen-share AMBA again. Together, make the first <strong>act</strong>, then a <strong>scene</strong>, then an <strong>encounter</strong>. Optional: players who want to follow along can use an AMBA account plus <strong>module sharing</strong> (Shared, not their own copy). Screen-share still works if they skip that.</p>
+
+      <h2>6. Player syndication link (player-only packet)</h2>
+      <p>Players do not log into AMBA. They get a <strong>player-only syndication link</strong> for the module or adventure—read-only HTML, no account. In AMBA Settings, under <strong>Player version</strong>, create the player version, then <strong>Copy player link</strong> into Discord. Open <strong>Manage publish tree</strong> and leave only the <strong>initial nodes</strong> checked (overview, gazetteer, no-spoiler handouts, Act 1 intro—not later scenes, GM packets, or spoilers). Players bookmark that URL. As the table hits checkpoints later in this run, the GM returns to the publish tree, checks the newly reached nodes, saves, and players <strong>refresh the bookmark</strong>. Unchecked nodes stay GM-only. This is not the full-tree or partial public syndicate; it is the player channel the GM exposes as they go.</p>
+      <aside class="example">
+        <h3>Example</h3>
+        <p>GM copies the player link and pins it. First save: gazetteer, no-spoiler labyrinth handout, Act 1 overview, the bridge sketch, and the witness account. After Watabou and export, GM checks the encounter map. After combat, GM checks the next scene. Players refresh; they never see DM Handout packets or unreached scenes.</p>
+      </aside>
+
+      <h2>7. Discord: Watabou map, then monsters, then export</h2>
+      <p>On Discord, pick a map with <a href="https://watabou.github.io/">Watabou</a>. Then in AMBA make some <strong>monster blocks</strong> and pick creatures for the encounter. With a map and creatures in place, the GM <strong>exports to both WG and Owlbear</strong>. After that export, share the <em>WG join key</em> in Discord if players need to join the campaign in the <strong>new</strong> WGUI. Never share the API key. Checkpoint: if the new map or encounter should be on the player packet, check those nodes on the <strong>publish tree</strong> and save; players refresh the syndication bookmark.</p>
+      <aside class="example">
+        <h3>Example</h3>
+        <p>We pick a one-page dungeon from Watabou in Discord. GM adds two goblin blocks and puts them on the encounter. Export to WG and Owlbear. Pin the join key. Players paste it in WGUI and check the Party bench later—not the GM’s Characters list.</p>
+      </aside>
+
+      <h2>8. Sample combat</h2>
+      <p>Together we make a <strong>medium XP</strong> encounter. Export that encounter to <a href="wg.html">WG</a> and import it from <a href="owlbear.html">Owlbear</a>. PCs leave the <strong>Party bench</strong> and join the encounter. Every enemy and ally should be represented. Combat starts with <strong>initiative</strong> in the new WGUI tracker. Talk out loud about who can click what. Checkpoint: reveal the combat map or aftermath nodes on the player publish tree if those belong on the packet.</p>
+      <aside class="example">
+        <h3>Example</h3>
+        <p>We set a medium XP budget, export, import on Owlbear. The four PCs leave the bench onto the map. Four heroes and the chosen creatures all show. Initiative rolls; the fighter acts first in WGUI while the scout token moves on Owlbear.</p>
+      </aside>
+
+      <h2>9. Sample skill check</h2>
+      <p>Use the <strong>new skill-check challenge screens</strong> and an encounter that contains challenges. Put <strong>one trap</strong> and <strong>one social</strong> challenge in the <strong>same</strong> encounter. Run both on the call so we see whether the new screens and the mixed encounter hold up. Checkpoint: publish player-safe challenge or handout nodes after they resolve; leave GM notes and unreached scenes unchecked.</p>
+      <aside class="example">
+        <h3>Example</h3>
+        <p>Same scene: a hidden snare (trap) and a tense doorway talk (social). We open the challenge screens, resolve the trap, then the social check, without splitting into two encounters.</p>
+      </aside>
+
+      <h2>10. Write it down</h2>
       <p>End on <a href="feedback.html">feedback</a> with what worked, what blocked, and whether the next run should be one longer call or two shorter ones.</p>
 
       <nav class="related">
         <a href="index.html">Choose a time</a>
+        <a href="discord.html">Discord</a>
+        <a href="upload.html">Uploads</a>
         <a href="amba.html">AMBA</a>
         <a href="wg.html">WG</a>
         <a href="owlbear.html">Owlbear</a>
@@ -57,5 +88,8 @@
     </section>
   </main>
   <footer><p><a href="index.html">Back to signup</a></p></footer>
+
+  <script src="header.js"></script>
+  <script type="module" src="site.js"></script>
 </body>
 </html>

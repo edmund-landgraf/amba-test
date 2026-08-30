@@ -7,17 +7,6 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="site-header">
-    <a class="brand" href="index.html">AMBA Workflow Test</a>
-    <nav aria-label="Main navigation">
-      <a href="index.html">Signup</a>
-      <a href="session.html">Session</a>
-      <a href="amba.html">AMBA</a>
-      <a href="wg.html">WG</a>
-      <a href="owlbear.html">Owlbear</a>
-      <a href="feedback.html">Feedback</a>
-    </nav>
-  </header>
   <main>
     <section class="page-hero">
       <p class="eyebrow">Admin</p>
@@ -35,6 +24,8 @@
     </section>
   </main>
   <footer><p><a href="index.html">Back to signup</a></p></footer>
+  <script src="header.js"></script>
+  <script type="module" src="site.js"></script>
   <script>
     const token = sessionStorage.getItem("ambaAdminToken") || "";
     const yesList = document.querySelector("#yesList");

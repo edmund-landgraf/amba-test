@@ -5,13 +5,11 @@
     "createdAt": "2026-08-29T14:48:21.414Z",
     "handle": "Slippery-Signal",
     "discord": "",
-    "timezone": "",
+    "timezone": "Pacific",
     "role": "admin",
     "characterStatus": "",
-    "votes": {
-      "0aa9ae5e-a99b-40eb-9fac-bc49435b4fd2": "yes"
-    },
-    "updatedAt": "2026-08-29T15:19:56.318Z"
+    "votes": {},
+    "updatedAt": "2026-08-29T21:24:24.481Z"
   },
   {
     "id": "45ac0efc-448c-4ada-bc74-671665390294",

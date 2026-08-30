@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Upload | AMBA Workflow Test</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main>
+    <section class="page-hero">
+      <p class="eyebrow">WG JSON</p>
+      <h1>Upload character exports</h1>
+      <p class="lede">Log in here first. Then export each test PC as Wanderer's Guide JSON and drop the files on this page. We zip each file and keep only the archive. Same name replaces. Use × to delete a file you uploaded.</p>
+    </section>
+
+    <section class="doc login-required-panel">
+      <p>This page is only for people signed in on this site. Use the avatar menu, or the button below. We do not take AMBA, WG, Owlbear, Discord, or API-key passwords.</p>
+      <p><button class="button primary" id="openUploadLogin" type="button">Log in</button></p>
+    </section>
+
+    <section class="doc logged-in-only">
+      <h2>How to export WG JSON</h2>
+      <p>Build two public test characters first. Old UI: <a href="https://amba.wandersguide.site/">amba.wandersguide.site</a>. New UI: <a href="https://wgui.wandersguide.site/">wgui.wandersguide.site</a>. Same WG account on both. Turn on <strong>Public Character</strong> (Home → Options) before you export. Details are on the <a href="wg.html">WG</a> page.</p>
+      <ul>
+        <li><strong>Old UI:</strong> Open <strong>Characters</strong>. On that PC’s card, open the options menu (the menu with Create Copy). Choose <strong>Export to JSON</strong>. Save the <code>.json</code> file.</li>
+        <li><strong>New UI:</strong> Open the character sheet. Open the <strong>Character</strong> menu. Choose <strong>Export JSON</strong>. Save the <code>.json</code> file.</li>
+      </ul>
+      <p>Export each of your two PCs. Do not upload a Pathbuilder file, a PDF, or the GM API key.</p>
+
+      <h2>Drop files here</h2>
+      <p>Two JSON files per person. We store a zip of each one. You can delete your own files with ×. The GM later downloads four of the eight from this list after we pick on Discord, then unzips to import.</p>
+      <div class="drop-band">
+        <label class="dropzone" id="wgDrop">
+          <input id="wgDropInput" type="file" accept="application/json,.json" multiple hidden>
+          <span>Drop WG JSON here, or click to choose. We zip it and throw out the original. Same name replaces.</span>
+        </label>
+        <p class="form-note" id="wgDropNote"></p>
+        <ul class="file-list" id="wgFileList"></ul>
+      </div>
+      <aside class="example">
+        <h3>Example</h3>
+        <p>Merry-Anchor exports <code>scout.json</code> from old UI and <code>cleric.json</code> from new UI, then drops both here. The list keeps <code>scout.zip</code> and <code>cleric.zip</code>.</p>
+      </aside>
+
+      <nav class="related">
+        <a href="wg.html">WG</a>
+        <a href="session.html">Session</a>
+      </nav>
+    </section>
+  </main>
+  <footer><p><a href="index.html">Back to signup</a></p></footer>
+
+  <script src="header.js"></script>
+  <script type="module" src="site.js"></script>
+</body>
+</html>

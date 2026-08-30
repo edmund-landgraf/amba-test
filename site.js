@@ -7,7 +7,7 @@ let appState = {
   feedback: []
 };
 
-let currentEmail = "";
+let currentEmail = sessionStorage.getItem("ambaEmail") || "";
 
 const feedbackForm = document.querySelector("#feedbackForm");
 const feedbackNote = document.querySelector("#feedbackNote");
@@ -52,6 +52,8 @@ async function start() {
   fillTimezoneSelect();
   await loadState();
   wireEvents();
+  wireDiscordVoiceToggles();
+  await setupDiscordWidget();
 }
 
 function fillTimezoneSelect(selected = "") {
@@ -79,6 +81,7 @@ function fillTimezoneSelect(selected = "") {
 async function loadState() {
   appState = await api(`/api/state${currentEmail ? `?email=${encodeURIComponent(currentEmail)}` : ""}`);
   syncIdentity();
+  await refreshWgExports();
   window.dispatchEvent(new CustomEvent("amba-auth", {
     detail: {
       email: currentEmail,
@@ -151,6 +154,10 @@ function wireEvents() {
     if (!settingsMenu || settingsMenu.hidden) return;
     if (!event.target.closest(".account-menu")) closeSettingsMenu();
   });
+  document.querySelector("#openUploadLogin")?.addEventListener("click", () => {
+    openLoginModal();
+  });
+  wireWgDrop();
 }
 
 async function adminLogin(event) {
@@ -195,6 +202,7 @@ async function login(event) {
   const data = Object.fromEntries(new FormData(loginForm).entries());
   const result = await api("/api/login", { method: "POST", body: data });
   currentEmail = result.user.email;
+  sessionStorage.setItem("ambaEmail", currentEmail);
   closeLoginModal();
   await loadState();
   document.querySelector("#times")?.scrollIntoView({ behavior: "smooth" });
@@ -203,6 +211,7 @@ async function login(event) {
 
 async function logout() {
   currentEmail = "";
+  sessionStorage.removeItem("ambaEmail");
   appState.user = null;
   await loadState();
 }
@@ -231,6 +240,7 @@ async function deleteProfile() {
 
   await api("/api/delete-account", { method: "POST", body: { email: appState.user.email } });
   currentEmail = "";
+  sessionStorage.removeItem("ambaEmail");
   appState.user = null;
   closeProfileModal();
   await loadState();
@@ -337,4 +347,180 @@ function initialsForHandle(handle) {
   if (!parts.length) return "?";
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+}
+
+function wireWgDrop() {
+  const drop = document.querySelector("#wgDrop");
+  const input = document.querySelector("#wgDropInput");
+  if (!drop || !input) return;
+  drop.addEventListener("click", (event) => {
+    if (!appState.user?.email) {
+      event.preventDefault();
+      joinTheTest();
+    }
+  });
+  input.addEventListener("change", () => {
+    uploadWgFiles(input.files);
+    input.value = "";
+  });
+  drop.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    drop.classList.add("is-over");
+  });
+  drop.addEventListener("dragleave", () => drop.classList.remove("is-over"));
+  drop.addEventListener("drop", (event) => {
+    event.preventDefault();
+    drop.classList.remove("is-over");
+    if (!appState.user?.email) {
+      joinTheTest();
+      return;
+    }
+    uploadWgFiles(event.dataTransfer.files);
+  });
+}
+
+async function uploadWgFiles(fileList) {
+  const note = document.querySelector("#wgDropNote");
+  if (!appState.user?.email) {
+    joinTheTest();
+    return;
+  }
+  const files = [...fileList || []].filter((file) => /\.json$/i.test(file.name));
+  if (!files.length) {
+    if (note) note.textContent = "JSON files only.";
+    return;
+  }
+  try {
+    let listing = null;
+    for (const file of files) {
+      const content = await file.text();
+      listing = await api("/api/wg-exports", {
+        method: "POST",
+        body: {
+          email: appState.user.email,
+          filename: file.name,
+          content
+        }
+      });
+    }
+    renderWgExports(listing);
+    if (note) note.textContent = `Saved. ${listing.usedLabel} of ${listing.capLabel} used.`;
+  } catch (error) {
+    if (note) {
+      note.textContent = String(error.message || "").includes("413")
+        ? "File upload space is full."
+        : "Could not save that file.";
+    }
+  }
+}
+
+async function refreshWgExports() {
+  const list = document.querySelector("#wgFileList");
+  if (!list) return;
+  if (!appState.user?.email) {
+    list.replaceChildren();
+    const note = document.querySelector("#wgDropNote");
+    if (note) note.textContent = "";
+    return;
+  }
+  try {
+    const listing = await api(`/api/wg-exports?email=${encodeURIComponent(appState.user.email)}`);
+    renderWgExports(listing);
+  } catch {
+    list.replaceChildren();
+  }
+}
+
+function renderWgExports(listing) {
+  const list = document.querySelector("#wgFileList");
+  const note = document.querySelector("#wgDropNote");
+  if (!list || !listing) return;
+  list.replaceChildren();
+  for (const file of listing.files || []) {
+    const item = document.createElement("li");
+    const link = document.createElement("a");
+    link.href = `/api/wg-exports/file?name=${encodeURIComponent(file.name)}&email=${encodeURIComponent(appState.user.email)}`;
+    link.textContent = file.name;
+    const meta = document.createElement("span");
+    meta.textContent = [file.handle, formatLocalBytes(file.size)].filter(Boolean).join(" · ");
+    item.append(link, meta);
+    if (file.mine) {
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "file-remove";
+      remove.setAttribute("aria-label", `Delete ${file.name}`);
+      remove.textContent = "×";
+      remove.addEventListener("click", () => deleteOwnedWgExport(file.name));
+      item.append(remove);
+    }
+    list.append(item);
+  }
+  if (note && listing.usedLabel) {
+    note.textContent = `${listing.usedLabel} of ${listing.capLabel} used.`;
+  }
+}
+
+async function deleteOwnedWgExport(name) {
+  const note = document.querySelector("#wgDropNote");
+  if (!appState.user?.email) return;
+  if (!confirm(`Delete ${name}?`)) return;
+  try {
+    const listing = await api(
+      `/api/wg-exports/file?name=${encodeURIComponent(name)}&email=${encodeURIComponent(appState.user.email)}`,
+      { method: "DELETE" }
+    );
+    renderWgExports(listing);
+    if (note) note.textContent = `Deleted. ${listing.usedLabel} of ${listing.capLabel} used.`;
+  } catch {
+    if (note) note.textContent = "Could not delete that file.";
+  }
+}
+
+function formatLocalBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function wireDiscordVoiceToggles() {
+  const buttons = document.querySelectorAll(".discord-voice-toggle");
+  const on = sessionStorage.getItem("ambaDiscordVoice") === "1";
+  for (const button of buttons) {
+    setDiscordVoiceState(button, on, false);
+    button.addEventListener("click", () => {
+      const next = button.getAttribute("aria-pressed") !== "true";
+      setDiscordVoiceState(button, next, true);
+      sessionStorage.setItem("ambaDiscordVoice", next ? "1" : "0");
+    });
+  }
+}
+
+function setDiscordVoiceState(button, on, openVoice) {
+  button.setAttribute("aria-pressed", on ? "true" : "false");
+  button.setAttribute("aria-label", on ? "Voice recording on" : "Voice listening");
+  const label = button.querySelector(".discord-voice-label");
+  if (label) label.textContent = on ? "Record" : "Listen";
+  if (on && openVoice && button.dataset.voiceUrl) {
+    window.open(button.dataset.voiceUrl, "_blank", "noopener,noreferrer");
+  }
+}
+
+async function setupDiscordWidget() {
+  const frame = document.querySelector(".discord-frame");
+  if (!frame) return;
+  let enabled = false;
+  try {
+    const data = await api("/api/discord-widget");
+    enabled = Boolean(data.enabled);
+  } catch {
+    enabled = false;
+  }
+  if (!enabled) return;
+  const fallback = frame.querySelector(".discord-widget-fallback");
+  fallback?.remove();
+  const iframe = document.createElement("iframe");
+  iframe.title = "AMBA Discord server widget";
+  iframe.src = "https://discord.com/widget?id=1534196054944121074&theme=dark";
+  iframe.sandbox = "allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts";
+  frame.prepend(iframe);
 }

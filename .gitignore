@@ -1,3 +1,5 @@
 .git-safeconfig
 .env
 node_modules/
+data/wg-exports/
+data/wg-exports-index.json

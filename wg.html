@@ -7,54 +7,58 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="site-header">
-    <a class="brand" href="index.html">AMBA Workflow Test</a>
-    <nav aria-label="Main navigation">
-      <a href="index.html">Signup</a>
-      <a href="session.html">Session</a>
-      <a href="amba.html">AMBA</a>
-      <a href="wg.html">WG</a>
-      <a href="owlbear.html">Owlbear</a>
-      <a href="feedback.html">Feedback</a>
-    </nav>
-  </header>
   <main>
     <section class="page-hero">
-      <p class="eyebrow">AMBA WG</p>
-      <h1>Players log in here. The GM does not.</h1>
-      <p class="lede">AMBA WG (Wanderer’s Guide UI) is the player campaign layer. Each player signs in, picks one test character, and joins with a key. The GM stays in <a href="amba.html">AMBA</a> and uses an API key there. Nobody shares passwords or the GM API key.</p>
+      <p class="eyebrow">WGUI</p>
+      <h1>Players log into WG here. They never log into AMBA.</h1>
+      <p class="lede">If you already build in Pathbuilder and fight on Foundry (or a Discord bot + a map), this is the same split: WG is the sheet, new UI is live combat, AMBA is GM-only prep. Build in old and/or new UI; combat on the call is new UI only. Two public test PCs, export JSON, drop files on Upload. We pick four of eight on Discord; the GM downloads those four from Upload.</p>
     </section>
 
     <section class="doc">
-      <p>Players open <a href="https://wgui.wandersguide.site/">wgui.wandersguide.site</a>. The GM keeps AMBA on the Discord share so the table can see GM actions. Do not expect a GM WG login.</p>
+      <p>Old UI (original builder): <a href="https://amba.wandersguide.site/">amba.wandersguide.site</a>. New UI: <a href="https://wgui.wandersguide.site/">wgui.wandersguide.site</a>. Same WG account on both—like Pathbuilder 2e desktop vs web, not two different characters. The GM keeps AMBA on the Discord share. Players do not need AMBA accounts: they use the <strong>player syndication link</strong> (<a href="session.html">Session</a> step 6) for the adventure packet. Optional: an AMBA account plus module sharing to follow encounter design (Session step 5).</p>
+
+      <h2>Public Character — old UI and new UI</h2>
+      <p>Turn on <strong>Public Character</strong> for both test PCs so anyone with the sheet link can open them—the equivalent of a public Pathbuilder share, not a locked Foundry actor. Same label in both UIs; different clicks to get there.</p>
+      <ul>
+        <li><strong>Old UI:</strong> Open the character in the builder (<code>/builder/…</code>). Use the <strong>Home</strong> step (house icon, first stepper step). Open the <strong>Options</strong> tab (last of Books, Homebrew, Variant Rules, Options). Switch on <strong>Public Character</strong> (after Organized Play, before Voluntary Flaw).</li>
+        <li><strong>New UI:</strong> Open the character builder (sheet with <code>?view=builder</code>, or Characters → that PC). Stay on the <strong>Home</strong> step (not Builder). Open the <strong>Options</strong> tab. Switch on <strong>Public Character</strong>.</li>
+      </ul>
+      <p>Use old UI, new UI, or both for building. Do not skip the public switch.</p>
+
+      <h2>Before the call</h2>
+      <p>Sign in with your own WG account. Create two disposable test characters that are not twins. Make both public. Export each character’s WG JSON. Then drop both files on <a href="upload.html">Uploads</a>. Do not log into AMBA. Do not ask for the GM API key.</p>
+      <aside class="example">
+        <h3>Example</h3>
+        <p>Merry-Anchor builds a scout in old UI and a cleric in new UI, turns on Public Character on both (Home → Options), exports both, and drops them on Upload.</p>
+      </aside>
+
+      <h2>When the group meets</h2>
+      <p>When we first meet on Discord, pick <strong>four of the eight</strong> to play. The GM then downloads those four from <a href="upload.html">Uploads</a> and imports them as PCs in the AMBA module, then creates the WG campaign and posts the join key. Enter the key in the <strong>new</strong> UI. That makes you available for the campaign. You should not appear under Characters on the GM’s WG account—that list is the GM’s characters if AMBA is linked. You should appear on the <strong>Party bench</strong> in encounters. The four leftover files stay unused for this run.</p>
 
       <h2>What the GM does (still in AMBA)</h2>
-      <p>The GM does not log into WG. After the campaign exists in AMBA and the API key is set, they post the player join key in Discord if one is required. Combat and DC checks are triggered from AMBA over the API. Watch player WG screens to see what actually appeared.</p>
+      <p>After Discord pick, download the four chosen JSON files from <a href="upload.html">Uploads</a>. Import them as module PCs. Link WG from the AMBA avatar menu (Settings → Wanderer's Guide), then Create campaign in the module’s WG settings and post the <em>WG join key</em> in Discord. Combat is designed and fired from AMBA. Players watch and click in the <strong>new</strong> UI only.</p>
       <aside class="example">
         <h3>Example</h3>
-        <p>GM, still in AMBA: “Join key is in the pin. Use WG, not AMBA. I will start the goblin round from here.” They never open WGUI as themselves.</p>
+        <p>GM, still in AMBA: “Join key is in the pin. Paste it in WGUI. Check the Party bench, not Characters.”</p>
       </aside>
 
-      <h2>What a player does</h2>
-      <p>Sign in at <a href="https://wgui.wandersguide.site/">WGUI</a> with your own account. Create or select one disposable test character. Enter the join key from Discord. Say what you see: “Scout is in” or “I only see a blank prompt.” If something is missing, put it on <a href="feedback.html">feedback</a>. Do not ask for the GM API key.</p>
-      <aside class="example">
-        <h3>Example</h3>
-        <p>Merry-Anchor signs into WG, makes a level-1 test scout, pastes the join key, and says “Scout is in.”</p>
-      </aside>
-
-      <h2>Combat and DC (tiny)</h2>
-      <p>One player character vs one monster the GM already set up in AMBA. The player takes one attack or save in WG when the GM fires it from AMBA. Then one DC check, same split: GM in AMBA, player in WG. Compare screens. Stop.</p>
+      <h2>Combat and skill — new UI only</h2>
+      <p>On the call, open the <strong>new</strong> UI (<a href="https://wgui.wandersguide.site/">wgui.wandersguide.site</a>). Leave the old builder. The table designs a moderate XP encounter and one skill in AMBA. Confirm the four chosen PCs on the Party bench. Combat notes stay in the new UI, not on the map.</p>
 
       <h2>What we still do not assume</h2>
-      <p>Whether the API updates WG in real time, and which buttons a player can press, is the point of the test. If stats never show, record it and continue to <a href="owlbear.html">Owlbear</a> with tokens placed by hand if needed.</p>
+      <p>Whether joined players appear on the Party bench in every encounter, whether the API updates WG in real time, and which buttons a player can press, is the point of the test. If they never show on the bench, record it and continue to <a href="owlbear.html">Owlbear</a> with tokens placed by hand if needed.</p>
 
       <nav class="related">
-        <a href="https://wgui.wandersguide.site/">Open AMBA WG (players)</a>
+        <a href="https://wgui.wandersguide.site/">Open WGUI (players)</a>
+        <a href="upload.html">Uploads</a>
         <a href="amba.html">AMBA (GM + API key)</a>
         <a href="owlbear.html">Owlbear room and tokens</a>
       </nav>
     </section>
   </main>
   <footer><p><a href="index.html">Back to signup</a></p></footer>
+
+  <script src="header.js"></script>
+  <script type="module" src="site.js"></script>
 </body>
 </html>
