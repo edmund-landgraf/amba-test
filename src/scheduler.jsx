@@ -1,7 +1,8 @@
 import { ModuleRegistry, AllCommunityModule } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { createPortal } from "react-dom";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-quartz.css";
 import { ZONE_IANA } from "../timezones.js";
@@ -108,6 +109,16 @@ function TimeGrid() {
   const [userZone, setUserZone] = useState("");
   const [rows, setRows] = useState([]);
   const [draft, setDraft] = useState({ date: "", time: "19:00", lengthMinutes: "120" });
+  const [menu, setMenu] = useState(null);
+  const [edit, setEdit] = useState(null);
+  const [toast, setToast] = useState("");
+  const toastTimer = useRef(null);
+
+  function showToast(message) {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast(message);
+    toastTimer.current = setTimeout(() => setToast(""), 1800);
+  }
 
   const load = useCallback(async (nextEmail = email, nextZone = userZone) => {
     const state = await api(`/api/state${nextEmail ? `?email=${encodeURIComponent(nextEmail)}` : ""}`);
@@ -124,10 +135,14 @@ function TimeGrid() {
       return {
         id: time.id,
         slot,
+        date: time.date || "",
+        time: time.time || "19:00",
+        lengthMinutes: String(time.lengthMinutes || 120),
         yes: people.filter((person) => person.status === "yes"),
         maybe: people.filter((person) => person.status === "maybe"),
         no: people.filter((person) => person.status === "no"),
-        mine: people.find((person) => person.mine)?.status || ""
+        mine: people.find((person) => person.mine)?.status || "",
+        createdByMe: Boolean(time.createdByMe)
       };
     }));
   }, [email, userZone]);
@@ -142,7 +157,18 @@ function TimeGrid() {
       load(nextEmail, nextZone);
     };
     window.addEventListener("amba-auth", onAuth);
-    return () => window.removeEventListener("amba-auth", onAuth);
+    const onKey = (event) => {
+      if (event.key === "Escape") {
+        setMenu(null);
+        setEdit(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("amba-auth", onAuth);
+      window.removeEventListener("keydown", onKey);
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
   }, [load]);
 
   function requireReady() {
@@ -161,6 +187,44 @@ function TimeGrid() {
     if (!requireReady()) return;
     const next = current === status ? "leave" : status;
     await api("/api/slot", { method: "POST", body: { email, timeId, status: next } });
+    await load(email, userZone);
+  }
+
+  async function deleteRow(timeId, createdByMe) {
+    if (!requireReady()) return;
+    if (!createdByMe) return;
+    await api("/api/times", { method: "DELETE", body: { email, timeId } });
+    setMenu(null);
+    await load(email, userZone);
+  }
+
+  function openEdit(row) {
+    if (!requireReady()) return;
+    if (!row.createdByMe) return;
+    setMenu(null);
+    setEdit({
+      timeId: row.timeId || row.id,
+      date: row.date,
+      time: TIME_STEPS.includes(row.time) ? row.time : "19:00",
+      lengthMinutes: ["60", "90", "120", "180"].includes(String(row.lengthMinutes)) ? String(row.lengthMinutes) : "120"
+    });
+  }
+
+  async function saveEdit(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!edit) return;
+    if (!requireReady()) return;
+    const payload = {
+      email,
+      timeId: edit.timeId,
+      date: edit.date,
+      time: edit.time,
+      lengthMinutes: Number(edit.lengthMinutes)
+    };
+    setEdit(null);
+    showToast("saved");
+    await api("/api/times/update", { method: "POST", body: payload });
     await load(email, userZone);
   }
 
@@ -240,7 +304,7 @@ function TimeGrid() {
         </label>
         <button className="button primary" type="submit">Add row</button>
       </form>
-      <div className="ag-theme-quartz scheduler-grid">
+      <div className="ag-theme-quartz scheduler-grid" onContextMenu={(event) => event.preventDefault()}>
         <AgGridReact
           rowData={rows}
           columnDefs={columnDefs}
@@ -251,12 +315,80 @@ function TimeGrid() {
           overlayNoRowsTemplate="Grid is empty. Add a row."
           getRowId={(params) => params.data.id}
           onCellClicked={(event) => {
+            setMenu(null);
             const status = event.column?.getColId();
             if (status !== "yes" && status !== "maybe" && status !== "no") return;
             vote(event.data.id, status, event.data.mine);
           }}
+          onCellContextMenu={(event) => {
+            event.event?.preventDefault();
+            if (!event.data) return;
+            setMenu({
+              x: event.event.clientX,
+              y: event.event.clientY,
+              timeId: event.data.id,
+              createdByMe: event.data.createdByMe,
+              date: event.data.date,
+              time: event.data.time,
+              lengthMinutes: event.data.lengthMinutes
+            });
+          }}
         />
       </div>
+      {menu ? (
+        <div className="grid-context-backdrop" onClick={() => setMenu(null)}>
+          <menu
+            className="grid-context-menu"
+            style={{ left: menu.x, top: menu.y }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              disabled={!menu.createdByMe}
+              title={menu.createdByMe ? "Edit this session row" : "You can only edit rows you created"}
+              onClick={() => openEdit(menu)}
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              disabled={!menu.createdByMe}
+              title={menu.createdByMe ? "Delete this session row" : "You can only delete rows you created"}
+              onClick={() => deleteRow(menu.timeId, menu.createdByMe)}
+            >
+              Delete row
+            </button>
+          </menu>
+        </div>
+      ) : null}
+      {edit ? createPortal(
+        <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setEdit(null); }}>
+          <div className="modal small-modal" role="dialog" aria-labelledby="editRowTitle" onMouseDown={(event) => event.stopPropagation()}>
+            <button className="modal-close" type="button" aria-label="Close edit" onClick={() => setEdit(null)}>x</button>
+            <h2 id="editRowTitle">Edit row</h2>
+            <p className="modal-copy">Update the date, time, and session length.</p>
+            <form className="edit-row" onSubmit={saveEdit}>
+              <label>Date <input required type="date" value={edit.date} onChange={(event) => setEdit({ ...edit, date: event.target.value })} /></label>
+              <label>Time
+                <select required value={edit.time} onChange={(event) => setEdit({ ...edit, time: event.target.value })}>
+                  {TIME_STEPS.map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </label>
+              <label>Session length
+                <select required value={edit.lengthMinutes} onChange={(event) => setEdit({ ...edit, lengthMinutes: event.target.value })}>
+                  <option value="60">60 minutes</option>
+                  <option value="90">90 minutes</option>
+                  <option value="120">120 minutes</option>
+                  <option value="180">180 minutes</option>
+                </select>
+              </label>
+              <button className="button primary" type="button" onClick={saveEdit}>Save</button>
+            </form>
+          </div>
+        </div>,
+        document.body
+      ) : null}
+      {toast ? createPortal(<p className="save-toast" role="status">{toast}</p>, document.body) : null}
     </section>
   );
 }
