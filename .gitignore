@@ -1,5 +1,8 @@
 .git-safeconfig
 .env
 node_modules/
+data/runtime/
 data/wg-exports/
 data/wg-exports-index.json
+grid/scheduler.js
+grid/scheduler.css

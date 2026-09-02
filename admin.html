@@ -20,6 +20,11 @@
     </nav>
     <section class="doc admin-tab-panel" id="panelYes">
       <form class="adventure-summary" id="sessionLinksForm">
+        <label>
+          Adventure
+          <select id="adventureSelect" disabled></select>
+        </label>
+        <p class="form-note">Each adventure is its own provision (schedule, characters, promote). Module switching from AMBA comes later.</p>
         <div class="session-link-row">
           <a class="adventure-summary-link is-empty" id="summaryPreview" href="#" target="_blank" rel="noopener noreferrer">Adventure Summary</a>
         </div>
@@ -148,6 +153,7 @@ Sign up on our test site (not AMBA itself): {{signupUrl}}
     const syndicationUrl = document.querySelector("#syndicationUrl");
     const playerHookUrl = document.querySelector("#playerHookUrl");
     const summaryPreview = document.querySelector("#summaryPreview");
+    const adventureSelect = document.querySelector("#adventureSelect");
     const sessionLinksNote = document.querySelector("#sessionLinksNote");
     let people = [];
     let selfEmail = "";
@@ -232,6 +238,16 @@ Sign up on our test site (not AMBA itself): {{signupUrl}}
       playerHookUrl.value = data.playerHookUrl || "";
       refreshPreviews();
       render(data.emails || []);
+      const modules = data.modules?.modules || [];
+      const selectedId = data.modules?.selectedId || "";
+      adventureSelect.replaceChildren();
+      for (const module of modules.length ? modules : [{ id: "current", title: data.title || "An AMBA Adventure" }]) {
+        const option = document.createElement("option");
+        option.value = module.id;
+        option.textContent = module.title || module.id;
+        option.selected = module.id === selectedId || modules.length === 1;
+        adventureSelect.append(option);
+      }
     }
 
     function render(nextPeople) {

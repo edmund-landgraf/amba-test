@@ -238,7 +238,7 @@ function TimeGrid() {
         mine: people.find((person) => person.mine)?.status || "",
         createdByMe: Boolean(time.createdByMe)
       };
-    }));
+    }).sort((a, b) => (a.startIso || "").localeCompare(b.startIso || "")));
   }, [email, userZone]);
 
   useEffect(() => {
