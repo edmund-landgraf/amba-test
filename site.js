@@ -4,7 +4,8 @@ let appState = {
   session: null,
   user: null,
   signups: [],
-  feedback: []
+  feedback: [],
+  pcs: []
 };
 
 let currentEmail = sessionStorage.getItem("ambaEmail") || "";
@@ -82,6 +83,8 @@ async function loadState() {
   appState = await api(`/api/state${currentEmail ? `?email=${encodeURIComponent(currentEmail)}` : ""}`);
   syncIdentity();
   await refreshWgExports();
+  renderPcs();
+  renderWgSheetList();
   window.dispatchEvent(new CustomEvent("amba-auth", {
     detail: {
       email: currentEmail,
@@ -161,6 +164,7 @@ function wireEvents() {
     openLoginModal();
   });
   wireWgDrop();
+  wireWgSheets();
 }
 
 function openAdminModal() {
@@ -363,6 +367,181 @@ function initialsForHandle(handle) {
   if (!parts.length) return "?";
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+}
+
+function renderPcs() {
+  const bodies = document.querySelectorAll("#pcsTableBody, #signupPcsBody");
+  if (!bodies.length) return;
+  const empty = document.querySelector("#pcsEmpty");
+  const wrap = document.querySelector(".pcs-table-wrap");
+  const pcs = (appState.pcs || []).slice(0, 8);
+  if (empty) empty.hidden = pcs.length > 0;
+  if (wrap) wrap.hidden = pcs.length === 0;
+  for (const body of bodies) {
+    body.replaceChildren();
+    if (!pcs.length && body.id === "signupPcsBody") {
+      const tr = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = 5;
+      td.className = "status-table-empty";
+      const link = document.createElement("a");
+      link.href = "wg.html";
+      link.textContent = "WG";
+      td.append("No public sheets yet. Add yours on ", link, ".");
+      tr.append(td);
+      body.append(tr);
+      continue;
+    }
+    for (const pc of pcs) {
+      body.append(pcRow(pc));
+    }
+  }
+}
+
+function pcRow(pc) {
+  const tr = document.createElement("tr");
+  const hero = document.createElement("td");
+  if (pc.imageUrl) {
+    const img = document.createElement("img");
+    img.className = "pc-portrait";
+    img.src = pc.imageUrl;
+    img.alt = pc.name ? `${pc.name} portrait` : "Hero portrait";
+    hero.append(img);
+  } else {
+    const ph = document.createElement("span");
+    ph.className = "pc-portrait pc-portrait-empty";
+    ph.setAttribute("aria-hidden", "true");
+    hero.append(ph);
+  }
+  const name = document.createElement("td");
+  const link = document.createElement("a");
+  link.href = pc.url;
+  link.target = "_blank";
+  link.rel = "noreferrer";
+  link.textContent = pc.name || `Sheet ${pc.id || ""}`.trim() || "Sheet";
+  name.append(link);
+  const abc = document.createElement("td");
+  abc.textContent = pc.abc || "—";
+  const level = document.createElement("td");
+  level.textContent = pc.level === "" || pc.level == null ? "—" : String(pc.level);
+  const player = document.createElement("td");
+  const avatar = document.createElement("span");
+  avatar.className = "grid-avatar";
+  avatar.title = pc.handle || "";
+  avatar.textContent = initialsForHandle(pc.handle);
+  player.append(avatar);
+  tr.append(hero, name, abc, level, player);
+  return tr;
+}
+
+function renderWgSheetList() {
+  const list = document.querySelector("#wgSheetList");
+  if (!list) return;
+  list.replaceChildren();
+  const sheets = appState.user?.wgSheets || [];
+  for (const sheet of sheets) {
+    const item = document.createElement("li");
+    const link = document.createElement("a");
+    link.href = sheet.url;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.textContent = sheet.name || sheet.url;
+    const meta = document.createElement("span");
+    meta.textContent = [sheet.abc, sheet.level !== "" ? `Lv ${sheet.level}` : ""].filter(Boolean).join(" · ");
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "button";
+    edit.textContent = "Edit";
+    edit.addEventListener("click", () => beginEditWgSheet(sheet.url));
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "file-remove";
+    remove.setAttribute("aria-label", `Delete ${sheet.name || sheet.url}`);
+    remove.textContent = "×";
+    remove.addEventListener("click", () => deleteWgSheet(sheet.url));
+    item.append(link, meta, edit, remove);
+    list.append(item);
+  }
+}
+
+function beginEditWgSheet(url) {
+  const form = document.querySelector("#wgSheetForm");
+  const cancel = document.querySelector("#wgSheetCancel");
+  if (!form) return;
+  form.url.value = url;
+  form.replaceUrl.value = url;
+  if (cancel) cancel.hidden = false;
+  form.url.focus();
+}
+
+function cancelEditWgSheet() {
+  const form = document.querySelector("#wgSheetForm");
+  const cancel = document.querySelector("#wgSheetCancel");
+  if (!form) return;
+  form.reset();
+  form.replaceUrl.value = "";
+  if (cancel) cancel.hidden = true;
+}
+
+function wireWgSheets() {
+  const form = document.querySelector("#wgSheetForm");
+  const cancel = document.querySelector("#wgSheetCancel");
+  if (!form) return;
+  form.addEventListener("submit", saveWgSheet);
+  cancel?.addEventListener("click", cancelEditWgSheet);
+}
+
+async function saveWgSheet(event) {
+  event.preventDefault();
+  const note = document.querySelector("#wgSheetNote");
+  if (!appState.user?.email) {
+    joinTheTest();
+    return;
+  }
+  const data = Object.fromEntries(new FormData(event.target).entries());
+  try {
+    const result = await api("/api/wg-sheets", {
+      method: "POST",
+      body: {
+        email: appState.user.email,
+        url: data.url,
+        replaceUrl: data.replaceUrl
+      }
+    });
+    appState.user = result.user;
+    appState.pcs = result.pcs;
+    cancelEditWgSheet();
+    renderWgSheetList();
+    renderPcs();
+    if (note) note.textContent = "Saved.";
+  } catch (error) {
+    const text = String(error.message || "");
+    if (note) {
+      note.textContent = text.includes("400")
+        ? "Need a public /sheet/ link on amba or wgui, and Public Character must be on. Two links max."
+        : "Could not save that sheet link.";
+    }
+  }
+}
+
+async function deleteWgSheet(url) {
+  const note = document.querySelector("#wgSheetNote");
+  if (!appState.user?.email) return;
+  if (!confirm("Remove this sheet link?")) return;
+  try {
+    const result = await api(
+      `/api/wg-sheets?email=${encodeURIComponent(appState.user.email)}&url=${encodeURIComponent(url)}`,
+      { method: "DELETE" }
+    );
+    appState.user = result.user;
+    appState.pcs = result.pcs;
+    cancelEditWgSheet();
+    renderWgSheetList();
+    renderPcs();
+    if (note) note.textContent = "Deleted.";
+  } catch {
+    if (note) note.textContent = "Could not delete that link.";
+  }
 }
 
 function wireWgDrop() {

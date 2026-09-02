@@ -19,8 +19,11 @@ const jsonFiles = {
   users: path.join(dataDir, "users.json"),
   sessions: path.join(dataDir, "sessions.json"),
   signups: path.join(dataDir, "signups.json"),
-  feedback: path.join(dataDir, "feedback.json")
+  feedback: path.join(dataDir, "feedback.json"),
+  promote: path.join(dataDir, "promote.json")
 };
+
+const discordInviteUrl = `https://discord.com/channels/${discordGuildId}/`;
 
 const JSON_BODY_MAX = 1024 * 1024;
 const WG_EXPORT_MAX_TOTAL = 50 * 1024 * 1024;
@@ -75,7 +78,7 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 404, { error: code });
       return;
     }
-    if (code === "bad_filename" || code === "invalid_json") {
+    if (code === "bad_filename" || code === "invalid_json" || code === "bad_sheet_url" || code === "sheet_limit" || code === "not_public") {
       sendJson(res, 400, { error: code });
       return;
     }
@@ -160,6 +163,22 @@ async function handleApi(req, res) {
   if (req.method === "POST" && url.pathname === "/api/wg-exports") {
     const body = await readBody(req, WG_EXPORT_MAX_TOTAL + 64 * 1024);
     const result = await saveWgExport(body);
+    sendJson(res, 200, result);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/wg-sheets") {
+    const body = await readBody(req);
+    const result = await saveWgSheet(body);
+    sendJson(res, 200, result);
+    return;
+  }
+
+  if (req.method === "DELETE" && url.pathname === "/api/wg-sheets") {
+    const result = await deleteWgSheet({
+      email: url.searchParams.get("email"),
+      url: url.searchParams.get("url")
+    });
     sendJson(res, 200, result);
     return;
   }
@@ -260,6 +279,55 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/admin/promote") {
+    if (!requireAdmin(req, res)) return;
+    sendJson(res, 200, await publicPromote(req));
+    return;
+  }
+
+  if (req.method === "PUT" && url.pathname === "/api/admin/promote/templates") {
+    if (!requireAdmin(req, res)) return;
+    const body = await readBody(req);
+    sendJson(res, 200, await savePromoteTemplates(body, req));
+    return;
+  }
+
+  if (req.method === "PUT" && url.pathname === "/api/admin/promote/settings") {
+    if (!requireAdmin(req, res)) return;
+    const body = await readBody(req);
+    sendJson(res, 200, await savePromoteSettings(body, req));
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/admin/promote/post") {
+    if (!requireAdmin(req, res)) return;
+    const body = await readBody(req);
+    sendJson(res, 200, await createPromotePost(body, req));
+    return;
+  }
+
+  const permalinkMatch = url.pathname.match(/^\/api\/admin\/promote\/posts\/([^/]+)\/permalink$/);
+  if (req.method === "POST" && permalinkMatch) {
+    if (!requireAdmin(req, res)) return;
+    const body = await readBody(req);
+    sendJson(res, 200, await setPromotePermalink(permalinkMatch[1], body, req));
+    return;
+  }
+
+  const postMatch = url.pathname.match(/^\/api\/admin\/promote\/posts\/([^/]+)$/);
+  if (req.method === "PATCH" && postMatch) {
+    if (!requireAdmin(req, res)) return;
+    const body = await readBody(req);
+    sendJson(res, 200, await patchPromotePost(postMatch[1], body, req));
+    return;
+  }
+
+  if (req.method === "DELETE" && postMatch) {
+    if (!requireAdmin(req, res)) return;
+    sendJson(res, 200, await deletePromotePost(postMatch[1], url.searchParams.get("forget") === "1", req));
+    return;
+  }
+
   if (req.method === "POST" && url.pathname === "/api/admin/delete-email") {
     if (!requireAdmin(req, res)) return;
     const body = await readBody(req);
@@ -324,6 +392,7 @@ async function getState(email) {
   const sessions = await readJson("sessions");
   const signups = await readJson("signups");
   const feedback = await readJson("feedback");
+  const users = await readJson("users");
   const user = email ? await findUserByEmail(email) : null;
   const session = sessions.find((item) => item.id === currentSessionId);
   const times = (session?.times || []).map((time) => {
@@ -345,7 +414,8 @@ async function getState(email) {
     session: session ? { ...session, times } : null,
     user: user ? publicUser(user) : null,
     signups: signups.map(publicSignup),
-    feedback: feedback.map(publicFeedback)
+    feedback: feedback.map(publicFeedback),
+    pcs: publicPcs(users)
   };
 }
 
@@ -362,6 +432,7 @@ async function upsertUser(data) {
     existing.discord = String(data.discord || existing.discord || "").trim();
     existing.timezone = String(data.timezone || existing.timezone || "").trim();
     existing.characterStatus = String(data.characterStatus || existing.characterStatus || "").trim();
+    if (!Array.isArray(existing.wgSheets)) existing.wgSheets = [];
     existing.role = "admin";
     existing.updatedAt = new Date().toISOString();
     await writeJson("users", users);
@@ -375,6 +446,7 @@ async function upsertUser(data) {
     discord: String(data.discord || "").trim(),
     timezone: String(data.timezone || "").trim(),
     characterStatus: String(data.characterStatus || "").trim(),
+    wgSheets: [],
     role: "admin",
     createdAt: new Date().toISOString()
   };
@@ -801,8 +873,198 @@ function publicUser(user) {
     discord: user.discord,
     timezone: user.timezone,
     characterStatus: user.characterStatus,
+    wgSheets: (user.wgSheets || []).map((sheet) => publicSheet(sheet, user.handle)),
     role: user.role
   };
+}
+
+const WG_SHEET_HOSTS = new Set([
+  "amba.wandersguide.site",
+  "wgui.wandersguide.site",
+  "wanderersguide.app",
+  "www.wanderersguide.app"
+]);
+
+function publicSheet(sheet, handle) {
+  return {
+    url: sheet.url,
+    id: sheet.id,
+    name: sheet.name || "",
+    abc: sheet.abc || "",
+    level: sheet.level ?? "",
+    imageUrl: sheet.imageUrl || "",
+    handle: handle || sheet.handle || "",
+    error: sheet.error || ""
+  };
+}
+
+function publicPcs(users) {
+  const rows = [];
+  for (const user of users) {
+    for (const sheet of user.wgSheets || []) {
+      rows.push(publicSheet(sheet, user.handle));
+    }
+  }
+  rows.sort((a, b) => String(a.name || a.url).localeCompare(String(b.name || b.url)));
+  return rows;
+}
+
+function parseWgSheetUrl(value) {
+  const raw = sanitizeHttpUrl(value);
+  if (!raw) return null;
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return null;
+  }
+  const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+  if (![...WG_SHEET_HOSTS].some((allowed) => allowed.replace(/^www\./, "") === host)) return null;
+  const match = parsed.pathname.match(/^\/sheet\/(\d+)\/?$/i);
+  if (!match) return null;
+  const id = Number(match[1]);
+  if (!Number.isInteger(id) || id < 1) return null;
+  const originHost = parsed.hostname.toLowerCase();
+  return {
+    id,
+    url: `https://${originHost}/sheet/${id}`
+  };
+}
+
+function contentName(value) {
+  if (!value) return "";
+  if (typeof value === "string") return value.trim();
+  return String(value.name || value.label || "").trim();
+}
+
+function isPublicCharacter(row) {
+  const options = row?.options || {};
+  return options.is_public === true || options.public === true;
+}
+
+function summarizeCharacter(row, url) {
+  const details = row?.details || {};
+  const ancestry = contentName(details.ancestry);
+  const heritage = contentName(details.heritage);
+  const background = contentName(details.background);
+  const klass = contentName(details.class);
+  const ancestryLabel = [heritage, ancestry].filter(Boolean).join(" ").trim() || ancestry;
+  return {
+    url,
+    id: row.id,
+    name: String(row.name || "").trim(),
+    abc: [ancestryLabel, background, klass].filter(Boolean).join(" / "),
+    level: row.level ?? "",
+    imageUrl: String(details.image_url || details.imageUrl || "").trim(),
+    error: ""
+  };
+}
+
+let wgAnonCache = { key: "", at: 0 };
+
+async function wgAnonKey() {
+  const fromEnv = String(process.env.WG_ANON_KEY || "").trim();
+  if (fromEnv) return fromEnv;
+  if (wgAnonCache.key && Date.now() - wgAnonCache.at < 60 * 60 * 1000) return wgAnonCache.key;
+  const pages = [
+    "https://amba.wandersguide.site/",
+    "https://wgui.wandersguide.site/"
+  ];
+  for (const page of pages) {
+    const key = await discoverAnonKey(page);
+    if (key) {
+      wgAnonCache = { key, at: Date.now() };
+      return key;
+    }
+  }
+  return "";
+}
+
+async function discoverAnonKey(pageUrl) {
+  const html = await fetch(pageUrl, { signal: AbortSignal.timeout(12000) }).then((res) => res.text());
+  const scripts = [...html.matchAll(/src=["'](\.?\/assets\/[^"']+\.js)["']/gi)].map((match) => new URL(match[1], pageUrl).href);
+  const seen = new Set();
+  const queue = [...scripts];
+  while (queue.length && seen.size < 8) {
+    const src = queue.shift();
+    if (!src || seen.has(src)) continue;
+    seen.add(src);
+    const js = await fetch(src, { signal: AbortSignal.timeout(15000) }).then((res) => res.text());
+    const created = js.match(/createClient\(\s*["']https?:[^"']+["']\s*,\s*["'](eyJ[^"']+)["']/);
+    if (created) return created[1];
+    const anon = js.match(/anon(?:Key)?["']?\s*[:=]\s*["'](eyJ[^"']+)["']/i);
+    if (anon) return anon[1];
+    const jwt = js.match(/["'](eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)["']/);
+    if (jwt) return jwt[1];
+    if (js.length < 500000) {
+      for (const match of js.matchAll(/from["'](\.\/[^"']+\.js)["']/g)) {
+        queue.push(new URL(match[1], src).href);
+      }
+    }
+  }
+  return "";
+}
+
+async function fetchPublicCharacter(id) {
+  const key = await wgAnonKey();
+  const headers = {
+    accept: "application/json",
+    ...(key ? { apikey: key, authorization: `Bearer ${key}` } : {})
+  };
+  const bases = [
+    String(process.env.WG_API_URL || "").trim().replace(/\/$/, ""),
+    "https://amba.wandersguide.site",
+    "https://api.wanderersguide.app"
+  ].filter(Boolean);
+  for (const base of [...new Set(bases)]) {
+    try {
+      const restUrl = `${base}/rest/v1/character?id=eq.${id}&select=id,name,level,details,options`;
+      const response = await fetch(restUrl, { headers, signal: AbortSignal.timeout(12000) });
+      if (!response.ok) continue;
+      const rows = await response.json();
+      const row = Array.isArray(rows) ? rows[0] : rows;
+      if (row && row.id) return row;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+async function saveWgSheet(data) {
+  const user = await findUserByEmail(data.email);
+  if (!user) throw new Error("login_required");
+  const parsed = parseWgSheetUrl(data.url);
+  if (!parsed) throw new Error("bad_sheet_url");
+  const users = await readJson("users");
+  const record = users.find((item) => item.email === user.email);
+  if (!record) throw new Error("login_required");
+  if (!Array.isArray(record.wgSheets)) record.wgSheets = [];
+  const replaceUrl = parseWgSheetUrl(data.replaceUrl)?.url || "";
+  const sheets = record.wgSheets.filter((sheet) => sheet.url !== replaceUrl && sheet.url !== parsed.url);
+  if (sheets.length >= 2) throw new Error("sheet_limit");
+  const row = await fetchPublicCharacter(parsed.id);
+  if (!row) throw new Error("not_public");
+  if (!isPublicCharacter(row)) throw new Error("not_public");
+  sheets.push(summarizeCharacter(row, parsed.url));
+  record.wgSheets = sheets;
+  record.updatedAt = new Date().toISOString();
+  await writeJson("users", users);
+  return { user: publicUser(record), pcs: publicPcs(users) };
+}
+
+async function deleteWgSheet(data) {
+  const user = await findUserByEmail(data.email);
+  if (!user) throw new Error("login_required");
+  const parsed = parseWgSheetUrl(data.url);
+  if (!parsed) throw new Error("bad_sheet_url");
+  const users = await readJson("users");
+  const record = users.find((item) => item.email === user.email);
+  if (!record) throw new Error("login_required");
+  record.wgSheets = (record.wgSheets || []).filter((sheet) => sheet.url !== parsed.url);
+  record.updatedAt = new Date().toISOString();
+  await writeJson("users", users);
+  return { user: publicUser(record), pcs: publicPcs(users) };
 }
 
 function publicSignup(signup) {
@@ -1087,6 +1349,479 @@ async function readJson(name) {
 
 async function writeJson(name, value) {
   await fs.writeFile(jsonFiles[name], `${JSON.stringify(value, null, 2)}\n`);
+}
+
+const defaultPromote = {
+  templates: {
+    reddit: {
+      title: "[Online] [PF2e] looking for {{players}} players — {{adventureTitle}}",
+      body: "We're looking for players for **{{adventureTitle}}** ({{scope}}, {{playFormat}} Pathfinder 2e). Sheets in Wanderer's Guide, map in Owlbear, prep in AMBA, voice on Discord.\n\n**{{hookTitle}}**\n{{hook}}\n\n{{when}}\n\nSign up on the test site (email login, no AMBA account):\n{{signupUrl}}\n\nDiscord: {{discordInvite}}"
+    },
+    discord: {
+      body: "Looking for players for **{{adventureTitle}}** — {{hookTitle}}.\n{{hookShort}}\n\nSign up on the test site (join list, not an AMBA login):\n{{signupUrl}}\n\n{{when}}"
+    },
+    facebook: {
+      body: "Looking for a few players for {{adventureTitle}} ({{playFormat}} Pathfinder 2e, {{scope}}). {{hookTitle}}: {{hook}}\n\nSign up on our test site (not AMBA itself): {{signupUrl}}\n\n{{when}}"
+    }
+  },
+  settings: {
+    redditSubreddit: "lfg",
+    discordWebhookUrl: ""
+  },
+  posts: []
+};
+
+// Promote env: PUBLIC_SITE_URL, DISCORD_LFG_WEBHOOK,
+// REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, REDDIT_USERNAME, REDDIT_PASSWORD, REDDIT_USER_AGENT
+
+async function readPromote() {
+  try {
+    const data = await readJson("promote");
+    return {
+      templates: {
+        reddit: {
+          title: data.templates?.reddit?.title || defaultPromote.templates.reddit.title,
+          body: data.templates?.reddit?.body || defaultPromote.templates.reddit.body
+        },
+        discord: {
+          body: data.templates?.discord?.body || defaultPromote.templates.discord.body
+        },
+        facebook: {
+          body: data.templates?.facebook?.body || defaultPromote.templates.facebook.body
+        }
+      },
+      settings: {
+        redditSubreddit: data.settings?.redditSubreddit || "lfg",
+        discordWebhookUrl: data.settings?.discordWebhookUrl || ""
+      },
+      posts: Array.isArray(data.posts) ? data.posts : []
+    };
+  } catch {
+    await writeJson("promote", defaultPromote);
+    return structuredClone(defaultPromote);
+  }
+}
+
+function siteBaseUrl(req) {
+  const fromEnv = String(process.env.PUBLIC_SITE_URL || "").trim().replace(/\/$/, "");
+  if (fromEnv) return fromEnv;
+  const host = String(req.headers.host || "localhost:3000");
+  const proto = host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https";
+  return `${proto}://${host}`;
+}
+
+function signupUrlFor(req, platform) {
+  const source = encodeURIComponent(platform || "promote");
+  return `${siteBaseUrl(req)}/?utm_source=${source}&utm_medium=promote&utm_campaign=lfg`;
+}
+
+function formatWhen(slot) {
+  if (!slot?.date) return "";
+  const length = slot.lengthMinutes ? `${slot.lengthMinutes} min` : "";
+  return [slot.date, slot.time, slot.timezone, length].filter(Boolean).join(" ");
+}
+
+function currentSession() {
+  return readJson("sessions").then((sessions) => {
+    const list = Array.isArray(sessions) ? sessions : [];
+    return list.find((item) => item.id === currentSessionId) || null;
+  });
+}
+
+function clipText(text, max) {
+  const value = String(text || "").replace(/\s+/g, " ").trim();
+  if (value.length <= max) return value;
+  const cut = value.slice(0, max - 1);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > 40 ? cut.slice(0, space) : cut).trim()}…`;
+}
+
+function adventureVars(session) {
+  const adventureTitle = String(session?.title || "An AMBA Adventure").trim();
+  const hookText = String(session?.playerHookText || "").trim();
+  const parts = hookText
+    .split(/\n\s*\n/)
+    .map((part) => part.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  const hookTitle = parts[0] || adventureTitle;
+  const hookRest = parts.slice(1).join(" ");
+  const format = String(session?.format || "").trim();
+  const playFormat = /remote|online/i.test(format) || !format ? "Online" : format;
+  return {
+    adventureTitle,
+    hookTitle,
+    hook: clipText(hookRest || hookTitle, 450),
+    hookShort: clipText(hookRest || hookTitle, 220),
+    playFormat,
+    scope: String(session?.scope || "Short adventure").trim(),
+    players: String(session?.targetPlayers || 4)
+  };
+}
+
+function fillPlaceholders(text, vars) {
+  return String(text || "").replace(/\{\{(\w+)\}\}/g, (_, key) => (
+    vars[key] == null ? "" : String(vars[key])
+  ));
+}
+
+async function promoteVars(req, platform) {
+  const session = await currentSession();
+  const slot = await leadingYesSlot();
+  return {
+    ...adventureVars(session),
+    signupUrl: signupUrlFor(req, platform),
+    discordInvite: discordInviteUrl,
+    when: formatWhen(slot)
+  };
+}
+
+function redditConfigured() {
+  return Boolean(
+    String(process.env.REDDIT_CLIENT_ID || "").trim() &&
+    String(process.env.REDDIT_CLIENT_SECRET || "").trim() &&
+    String(process.env.REDDIT_USERNAME || "").trim() &&
+    String(process.env.REDDIT_PASSWORD || "").trim()
+  );
+}
+
+function redditUserAgent() {
+  return String(process.env.REDDIT_USER_AGENT || "amba-test-promote/0.1 by AMBA-test").trim();
+}
+
+function resolveWebhook(stored, override) {
+  return String(override || stored || process.env.DISCORD_LFG_WEBHOOK || "").trim();
+}
+
+function redactWebhook(url) {
+  const value = String(url || "");
+  if (!value) return "";
+  return `…${value.slice(-6)}`;
+}
+
+function publicPost(post) {
+  return {
+    id: post.id,
+    platform: post.platform,
+    status: post.status,
+    destination: post.destination || "",
+    title: post.title || "",
+    body: post.body || "",
+    permalink: post.permalink || "",
+    remoteId: post.remoteId || "",
+    createdAt: post.createdAt,
+    updatedAt: post.updatedAt
+  };
+}
+
+async function publicPromote(req) {
+  const data = await readPromote();
+  const redditVars = await promoteVars(req, "reddit");
+  const discordVars = await promoteVars(req, "discord");
+  const facebookVars = await promoteVars(req, "facebook");
+  const webhook = resolveWebhook(data.settings.discordWebhookUrl, "");
+  return {
+    templates: data.templates,
+    settings: {
+      redditSubreddit: data.settings.redditSubreddit,
+      discordWebhookHint: redactWebhook(webhook),
+      discordWebhookSet: Boolean(webhook)
+    },
+    posts: data.posts.map(publicPost).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))),
+    signupBase: siteBaseUrl(req),
+    discordInvite: discordInviteUrl,
+    when: redditVars.when,
+    adventure: {
+      title: redditVars.adventureTitle,
+      hookTitle: redditVars.hookTitle
+    },
+    redditCanPost: redditConfigured(),
+    previews: {
+      reddit: {
+        title: fillPlaceholders(data.templates.reddit.title, redditVars),
+        body: fillPlaceholders(data.templates.reddit.body, redditVars)
+      },
+      discord: {
+        body: fillPlaceholders(data.templates.discord.body, discordVars)
+      },
+      facebook: {
+        body: fillPlaceholders(data.templates.facebook.body, facebookVars)
+      }
+    }
+  };
+}
+
+async function savePromoteTemplates(body, req) {
+  const data = await readPromote();
+  if (body.reddit) {
+    data.templates.reddit.title = String(body.reddit.title || data.templates.reddit.title);
+    data.templates.reddit.body = String(body.reddit.body || data.templates.reddit.body);
+  }
+  if (body.discord) data.templates.discord.body = String(body.discord.body || data.templates.discord.body);
+  if (body.facebook) data.templates.facebook.body = String(body.facebook.body || data.templates.facebook.body);
+  await writeJson("promote", data);
+  return publicPromote(req);
+}
+
+async function savePromoteSettings(body, req) {
+  const data = await readPromote();
+  if (body.redditSubreddit !== undefined) {
+    data.settings.redditSubreddit = String(body.redditSubreddit || "lfg").replace(/^r\//i, "").trim() || "lfg";
+  }
+  if (body.discordWebhookUrl !== undefined) {
+    const next = String(body.discordWebhookUrl || "").trim();
+    if (next) data.settings.discordWebhookUrl = next;
+  }
+  await writeJson("promote", data);
+  return publicPromote(req);
+}
+
+async function createPromotePost(body, req) {
+  const platform = String(body.platform || "").toLowerCase();
+  if (!["reddit", "discord", "facebook"].includes(platform)) {
+    const error = new Error("invalid_json");
+    throw error;
+  }
+  const data = await readPromote();
+  const vars = await promoteVars(req, platform);
+  const title = fillPlaceholders(body.title ?? data.templates.reddit.title, vars);
+  const rawBody = fillPlaceholders(body.body ?? data.templates[platform].body, vars);
+  const now = new Date().toISOString();
+  const post = {
+    id: crypto.randomUUID(),
+    platform,
+    status: "copied",
+    destination: "",
+    title: platform === "reddit" ? title : "",
+    body: rawBody,
+    permalink: "",
+    remoteId: "",
+    createdAt: now,
+    updatedAt: now
+  };
+
+  if (platform === "facebook" || body.copyOnly) {
+    if (platform === "reddit") {
+      post.destination = String(body.subreddit || data.settings.redditSubreddit || "lfg").replace(/^r\//i, "");
+    }
+    if (platform === "facebook") post.destination = "facebook groups";
+    data.posts.push(post);
+    await writeJson("promote", data);
+    const openUrl = platform === "reddit"
+      ? `https://www.reddit.com/r/${post.destination}/submit`
+      : "https://www.facebook.com/";
+    return { mode: "copy", openUrl, post: publicPost(post), promote: await publicPromote(req) };
+  }
+
+  if (platform === "discord") {
+    const webhook = resolveWebhook(data.settings.discordWebhookUrl, body.webhookUrl);
+    if (!/^https:\/\/(?:discord|discordapp)\.com\/api\/webhooks\/\d+\/[\w-]+/i.test(webhook)) {
+      throw new Error("invalid_json");
+    }
+    const sent = await discordWebhookPost(webhook, rawBody);
+    post.status = "live";
+    post.destination = "discord webhook";
+    post.remoteId = sent.id;
+    post.permalink = sent.url || "";
+    data.posts.push(post);
+    await writeJson("promote", data);
+    return { mode: "posted", post: publicPost(post), promote: await publicPromote(req) };
+  }
+
+  if (platform === "reddit") {
+    if (!redditConfigured()) {
+      post.destination = String(body.subreddit || data.settings.redditSubreddit || "lfg").replace(/^r\//i, "");
+      data.posts.push(post);
+      await writeJson("promote", data);
+      return {
+        mode: "copy",
+        openUrl: `https://www.reddit.com/r/${post.destination}/submit`,
+        post: publicPost(post),
+        promote: await publicPromote(req)
+      };
+    }
+    const subreddit = String(body.subreddit || data.settings.redditSubreddit || "lfg").replace(/^r\//i, "");
+    const submitted = await redditSubmit({ subreddit, title, text: rawBody });
+    post.status = "live";
+    post.destination = subreddit;
+    post.remoteId = submitted.name;
+    post.permalink = submitted.url;
+    data.posts.push(post);
+    await writeJson("promote", data);
+    return { mode: "posted", post: publicPost(post), promote: await publicPromote(req) };
+  }
+
+  throw new Error("invalid_json");
+}
+
+async function setPromotePermalink(id, body, req) {
+  const data = await readPromote();
+  const post = data.posts.find((item) => item.id === id);
+  if (!post) throw new Error("not_found");
+  post.permalink = String(body.permalink || "").trim();
+  post.updatedAt = new Date().toISOString();
+  if (post.status === "copied" && post.permalink) post.status = "live";
+  await writeJson("promote", data);
+  return { post: publicPost(post), promote: await publicPromote(req) };
+}
+
+async function patchPromotePost(id, body, req) {
+  const data = await readPromote();
+  const post = data.posts.find((item) => item.id === id);
+  if (!post) throw new Error("not_found");
+  if (body.status === "filled") {
+    post.status = "filled";
+    post.updatedAt = new Date().toISOString();
+    await writeJson("promote", data);
+    return { post: publicPost(post), promote: await publicPromote(req) };
+  }
+  if (body.body !== undefined) post.body = String(body.body);
+  if (body.title !== undefined) post.title = String(body.title);
+  if (post.platform === "discord" && post.remoteId) {
+    const webhook = resolveWebhook(data.settings.discordWebhookUrl, body.webhookUrl);
+    await discordWebhookEdit(webhook, post.remoteId, post.body);
+    post.status = "edited";
+  } else if (post.platform === "reddit" && post.remoteId && redditConfigured()) {
+    await redditEdit(post.remoteId, post.body);
+    post.status = "edited";
+  }
+  post.updatedAt = new Date().toISOString();
+  await writeJson("promote", data);
+  return { post: publicPost(post), promote: await publicPromote(req) };
+}
+
+async function deletePromotePost(id, forget, req) {
+  const data = await readPromote();
+  const post = data.posts.find((item) => item.id === id);
+  if (!post) throw new Error("not_found");
+  if (forget) {
+    data.posts = data.posts.filter((item) => item.id !== id);
+    await writeJson("promote", data);
+    return { ok: true, promote: await publicPromote(req) };
+  }
+  if (post.platform === "discord" && post.remoteId) {
+    const webhook = resolveWebhook(data.settings.discordWebhookUrl, "");
+    await discordWebhookDelete(webhook, post.remoteId);
+  } else if (post.platform === "reddit" && post.remoteId && redditConfigured()) {
+    await redditDelete(post.remoteId);
+  }
+  post.status = "deleted";
+  post.updatedAt = new Date().toISOString();
+  await writeJson("promote", data);
+  return { post: publicPost(post), promote: await publicPromote(req) };
+}
+
+async function discordWebhookPost(webhook, content) {
+  const response = await fetch(`${webhook}?wait=true`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      content,
+      embeds: [{ title: "Looking for players" }]
+    })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.message || "discord_error");
+  }
+  return { id: String(data.id || ""), url: data.url || "" };
+}
+
+async function discordWebhookEdit(webhook, messageId, content) {
+  const response = await fetch(`${webhook}/messages/${messageId}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      content,
+      embeds: [{ title: "Looking for players" }]
+    })
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || "discord_error");
+  }
+}
+
+async function discordWebhookDelete(webhook, messageId) {
+  const response = await fetch(`${webhook}/messages/${messageId}`, { method: "DELETE" });
+  if (!response.ok && response.status !== 404) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || "discord_error");
+  }
+}
+
+async function redditToken() {
+  const id = String(process.env.REDDIT_CLIENT_ID || "").trim();
+  const secret = String(process.env.REDDIT_CLIENT_SECRET || "").trim();
+  const username = String(process.env.REDDIT_USERNAME || "").trim();
+  const password = String(process.env.REDDIT_PASSWORD || "").trim();
+  const basic = Buffer.from(`${id}:${secret}`).toString("base64");
+  const response = await fetch("https://www.reddit.com/api/v1/access_token", {
+    method: "POST",
+    headers: {
+      authorization: `Basic ${basic}`,
+      "content-type": "application/x-www-form-urlencoded",
+      "user-agent": redditUserAgent()
+    },
+    body: new URLSearchParams({
+      grant_type: "password",
+      username,
+      password
+    })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.access_token) {
+    throw new Error(data.error || "reddit_auth");
+  }
+  return data.access_token;
+}
+
+async function redditForm(pathName, params) {
+  const token = await redditToken();
+  const response = await fetch(`https://oauth.reddit.com${pathName}`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/x-www-form-urlencoded",
+      "user-agent": redditUserAgent()
+    },
+    body: new URLSearchParams(params)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.message || data.error || "reddit_error");
+  }
+  const errors = data.json?.errors;
+  if (Array.isArray(errors) && errors.length) {
+    throw new Error(errors.map((item) => item[0] || item).join(", "));
+  }
+  return data;
+}
+
+async function redditSubmit({ subreddit, title, text }) {
+  const data = await redditForm("/api/submit", {
+    kind: "self",
+    sr: subreddit,
+    title,
+    text,
+    api_type: "json"
+  });
+  const result = data.json?.data || {};
+  return {
+    name: result.name || "",
+    url: result.url || (result.id ? `https://www.reddit.com/r/${subreddit}/comments/${result.id}/` : "")
+  };
+}
+
+async function redditEdit(thingId, text) {
+  await redditForm("/api/editusertext", {
+    thing_id: thingId,
+    text,
+    api_type: "json"
+  });
+}
+
+async function redditDelete(thingId) {
+  await redditForm("/api/del", { id: thingId });
 }
 
 function createHandle(users) {

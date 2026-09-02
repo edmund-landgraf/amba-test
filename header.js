@@ -24,6 +24,7 @@
   const header = document.createElement("header");
   header.className = "site-header";
   header.innerHTML = `
+    <div class="site-header-inner">
     <a class="brand" href="index.html">AMBA Adventure</a>
     <nav aria-label="Main navigation">${nav}</nav>
     <div class="header-actions">
@@ -52,6 +53,7 @@
           <button type="button" id="menuLogout" role="menuitem">Log out</button>
         </menu>
       </menu>
+    </div>
     </div>
   `;
   document.body.prepend(header);

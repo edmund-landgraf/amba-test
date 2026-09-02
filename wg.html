@@ -15,6 +15,43 @@
       <p class="lede">If you already build in Pathbuilder and fight on Foundry (or a Discord bot + a map), this is the same split: WG is the sheet, new UI is live combat, AMBA is GM-only prep. Build in old and/or new UI; combat on the call is new UI only. Two public characters, export JSON, drop files on Upload. We pick four of eight on Discord; the GM downloads those four from Upload.</p>
     </section>
 
+    <section class="band pcs-band">
+      <p class="eyebrow">Party</p>
+      <h2>PCs so far</h2>
+      <div class="table-wrap pcs-table-wrap">
+        <table class="pcs-table">
+          <thead>
+            <tr>
+              <th>Hero</th>
+              <th>Name</th>
+              <th>A/B/C</th>
+              <th>Level</th>
+              <th>Player</th>
+            </tr>
+          </thead>
+          <tbody id="pcsTableBody"></tbody>
+        </table>
+      </div>
+      <p class="form-note" id="pcsEmpty">No public sheet links yet.</p>
+    </section>
+
+    <section class="doc login-required-panel">
+      <p>Log in on this site to paste your two public WG sheet links. We fetch the read-only sheet at <code>/sheet/…</code> after you turn on Public Character.</p>
+    </section>
+
+    <section class="doc logged-in-only">
+      <h2>Your public sheet links</h2>
+      <p>Two links per player. Old UI: <a href="https://amba.wandersguide.site/sheet/1">amba.wandersguide.site/sheet/…</a>. New UI: <a href="https://wgui.wandersguide.site/sheet/1">wgui.wandersguide.site/sheet/…</a>. Same public, read-only sheet. You can edit or delete a link later.</p>
+      <form id="wgSheetForm" class="sheet-link-form">
+        <label>Sheet link <input name="url" type="url" required placeholder="https://wgui.wandersguide.site/sheet/1"></label>
+        <input type="hidden" name="replaceUrl" value="">
+        <button class="button primary" type="submit">Save link</button>
+        <button class="button" type="button" id="wgSheetCancel" hidden>Cancel edit</button>
+      </form>
+      <p class="form-note" id="wgSheetNote"></p>
+      <ul class="file-list" id="wgSheetList"></ul>
+    </section>
+
     <section class="doc">
       <p>Old UI (original builder): <a href="https://amba.wandersguide.site/">amba.wandersguide.site</a>. New UI: <a href="https://wgui.wandersguide.site/">wgui.wandersguide.site</a>. Same WG account on both—like Pathbuilder 2e desktop vs web, not two different characters. The GM keeps AMBA on the Discord share. Players do not need AMBA accounts: they use the <strong>player syndication link</strong> (<a href="session.html">Session</a> step 6) for the adventure packet. Optional: an AMBA account plus module sharing to follow encounter design (Session step 5).</p>
 

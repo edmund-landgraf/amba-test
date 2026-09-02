@@ -1,0 +1,19 @@
+{
+  "templates": {
+    "reddit": {
+      "title": "[Online] [PF2e] looking for {{players}} players — {{adventureTitle}}",
+      "body": "We're looking for players for **{{adventureTitle}}** ({{scope}}, {{playFormat}} Pathfinder 2e). Sheets in Wanderer's Guide, map in Owlbear, prep in AMBA, voice on Discord.\n\n**{{hookTitle}}**\n{{hook}}\n\n{{when}}\n\nSign up on the test site (email login, no AMBA account):\n{{signupUrl}}\n\nDiscord: {{discordInvite}}"
+    },
+    "discord": {
+      "body": "Looking for players for **{{adventureTitle}}** — {{hookTitle}}.\n{{hookShort}}\n\nSign up on the test site (join list, not an AMBA login):\n{{signupUrl}}\n\n{{when}}"
+    },
+    "facebook": {
+      "body": "Looking for a few players for {{adventureTitle}} ({{playFormat}} Pathfinder 2e, {{scope}}). {{hookTitle}}: {{hook}}\n\nSign up on our test site (not AMBA itself): {{signupUrl}}\n\n{{when}}"
+    }
+  },
+  "settings": {
+    "redditSubreddit": "lfg",
+    "discordWebhookUrl": ""
+  },
+  "posts": []
+}

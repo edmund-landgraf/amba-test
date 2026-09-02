@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Yes emails | An AMBA Adventure</title>
+  <title>Admin | An AMBA Adventure</title>
   <link rel="stylesheet" href="styles.css">
   <script src="theme.js"></script>
 </head>
@@ -11,10 +11,14 @@
   <main>
     <section class="page-hero">
       <p class="eyebrow">Admin</p>
-      <h1>Emails that said yes</h1>
-      <p class="lede">Open a draft with yes players on BCC so they cannot see each other. You are on CC.</p>
+      <h1 id="adminTitle">Emails that said yes</h1>
+      <p class="lede" id="adminLede">Open a draft with yes players on BCC so they cannot see each other. You are on CC.</p>
     </section>
-    <section class="doc">
+    <nav class="admin-tabs" aria-label="Admin sections">
+      <button type="button" class="admin-tab is-active" data-tab="yes" aria-current="page">Yes emails</button>
+      <button type="button" class="admin-tab" data-tab="promote">Promote</button>
+    </nav>
+    <section class="doc admin-tab-panel" id="panelYes">
       <form class="adventure-summary" id="sessionLinksForm">
         <div class="session-link-row">
           <a class="adventure-summary-link is-empty" id="summaryPreview" href="#" target="_blank" rel="noopener noreferrer">Adventure Summary</a>
@@ -40,6 +44,98 @@
       </p>
       <p class="form-note" id="copyNote"></p>
     </section>
+    <section class="doc admin-tab-panel" id="panelPromote" hidden>
+      <p class="form-note" id="promoteSignupPreview"></p>
+      <form class="promote-card" id="templatesForm">
+        <h2>Templates</h2>
+        <p>These drafts are filled from the adventure on this site. You can edit them before posting.</p>
+        <label>Reddit title
+          <input id="tplRedditTitle" type="text" value="[Online] [PF2e] looking for {{players}} players — {{adventureTitle}}">
+        </label>
+        <label>Reddit body
+          <textarea id="tplRedditBody" rows="8">We're looking for players for **{{adventureTitle}}** ({{scope}}, {{playFormat}} Pathfinder 2e). Sheets in Wanderer's Guide, map in Owlbear, prep in AMBA, voice on Discord.
+
+**{{hookTitle}}**
+{{hook}}
+
+{{when}}
+
+Sign up on the test site (email login, no AMBA account):
+{{signupUrl}}
+
+Discord: {{discordInvite}}</textarea>
+        </label>
+        <label>Discord body
+          <textarea id="tplDiscordBody" rows="6">Looking for players for **{{adventureTitle}}** — {{hookTitle}}.
+{{hookShort}}
+
+Sign up on the test site (join list, not an AMBA login):
+{{signupUrl}}
+
+{{when}}</textarea>
+        </label>
+        <label>Facebook body
+          <textarea id="tplFacebookBody" rows="6">Looking for a few players for {{adventureTitle}} ({{playFormat}} Pathfinder 2e, {{scope}}). {{hookTitle}}: {{hook}}
+
+Sign up on our test site (not AMBA itself): {{signupUrl}}
+
+{{when}}</textarea>
+        </label>
+        <p class="form-actions">
+          <button class="button secondary" type="submit">Save templates</button>
+          <button class="button secondary" id="fillFromAdventure" type="button">Fill from adventure</button>
+        </p>
+        <p class="form-note" id="templatesNote"></p>
+      </form>
+      <div class="promote-grid">
+        <form class="promote-card" id="redditForm">
+          <h2>Reddit</h2>
+          <label>Subreddit
+            <input id="redditSubreddit" type="text" placeholder="lfg" value="lfg">
+          </label>
+          <label>Title
+            <input id="redditTitle" type="text">
+          </label>
+          <label>Body
+            <textarea id="redditBody" rows="8"></textarea>
+          </label>
+          <p class="form-actions">
+            <button class="button primary" id="redditPost" type="submit">Post</button>
+            <button class="button secondary" id="redditCopy" type="button">Copy and open Reddit</button>
+          </p>
+          <p class="form-note" id="redditNote"></p>
+        </form>
+        <form class="promote-card" id="discordForm">
+          <h2>Discord</h2>
+          <label>Webhook URL
+            <input id="discordWebhook" type="password" autocomplete="off" placeholder="https://discord.com/api/webhooks/…">
+          </label>
+          <p class="form-note" id="discordWebhookHint"></p>
+          <label>Body
+            <textarea id="discordBody" rows="8"></textarea>
+          </label>
+          <p class="form-actions">
+            <button class="button secondary" type="button" id="saveWebhook">Save webhook</button>
+            <button class="button primary" type="submit">Post to Discord</button>
+          </p>
+          <p class="form-note" id="discordNote"></p>
+        </form>
+        <form class="promote-card" id="facebookForm">
+          <h2>Facebook</h2>
+          <p>Groups cannot be posted by API. Copy this into an LFG group yourself.</p>
+          <label>Body
+            <textarea id="facebookBody" rows="8"></textarea>
+          </label>
+          <button class="button primary" type="submit">Copy and open Facebook</button>
+          <p class="form-note" id="facebookNote"></p>
+        </form>
+      </div>
+      <div class="promote-card">
+        <h2>Manage posts</h2>
+        <p class="form-note" id="postsNote"></p>
+        <div class="email-list" id="postsList"></div>
+      </div>
+    </section>
   </main>
   <footer><p><a href="index.html">Back to signup</a></p></footer>
   <script src="header.js"></script>
@@ -56,6 +152,24 @@
     let people = [];
     let selfEmail = "";
     let slot = null;
+    const defaultTemplates = {
+      reddit: {
+        title: "[Online] [PF2e] looking for {{players}} players — {{adventureTitle}}",
+        body: "We're looking for players for **{{adventureTitle}}** ({{scope}}, {{playFormat}} Pathfinder 2e). Sheets in Wanderer's Guide, map in Owlbear, prep in AMBA, voice on Discord.\n\n**{{hookTitle}}**\n{{hook}}\n\n{{when}}\n\nSign up on the test site (email login, no AMBA account):\n{{signupUrl}}\n\nDiscord: {{discordInvite}}"
+      },
+      discord: {
+        body: "Looking for players for **{{adventureTitle}}** — {{hookTitle}}.\n{{hookShort}}\n\nSign up on the test site (join list, not an AMBA login):\n{{signupUrl}}\n\n{{when}}"
+      },
+      facebook: {
+        body: "Looking for a few players for {{adventureTitle}} ({{playFormat}} Pathfinder 2e, {{scope}}). {{hookTitle}}: {{hook}}\n\nSign up on our test site (not AMBA itself): {{signupUrl}}\n\n{{when}}"
+      }
+    };
+    const discordInvite = "https://discord.com/channels/1534196054944121074/";
+
+    const headers = () => ({
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json"
+    });
 
     function bindPreview(link, href) {
       const url = String(href || "").trim();
@@ -76,6 +190,25 @@
       bindPreview(summaryPreview, syndicationUrl.value);
     }
 
+    function showTab(name) {
+      const promote = name === "promote";
+      document.querySelector("#panelYes").hidden = promote;
+      document.querySelector("#panelPromote").hidden = !promote;
+      document.querySelectorAll(".admin-tab").forEach((button) => {
+        const on = button.dataset.tab === name;
+        button.classList.toggle("is-active", on);
+        if (on) button.setAttribute("aria-current", "page");
+        else button.removeAttribute("aria-current");
+      });
+      document.querySelector("#adminTitle").textContent = promote
+        ? "Promote"
+        : "Emails that said yes";
+      document.querySelector("#adminLede").textContent = promote
+        ? "Push looking-for-players posts. Every template sends people back here to sign up."
+        : "Open a draft with yes players on BCC so they cannot see each other. You are on CC.";
+      history.replaceState(null, "", promote ? "#promote" : "#yes");
+    }
+
     async function load() {
       const response = await fetch("/api/admin/yes-emails", {
         headers: { authorization: `Bearer ${token}` }
@@ -86,6 +219,8 @@
       }
       const data = await response.json();
       fillAdmin(data);
+      await loadPromote();
+      if (location.hash === "#promote") showTab("promote");
     }
 
     function fillAdmin(data) {
@@ -130,10 +265,7 @@
       if (!confirm(`Delete ${person.email} from this site?`)) return;
       const response = await fetch("/api/admin/delete-email", {
         method: "POST",
-        headers: {
-          authorization: `Bearer ${token}`,
-          "content-type": "application/json"
-        },
+        headers: headers(),
         body: JSON.stringify({ email: person.email })
       });
       if (!response.ok) {
@@ -215,6 +347,246 @@
       return { bccCount: bcc.length };
     }
 
+    function clipText(text, max) {
+      const value = String(text || "").replace(/\s+/g, " ").trim();
+      if (value.length <= max) return value;
+      const cut = value.slice(0, max - 1);
+      const space = cut.lastIndexOf(" ");
+      return `${(space > 40 ? cut.slice(0, space) : cut).trim()}…`;
+    }
+
+    function adventureVars(session) {
+      const adventureTitle = String(session?.title || "An AMBA Adventure").trim();
+      const hookText = String(session?.playerHookText || "").trim();
+      const parts = hookText
+        .split(/\n\s*\n/)
+        .map((part) => part.replace(/\s+/g, " ").trim())
+        .filter(Boolean);
+      const hookTitle = parts[0] || adventureTitle;
+      const hookRest = parts.slice(1).join(" ");
+      const format = String(session?.format || "").trim();
+      const playFormat = /remote|online/i.test(format) || !format ? "Online" : format;
+      return {
+        adventureTitle,
+        hookTitle,
+        hook: clipText(hookRest || hookTitle, 450),
+        hookShort: clipText(hookRest || hookTitle, 220),
+        playFormat,
+        scope: String(session?.scope || "Short adventure").trim(),
+        players: String(session?.targetPlayers || 4),
+        discordInvite,
+        when: slotWhen(slot)
+      };
+    }
+
+    function expandTemplate(text, vars) {
+      return String(text || "").replace(/\{\{(\w+)\}\}/g, (_, key) => (
+        vars[key] == null ? "" : String(vars[key])
+      ));
+    }
+
+    function signupUrl(platform) {
+      return `${location.origin}/?utm_source=${encodeURIComponent(platform)}&utm_medium=promote&utm_campaign=lfg`;
+    }
+
+    function filledFrom(templates, session) {
+      const base = adventureVars(session);
+      const reddit = { ...base, signupUrl: signupUrl("reddit") };
+      const discord = { ...base, signupUrl: signupUrl("discord") };
+      const facebook = { ...base, signupUrl: signupUrl("facebook") };
+      const source = {
+        reddit: {
+          title: templates?.reddit?.title || defaultTemplates.reddit.title,
+          body: templates?.reddit?.body || defaultTemplates.reddit.body
+        },
+        discord: { body: templates?.discord?.body || defaultTemplates.discord.body },
+        facebook: { body: templates?.facebook?.body || defaultTemplates.facebook.body }
+      };
+      return {
+        source,
+        reddit: {
+          title: expandTemplate(source.reddit.title, reddit),
+          body: expandTemplate(source.reddit.body, reddit)
+        },
+        discord: { body: expandTemplate(source.discord.body, discord) },
+        facebook: { body: expandTemplate(source.facebook.body, facebook) }
+      };
+    }
+
+    async function loadPromote() {
+      let data = null;
+      try {
+        const response = await fetch("/api/admin/promote", {
+          headers: { authorization: `Bearer ${token}` }
+        });
+        if (response.ok) data = await response.json();
+      } catch {
+        data = null;
+      }
+      let session = null;
+      try {
+        const state = await (await fetch("/api/state")).json();
+        session = state.session || null;
+      } catch {
+        session = null;
+      }
+      fillPromote(data, session);
+    }
+
+    function fillPromote(data, session) {
+      promoteState = data;
+      const filled = filledFrom(data?.templates || defaultTemplates, session);
+      const redditTitle = data?.previews?.reddit?.title || filled.reddit.title;
+      const redditBody = data?.previews?.reddit?.body || filled.reddit.body;
+      const discordBody = data?.previews?.discord?.body || filled.discord.body;
+      const facebookBody = data?.previews?.facebook?.body || filled.facebook.body;
+      document.querySelector("#tplRedditTitle").value = redditTitle;
+      document.querySelector("#tplRedditBody").value = redditBody;
+      document.querySelector("#tplDiscordBody").value = discordBody;
+      document.querySelector("#tplFacebookBody").value = facebookBody;
+      document.querySelector("#redditSubreddit").value = data?.settings?.redditSubreddit || "lfg";
+      document.querySelector("#redditTitle").value = redditTitle;
+      document.querySelector("#redditBody").value = redditBody;
+      document.querySelector("#discordBody").value = discordBody;
+      document.querySelector("#facebookBody").value = facebookBody;
+      document.querySelector("#promoteSignupPreview").textContent =
+        `Filled from ${session?.title || data?.adventure?.title || "the loaded adventure"}. Signup links point at this site. Discord invite ${data?.discordInvite || discordInvite}`;
+      document.querySelector("#discordWebhookHint").textContent = data?.settings?.discordWebhookSet
+        ? `A webhook is saved (${data.settings.discordWebhookHint}). Paste a new URL only to replace it.`
+        : "Paste a channel webhook URL. Stored on the server when you save.";
+      document.querySelector("#redditNote").textContent = data?.redditCanPost
+        ? "Reddit API credentials are set. Post will submit a self post."
+        : "No Reddit API credentials. Use Copy and open Reddit, then paste.";
+      if (document.querySelector("#redditPost")) {
+        document.querySelector("#redditPost").disabled = !data?.redditCanPost;
+      }
+      if (!data) {
+        document.querySelector("#templatesNote").textContent =
+          "Showing the adventure on this site. Restart the Node server to save or post.";
+      }
+      renderPosts(data?.posts || []);
+    }
+
+    function renderPosts(posts) {
+      const list = document.querySelector("#postsList");
+      list.replaceChildren();
+      if (!posts.length) {
+        document.querySelector("#postsNote").textContent = "No posts yet.";
+        return;
+      }
+      document.querySelector("#postsNote").textContent = `${posts.length} recorded post(s).`;
+      const head = document.createElement("div");
+      head.className = "email-row email-head promote-post-row";
+      head.innerHTML = "<span>Platform</span><span>Where</span><span>Status</span><span></span>";
+      list.append(head);
+      for (const post of posts) {
+        const row = document.createElement("div");
+        row.className = "email-row promote-post-row";
+        const platform = document.createElement("span");
+        platform.textContent = post.platform;
+        const dest = document.createElement("span");
+        dest.textContent = post.permalink || post.destination || "—";
+        const status = document.createElement("span");
+        status.textContent = post.status;
+        const actions = document.createElement("span");
+        actions.className = "promote-actions";
+        const addBtn = (label, className, fn) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = className;
+          button.textContent = label;
+          button.addEventListener("click", fn);
+          actions.append(button);
+        };
+        if (post.status !== "deleted" && (post.platform === "discord" || (post.platform === "reddit" && promoteState?.redditCanPost))) {
+          addBtn("Edit", "button secondary", () => editPost(post));
+          addBtn("Delete remote", "button danger", () => deletePost(post, false));
+        }
+        if (post.status !== "filled" && post.status !== "deleted") {
+          addBtn("Mark filled", "button secondary", () => markFilled(post));
+        }
+        addBtn("Permalink", "button secondary", () => setPermalink(post));
+        addBtn("Forget", "button danger", () => deletePost(post, true));
+        row.append(platform, dest, status, actions);
+        list.append(row);
+      }
+    }
+
+    async function promoteFetch(url, options) {
+      const response = await fetch(url, options);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.detail || data.error || response.statusText);
+      }
+      return data;
+    }
+
+    async function copyAndOpen(text, url, note) {
+      await navigator.clipboard.writeText(text);
+      window.open(url, "_blank", "noopener,noreferrer");
+      note.textContent = "Copied. Paste into the compose window.";
+    }
+
+    async function editPost(post) {
+      const body = prompt("Updated body", post.body);
+      if (body == null) return;
+      try {
+        const data = await promoteFetch(`/api/admin/promote/posts/${post.id}`, {
+          method: "PATCH",
+          headers: headers(),
+          body: JSON.stringify({ body })
+        });
+        fillPromote(data.promote);
+      } catch (error) {
+        document.querySelector("#postsNote").textContent = error.message;
+      }
+    }
+
+    async function markFilled(post) {
+      try {
+        const data = await promoteFetch(`/api/admin/promote/posts/${post.id}`, {
+          method: "PATCH",
+          headers: headers(),
+          body: JSON.stringify({ status: "filled" })
+        });
+        fillPromote(data.promote);
+      } catch (error) {
+        document.querySelector("#postsNote").textContent = error.message;
+      }
+    }
+
+    async function setPermalink(post) {
+      const permalink = prompt("Post URL", post.permalink || "");
+      if (permalink == null) return;
+      try {
+        const data = await promoteFetch(`/api/admin/promote/posts/${post.id}/permalink`, {
+          method: "POST",
+          headers: headers(),
+          body: JSON.stringify({ permalink })
+        });
+        fillPromote(data.promote);
+      } catch (error) {
+        document.querySelector("#postsNote").textContent = error.message;
+      }
+    }
+
+    async function deletePost(post, forget) {
+      if (!confirm(forget ? "Remove this row from the list?" : "Delete the remote post if possible?")) return;
+      try {
+        const data = await promoteFetch(`/api/admin/promote/posts/${post.id}?forget=${forget ? "1" : "0"}`, {
+          method: "DELETE",
+          headers: { authorization: `Bearer ${token}` }
+        });
+        fillPromote(data.promote);
+      } catch (error) {
+        document.querySelector("#postsNote").textContent = error.message;
+      }
+    }
+
+    document.querySelectorAll(".admin-tab").forEach((button) => {
+      button.addEventListener("click", () => showTab(button.dataset.tab));
+    });
+
     syndicationUrl.addEventListener("input", refreshPreviews);
     playerHookUrl.addEventListener("input", refreshPreviews);
     refreshPreviews();
@@ -225,10 +597,7 @@
       try {
         const response = await fetch("/api/admin/session", {
           method: "POST",
-          headers: {
-            authorization: `Bearer ${token}`,
-            "content-type": "application/json"
-          },
+          headers: headers(),
           body: JSON.stringify({
             syndicationUrl: syndicationUrl.value,
             playerHookUrl: playerHookUrl.value
@@ -261,6 +630,154 @@
       copyNote.textContent = result.bccCount
         ? "Opened a mail draft and downloaded amba-yes-invite.eml. Other yes players are on BCC; you are on CC."
         : "Opened a mail draft to you (you are the only yes so far). Also downloaded amba-yes-invite.eml if the mail app did not open.";
+    });
+
+    document.querySelector("#fillFromAdventure").addEventListener("click", async () => {
+      const note = document.querySelector("#templatesNote");
+      note.textContent = "Filling…";
+      try {
+        const state = await (await fetch("/api/state")).json();
+        fillPromote({
+          ...(promoteState || {}),
+          templates: defaultTemplates,
+          previews: null
+        }, state.session);
+        note.textContent = `Filled from ${state.session?.title || "the loaded adventure"}.`;
+      } catch (error) {
+        note.textContent = error.message;
+      }
+    });
+      event.preventDefault();
+      const note = document.querySelector("#templatesNote");
+      note.textContent = "Saving…";
+      try {
+        const data = await promoteFetch("/api/admin/promote/templates", {
+          method: "PUT",
+          headers: headers(),
+          body: JSON.stringify({
+            reddit: {
+              title: document.querySelector("#tplRedditTitle").value,
+              body: document.querySelector("#tplRedditBody").value
+            },
+            discord: { body: document.querySelector("#tplDiscordBody").value },
+            facebook: { body: document.querySelector("#tplFacebookBody").value }
+          })
+        });
+        fillPromote(data);
+        note.textContent = "Templates saved.";
+      } catch (error) {
+        note.textContent = error.message;
+      }
+    });
+
+    document.querySelector("#saveWebhook").addEventListener("click", async () => {
+      const note = document.querySelector("#discordNote");
+      note.textContent = "Saving…";
+      try {
+        const data = await promoteFetch("/api/admin/promote/settings", {
+          method: "PUT",
+          headers: headers(),
+          body: JSON.stringify({
+            redditSubreddit: document.querySelector("#redditSubreddit").value,
+            discordWebhookUrl: document.querySelector("#discordWebhook").value
+          })
+        });
+        fillPromote(data);
+        document.querySelector("#discordWebhook").value = "";
+        note.textContent = "Settings saved.";
+      } catch (error) {
+        note.textContent = error.message;
+      }
+    });
+
+    document.querySelector("#redditForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const note = document.querySelector("#redditNote");
+      note.textContent = "Posting…";
+      try {
+        await promoteFetch("/api/admin/promote/settings", {
+          method: "PUT",
+          headers: headers(),
+          body: JSON.stringify({ redditSubreddit: document.querySelector("#redditSubreddit").value })
+        });
+        const data = await promoteFetch("/api/admin/promote/post", {
+          method: "POST",
+          headers: headers(),
+          body: JSON.stringify({
+            platform: "reddit",
+            subreddit: document.querySelector("#redditSubreddit").value,
+            title: document.querySelector("#redditTitle").value,
+            body: document.querySelector("#redditBody").value
+          })
+        });
+        fillPromote(data.promote);
+        note.textContent = data.mode === "posted" ? "Posted to Reddit." : "Copied path — use Copy and open Reddit if you have no API keys.";
+      } catch (error) {
+        note.textContent = error.message;
+      }
+    });
+
+    document.querySelector("#redditCopy").addEventListener("click", async () => {
+      const note = document.querySelector("#redditNote");
+      try {
+        const data = await promoteFetch("/api/admin/promote/post", {
+          method: "POST",
+          headers: headers(),
+          body: JSON.stringify({
+            platform: "reddit",
+            copyOnly: true,
+            subreddit: document.querySelector("#redditSubreddit").value,
+            title: document.querySelector("#redditTitle").value,
+            body: document.querySelector("#redditBody").value
+          })
+        });
+        fillPromote(data.promote);
+        const text = `${document.querySelector("#redditTitle").value}\n\n${document.querySelector("#redditBody").value}`;
+        await copyAndOpen(text, data.openUrl, note);
+      } catch (error) {
+        note.textContent = error.message;
+      }
+    });
+
+    document.querySelector("#discordForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const note = document.querySelector("#discordNote");
+      note.textContent = "Posting…";
+      try {
+        const data = await promoteFetch("/api/admin/promote/post", {
+          method: "POST",
+          headers: headers(),
+          body: JSON.stringify({
+            platform: "discord",
+            webhookUrl: document.querySelector("#discordWebhook").value,
+            body: document.querySelector("#discordBody").value
+          })
+        });
+        fillPromote(data.promote);
+        document.querySelector("#discordWebhook").value = "";
+        note.textContent = "Posted to Discord.";
+      } catch (error) {
+        note.textContent = error.message;
+      }
+    });
+
+    document.querySelector("#facebookForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const note = document.querySelector("#facebookNote");
+      try {
+        const data = await promoteFetch("/api/admin/promote/post", {
+          method: "POST",
+          headers: headers(),
+          body: JSON.stringify({
+            platform: "facebook",
+            body: document.querySelector("#facebookBody").value
+          })
+        });
+        fillPromote(data.promote);
+        await copyAndOpen(document.querySelector("#facebookBody").value, data.openUrl, note);
+      } catch (error) {
+        note.textContent = error.message;
+      }
     });
 
     load();
