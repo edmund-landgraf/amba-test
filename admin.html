@@ -25,19 +25,19 @@
           <select id="adventureSelect" disabled></select>
         </label>
         <p class="form-note">Each adventure is its own provision (schedule, characters, promote). Module switching from AMBA comes later.</p>
-        <div class="session-link-row">
-          <a class="adventure-summary-link is-empty" id="summaryPreview" href="#" target="_blank" rel="noopener noreferrer">Adventure Summary</a>
-        </div>
         <div class="adventure-summary-form">
+          <a class="adventure-summary-link is-empty" id="summaryPreview" href="#" target="_blank" rel="noopener noreferrer">Adventure Summary</a>
+          <a class="adventure-summary-link is-empty" id="playerHookPreview" href="#" target="_blank" rel="noopener noreferrer">Player Hook</a>
+          <span class="adventure-summary-edit-spacer" aria-hidden="true"></span>
           <label>
             Adventure Summary URL
-            <input id="syndicationUrl" type="text" inputmode="url" autocomplete="off" placeholder="https://amba.unwhelm.online/syndicate/…">
+            <input id="syndicationUrl" type="text" inputmode="url" autocomplete="off" placeholder="https://amba.unwhelm.online/syndicate/…" readonly>
           </label>
           <label>
             AMBA player hook URL
-            <input id="playerHookUrl" type="text" inputmode="url" autocomplete="off" placeholder="https://amba.unwhelm.online/syndicate/…/p/…">
+            <input id="playerHookUrl" type="text" inputmode="url" autocomplete="off" placeholder="https://amba.unwhelm.online/syndicate/…/p/…" readonly>
           </label>
-          <button class="button secondary" type="submit">Save links</button>
+          <button class="button secondary" id="sessionLinksToggle" type="button">Edit</button>
         </div>
         <p class="form-note" id="sessionLinksNote"></p>
       </form>
@@ -153,8 +153,11 @@ Sign up on our test site (not AMBA itself): {{signupUrl}}
     const syndicationUrl = document.querySelector("#syndicationUrl");
     const playerHookUrl = document.querySelector("#playerHookUrl");
     const summaryPreview = document.querySelector("#summaryPreview");
+    const playerHookPreview = document.querySelector("#playerHookPreview");
     const adventureSelect = document.querySelector("#adventureSelect");
+    const sessionLinksToggle = document.querySelector("#sessionLinksToggle");
     const sessionLinksNote = document.querySelector("#sessionLinksNote");
+    let linksEditing = false;
     let people = [];
     let selfEmail = "";
     let slot = null;
@@ -184,10 +187,12 @@ Sign up on our test site (not AMBA itself): {{signupUrl}}
       link.classList.toggle("is-empty", !ok);
       if (ok) {
         link.href = url;
+        link.title = url;
         link.removeAttribute("aria-disabled");
         link.onclick = null;
       } else {
         link.removeAttribute("href");
+        link.removeAttribute("title");
         link.setAttribute("aria-disabled", "true");
         link.onclick = (event) => event.preventDefault();
       }
@@ -195,6 +200,37 @@ Sign up on our test site (not AMBA itself): {{signupUrl}}
 
     function refreshPreviews() {
       bindPreview(summaryPreview, syndicationUrl.value);
+      bindPreview(playerHookPreview, playerHookUrl.value);
+      const summary = String(syndicationUrl.value || "").trim();
+      const hook = String(playerHookUrl.value || "").trim();
+      syndicationUrl.title = summary;
+      playerHookUrl.title = hook;
+    }
+
+    function setLinksEditing(on) {
+      linksEditing = Boolean(on);
+      syndicationUrl.readOnly = !linksEditing;
+      playerHookUrl.readOnly = !linksEditing;
+      sessionLinksToggle.textContent = linksEditing ? "Save" : "Edit";
+      sessionLinksToggle.type = "button";
+    }
+
+    function fillAdventureSelect(data) {
+      adventureSelect.disabled = true;
+      adventureSelect.replaceChildren();
+      const modules = data.modules?.modules || [];
+      const selectedId = data.modules?.selectedId || "";
+      const fallback = [{
+        id: selectedId || "current",
+        title: data.title || "An AMBA Adventure"
+      }];
+      for (const module of modules.length ? modules : fallback) {
+        const option = document.createElement("option");
+        option.value = module.id;
+        option.textContent = module.title || module.id;
+        option.selected = module.id === selectedId || (modules.length ? modules.length === 1 : true);
+        adventureSelect.append(option);
+      }
     }
 
     function showTab(name) {
@@ -236,18 +272,10 @@ Sign up on our test site (not AMBA itself): {{signupUrl}}
       adventureTitle = String(data.title || "").trim();
       syndicationUrl.value = data.syndicationUrl || "";
       playerHookUrl.value = data.playerHookUrl || "";
+      setLinksEditing(false);
       refreshPreviews();
       render(data.emails || []);
-      const modules = data.modules?.modules || [];
-      const selectedId = data.modules?.selectedId || "";
-      adventureSelect.replaceChildren();
-      for (const module of modules.length ? modules : [{ id: "current", title: data.title || "An AMBA Adventure" }]) {
-        const option = document.createElement("option");
-        option.value = module.id;
-        option.textContent = module.title || module.id;
-        option.selected = module.id === selectedId || modules.length === 1;
-        adventureSelect.append(option);
-      }
+      fillAdventureSelect(data);
     }
 
     function render(nextPeople) {
@@ -607,32 +635,52 @@ Sign up on our test site (not AMBA itself): {{signupUrl}}
 
     syndicationUrl.addEventListener("input", refreshPreviews);
     playerHookUrl.addEventListener("input", refreshPreviews);
+    setLinksEditing(false);
     refreshPreviews();
+
+    async function saveSessionLinks() {
+      sessionLinksNote.textContent = "Saving…";
+      const response = await fetch("/api/admin/session", {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({
+          syndicationUrl: syndicationUrl.value,
+          playerHookUrl: playerHookUrl.value
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const why = data.detail || data.error || response.statusText || String(response.status);
+        throw new Error(`Could not save links (${why}). Re-open admin with +a if this says unauthorized.`);
+      }
+      syndicationUrl.value = data.session?.syndicationUrl || "";
+      playerHookUrl.value = data.session?.playerHookUrl || "";
+      setLinksEditing(false);
+      refreshPreviews();
+      sessionLinksNote.textContent = "Links saved. They show as hyperlinks on the signup page.";
+    }
+
+    sessionLinksToggle.addEventListener("click", async () => {
+      if (!linksEditing) {
+        setLinksEditing(true);
+        syndicationUrl.focus();
+        sessionLinksNote.textContent = "Edit the summary and player-hook URLs, then Save.";
+        return;
+      }
+      try {
+        await saveSessionLinks();
+      } catch (error) {
+        sessionLinksNote.textContent = error.message;
+      }
+    });
 
     document.querySelector("#sessionLinksForm").addEventListener("submit", async (event) => {
       event.preventDefault();
-      sessionLinksNote.textContent = "Saving…";
+      if (!linksEditing) return;
       try {
-        const response = await fetch("/api/admin/session", {
-          method: "POST",
-          headers: headers(),
-          body: JSON.stringify({
-            syndicationUrl: syndicationUrl.value,
-            playerHookUrl: playerHookUrl.value
-          })
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          const why = data.detail || data.error || response.statusText || String(response.status);
-          sessionLinksNote.textContent = `Could not save links (${why}). Re-open admin with +a if this says unauthorized.`;
-          return;
-        }
-        syndicationUrl.value = data.session?.syndicationUrl || "";
-        playerHookUrl.value = data.session?.playerHookUrl || "";
-        refreshPreviews();
-        sessionLinksNote.textContent = "Links saved. They show as hyperlinks on the signup page.";
+        await saveSessionLinks();
       } catch (error) {
-        sessionLinksNote.textContent = `Could not save links (${error.message}). Is the site server running the latest server.js?`;
+        sessionLinksNote.textContent = error.message;
       }
     });
 
@@ -665,6 +713,8 @@ Sign up on our test site (not AMBA itself): {{signupUrl}}
         note.textContent = error.message;
       }
     });
+
+    document.querySelector("#templatesForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       const note = document.querySelector("#templatesNote");
       note.textContent = "Saving…";

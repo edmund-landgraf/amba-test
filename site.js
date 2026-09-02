@@ -46,6 +46,11 @@ const timezoneForm = document.querySelector("#timezoneForm");
 const timezoneSelect = document.querySelector("#timezoneSelect");
 const closeTimezone = document.querySelector("#closeTimezone");
 const openTimezoneFromProfile = document.querySelector("#openTimezoneFromProfile");
+const settingsModal = document.querySelector("#settingsModal");
+const settingsForm = document.querySelector("#settingsForm");
+const closeSettings = document.querySelector("#closeSettings");
+const profileDiscordUserId = document.querySelector("#profileDiscordUserId");
+const profileRedditUserId = document.querySelector("#profileRedditUserId");
 
 start();
 
@@ -96,6 +101,7 @@ async function loadState() {
 function wireEvents() {
   feedbackForm?.addEventListener("submit", saveFeedback);
   identityForm?.addEventListener("submit", saveIdentity);
+  settingsForm?.addEventListener("submit", saveSettings);
   loginForm?.addEventListener("submit", login);
   joinTest?.addEventListener("click", joinTheTest);
   openAdmin?.addEventListener("click", openAdminModal);
@@ -121,9 +127,13 @@ function wireEvents() {
     openTimezoneModal();
   });
   closeTimezone?.addEventListener("click", () => timezoneModal?.open && timezoneModal.close());
+  closeSettings?.addEventListener("click", () => settingsModal?.open && settingsModal.close());
   timezoneForm?.addEventListener("submit", saveTimezone);
   timezoneModal?.addEventListener("click", (event) => {
     if (event.target === timezoneModal) timezoneModal.close();
+  });
+  settingsModal?.addEventListener("click", (event) => {
+    if (event.target === settingsModal) settingsModal.close();
   });
   openTimezoneFromProfile?.addEventListener("click", () => {
     closeProfileModal();
@@ -144,7 +154,7 @@ function wireEvents() {
   accountButton?.addEventListener("click", toggleSettingsMenu);
   menuSettings?.addEventListener("click", () => {
     closeSettingsMenu();
-    openTimezoneModal();
+    openSettingsModal();
   });
   menuTimezone?.addEventListener("click", () => {
     closeSettingsMenu();
@@ -294,6 +304,8 @@ function syncIdentity() {
   if (profileHandle) profileHandle.textContent = user?.handle || "Not signed in";
   if (profileEmail) profileEmail.textContent = user?.email || "Not signed in";
   if (profileTimezone) profileTimezone.textContent = user?.timezone ? timezoneLabel(user.timezone) : "Not set";
+  if (profileDiscordUserId) profileDiscordUserId.textContent = user?.discordUserId || "Not set";
+  if (profileRedditUserId) profileRedditUserId.textContent = user?.redditUserId || "Not set";
   if (accountInitials) accountInitials.textContent = user?.handle ? initialsForHandle(user.handle) : "?";
   if (menuHandle) menuHandle.textContent = user?.handle ? `Welcome, ${user.handle}` : "Not signed in";
   if (menuEmail) menuEmail.textContent = user?.email || "Log in by email";
@@ -336,6 +348,44 @@ function openTimezoneModal() {
   }
   fillTimezoneSelect(appState.user.timezone || "");
   timezoneModal.showModal();
+}
+
+function openSettingsModal() {
+  if (!settingsModal) return;
+  if (!appState.user?.email) {
+    openLoginModal();
+    return;
+  }
+  if (settingsForm) {
+    settingsForm.discordUserId.value = appState.user.discordUserId || "";
+    settingsForm.redditUserId.value = appState.user.redditUserId || "";
+  }
+  settingsModal.showModal();
+  settingsForm?.querySelector("input")?.focus({ preventScroll: true });
+}
+
+async function saveSettings(event) {
+  event.preventDefault();
+  if (!appState.user?.email) {
+    joinTheTest();
+    return;
+  }
+  const data = Object.fromEntries(new FormData(settingsForm).entries());
+  const result = await api("/api/signup", {
+    method: "POST",
+    body: {
+      email: appState.user.email,
+      handle: appState.user.handle,
+      timezone: appState.user.timezone,
+      discord: appState.user.discord,
+      characterStatus: appState.user.characterStatus,
+      discordUserId: data.discordUserId,
+      redditUserId: data.redditUserId
+    }
+  });
+  appState.user = result.user;
+  if (settingsModal?.open) settingsModal.close();
+  await loadState();
 }
 
 async function saveTimezone(event) {

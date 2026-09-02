@@ -46,10 +46,10 @@
             <span id="menuHandle">Not signed in</span>
             <small id="menuEmail">Log in by email</small>
           </p>
+          <button type="button" id="menuLogin" role="menuitem">Log in</button>
           <button type="button" id="menuSettings" role="menuitem">Settings</button>
           <button type="button" id="menuTimezone" role="menuitem">Set time zone</button>
           <button type="button" id="menuProfile" role="menuitem">Profile</button>
-          <button type="button" id="menuLogin" role="menuitem">Log in</button>
           <button type="button" id="menuLogout" role="menuitem">Log out</button>
         </menu>
       </menu>
@@ -96,6 +96,10 @@
         <dd id="profileEmail">Not signed in</dd>
         <dt>Time zone</dt>
         <dd id="profileTimezone">Not set</dd>
+        <dt>Discord user ID</dt>
+        <dd id="profileDiscordUserId">Not set</dd>
+        <dt>Reddit user ID</dt>
+        <dd id="profileRedditUserId">Not set</dd>
       </dl>
       <p class="modal-copy">Your handle is used in the shared session sheet. Your email is private and used only to log back in.</p>
       <button class="button secondary" id="openTimezoneFromProfile" type="button">Set time zone</button>
@@ -114,6 +118,17 @@
       </form>
       <button class="button danger" id="deleteAccount" type="button">Delete account</button>
       <p class="form-note" id="profileNote">Deleting removes your profile, availability, and feedback.</p>
+    </dialog>
+    <dialog class="modal small-modal" id="settingsModal" aria-labelledby="settingsTitle">
+      <button class="modal-close" id="closeSettings" type="button" aria-label="Close settings">x</button>
+      <p class="eyebrow">Account</p>
+      <h2 id="settingsTitle">Settings</h2>
+      <p class="modal-copy">Optional IDs so we can find you on Discord and Reddit. Time zone stays under Set time zone.</p>
+      <form id="settingsForm">
+        <label>Discord user ID <input name="discordUserId" inputmode="numeric" autocomplete="off" placeholder="17–19 digit ID"></label>
+        <label>Reddit user ID <input name="redditUserId" autocomplete="off" placeholder="u/username or t2_…"></label>
+        <button class="button primary" type="submit">Save settings</button>
+      </form>
     </dialog>
     <dialog class="modal small-modal" id="timezoneModal" aria-labelledby="timezoneTitle">
       <button class="modal-close" id="closeTimezone" type="button" aria-label="Close time zone">x</button>

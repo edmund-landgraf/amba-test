@@ -565,6 +565,8 @@ async function upsertUser(data) {
   if (existing) {
     existing.handle = handle;
     existing.discord = String(data.discord || existing.discord || "").trim();
+    existing.discordUserId = normalizeDiscordUserId(data.discordUserId !== undefined ? data.discordUserId : existing.discordUserId);
+    existing.redditUserId = normalizeRedditUserId(data.redditUserId !== undefined ? data.redditUserId : existing.redditUserId);
     existing.timezone = String(data.timezone || existing.timezone || "").trim();
     existing.characterStatus = String(data.characterStatus || existing.characterStatus || "").trim();
     existing.role = "admin";
@@ -581,6 +583,8 @@ async function upsertUser(data) {
     email,
     handle,
     discord: String(data.discord || "").trim(),
+    discordUserId: normalizeDiscordUserId(data.discordUserId),
+    redditUserId: normalizeRedditUserId(data.redditUserId),
     timezone: String(data.timezone || "").trim(),
     characterStatus: String(data.characterStatus || "").trim(),
     role: "admin",
@@ -993,6 +997,8 @@ function publicUser(user, adventure) {
     email: user.email,
     handle: user.handle,
     discord: user.discord,
+    discordUserId: user.discordUserId || "",
+    redditUserId: user.redditUserId || "",
     timezone: user.timezone,
     characterStatus: signup?.characterStatus || user.characterStatus || "",
     wgSheets: (pack?.sheets || []).map((sheet) => publicSheet(sheet, user.handle)),
@@ -2093,17 +2099,28 @@ async function leadingYesSlot() {
 
 async function adminYesMail() {
   const modules = await listAmbaModules();
+  const links = await sessionLinks();
   return {
     emails: await yesEmails(),
     selfEmail: await adminSelfEmail(),
     slot: await leadingYesSlot(),
     modules,
-    ...(await sessionLinks())
+    title: links.title,
+    syndicationUrl: links.syndicationUrl,
+    playerHookUrl: links.playerHookUrl
   };
 }
 
 function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function normalizeDiscordUserId(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function normalizeRedditUserId(value) {
+  return String(value || "").trim().replace(/^u\//i, "");
 }
 
 function normalizeHandle(value) {

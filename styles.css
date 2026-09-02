@@ -814,23 +814,34 @@ fieldset {
 .adventure-summary-link {
   font-weight: 800;
   font-size: 1.05rem;
+  align-self: end;
 }
 
 .adventure-summary-link.is-empty {
   color: var(--muted);
 }
 
-.session-link-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px 28px;
-}
-
 .adventure-summary-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  gap: 12px;
+  gap: 8px 12px;
   align-items: end;
+}
+
+.adventure-summary-edit-spacer {
+  min-width: 0;
+}
+
+.adventure-summary-form input:read-only {
+  color: var(--ink);
+  background: var(--input-bg);
+  opacity: 1;
+  cursor: default;
+}
+
+#adventureSelect:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
 }
 
 .player-hook-wrap {
@@ -1826,6 +1837,10 @@ dialog.modal::backdrop {
   .security-roadmap,
   .guide-links {
     grid-template-columns: 1fr;
+  }
+
+  .adventure-summary-edit-spacer {
+    display: none;
   }
 
   .identity-strip .label,
