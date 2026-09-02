@@ -1675,37 +1675,42 @@ footer {
   border-color: rgba(255, 255, 255, 0.08);
 }
 
+[data-theme="dark"] .status-table th,
+[data-theme="dark"] .status-table td {
+  border-color: rgba(232, 228, 220, 0.22);
+}
+
 [data-theme="dark"] .status-table thead th:first-child,
 [data-theme="dark"] .status-table tbody th {
-  background: #3a372f;
-  color: #e8eef0;
+  background: #2c3038;
+  color: #f3f0ea;
 }
 
 [data-theme="dark"] .status-table thead th:nth-child(2) {
-  background: #2a453c;
-  color: #d7ebe2;
+  background: #8fcdb0;
+  color: #10241c;
 }
 
 [data-theme="dark"] .status-table thead th:nth-child(3) {
-  background: #45402c;
-  color: #efe6c8;
+  background: #e0c56a;
+  color: #241c08;
 }
 
 [data-theme="dark"] .status-table thead th:nth-child(4) {
-  background: #453430;
-  color: #edd8d2;
+  background: #e0a090;
+  color: #2a1210;
 }
 
 [data-theme="dark"] .status-table tbody td:nth-child(2) {
-  background: #1f3d34;
+  background: #3d6b5c;
 }
 
 [data-theme="dark"] .status-table tbody td:nth-child(3) {
-  background: #3d3724;
+  background: #6a5c36;
 }
 
 [data-theme="dark"] .status-table tbody td:nth-child(4) {
-  background: #3d2a28;
+  background: #6a4540;
 }
 
 [data-theme="dark"] .attendee,
@@ -1748,15 +1753,17 @@ footer {
 }
 
 [data-theme="dark"] .scheduler-grid {
-  --ag-background-color: var(--panel);
-  --ag-foreground-color: var(--ink);
-  --ag-header-background-color: var(--sky);
-  --ag-header-foreground-color: var(--ink);
-  --ag-odd-row-background-color: rgba(255, 255, 255, 0.03);
-  --ag-row-hover-color: rgba(126, 196, 173, 0.12);
-  --ag-border-color: var(--line);
-  --ag-control-panel-background-color: var(--panel);
+  --ag-background-color: #1e222a;
+  --ag-foreground-color: #f3f0ea;
+  --ag-header-background-color: #2c3038;
+  --ag-header-foreground-color: #f3f0ea;
+  --ag-odd-row-background-color: #252a33;
+  --ag-row-hover-color: rgba(143, 205, 176, 0.22);
+  --ag-border-color: #4a5160;
+  --ag-control-panel-background-color: #1e222a;
   --ag-input-background-color: var(--input-bg);
   --ag-input-focus-border-color: var(--accent);
+  --ag-data-color: #f3f0ea;
+  --ag-secondary-foreground-color: #d4cfc4;
   color-scheme: dark;
 }

@@ -114,12 +114,21 @@ function eventWindow(row) {
   return { start, end };
 }
 
+const DISCORD_JOIN_URL = "https://discord.com/channels/1534196054944121074/";
+const WANDERERS_GUIDE_NEW_UI_URL = "https://wgui.wandersguide.site/";
+
 function eventTitle(row) {
   return row.sessionTitle || "AMBA session";
 }
 
 function eventDetails(row) {
-  return [row.slot, "An AMBA Adventure"].filter(Boolean).join("\n");
+  return [
+    row.slot,
+    row.playerHookText,
+    row.playerHookUrl ? `Player packet: ${row.playerHookUrl}` : "",
+    `Discord: ${DISCORD_JOIN_URL}`,
+    `Wanderer's Guide (new UI): ${WANDERERS_GUIDE_NEW_UI_URL}`
+  ].filter(Boolean).join("\n\n");
 }
 
 function openGoogleCalendar(row) {
@@ -195,6 +204,7 @@ function TimeGrid() {
     const sessionTitle = state.session?.title || "AMBA session";
     const nextSummary = state.session?.syndicationUrl || "";
     const nextHook = state.session?.playerHookUrl || "";
+    const playerHookText = state.session?.playerHookText || "";
     setSummaryUrl(nextSummary);
     setHookUrl(nextHook);
     setRows((state.session?.times || []).map((time) => {
@@ -209,6 +219,8 @@ function TimeGrid() {
         id: time.id,
         slot,
         sessionTitle,
+        playerHookText,
+        playerHookUrl: nextHook,
         startIso: instant ? instant.toISOString() : "",
         date: time.date || "",
         time: time.time || "19:00",

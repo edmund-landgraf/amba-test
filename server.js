@@ -419,15 +419,7 @@ async function playerHookPreviewHtml(hookUrl) {
     return hookPreviewDocument("<p>No player hook URL is saved yet.</p>");
   }
   try {
-    const response = await fetch(url, {
-      redirect: "follow",
-      headers: { accept: "text/html", "user-agent": "amba-test-hook-preview" },
-      signal: AbortSignal.timeout(12000)
-    });
-    if (!response.ok) {
-      return hookPreviewDocument(`<p>Could not load the player hook (${response.status}).</p>`);
-    }
-    const page = await response.text();
+    const page = await fetchPageHtml(url);
     const styles = extractInnerByTag(page, "style", (chunk) => chunk.includes("embedded-document-root") || chunk.includes("lore-box"));
     const body = extractElementByClass(page, "embedded-document-root")
       || extractElementByClass(page, "synd-content")
@@ -528,6 +520,83 @@ function syndicationFromHook(hookUrl) {
   }
 }
 
+async function fetchPageHtml(url) {
+  const response = await fetch(url, {
+    redirect: "follow",
+    headers: { accept: "text/html", "user-agent": "amba-test-hook-preview" },
+    signal: AbortSignal.timeout(12000)
+  });
+  if (!response.ok) throw new Error(`Could not load page (${response.status})`);
+  return response.text();
+}
+
+function htmlToPlain(html) {
+  return String(html || "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|h[1-6]|li|tr|blockquote)>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n[ \t]+/g, "\n")
+    .trim();
+}
+
+function stripSyndicationChrome(text) {
+  return String(text || "")
+    .replace(/\n?Click here to add a comment[\s\S]*$/i, "")
+    .replace(/\n?Read-only syndicated snapshot[\s\S]*$/i, "")
+    .replace(/\n?Made with Amba[\s\S]*$/i, "")
+    .trim();
+}
+
+function moduleTitleFromSyndication(html) {
+  const h1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+  let raw = htmlToPlain(h1 ? h1[1] : "");
+  if (!raw) {
+    const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    raw = htmlToPlain(title ? title[1] : "");
+    raw = raw.replace(/\s*[·|].*$/, "").replace(/\s*[–—].*$/, "");
+  }
+  return raw.replace(/\s*\([^)]*\)/g, "").replace(/\s+/g, " ").trim();
+}
+
+async function refreshSessionFromLinks(session) {
+  const syndicationUrl = sanitizeHttpUrl(session.syndicationUrl);
+  const playerHookUrl = sanitizeHttpUrl(session.playerHookUrl);
+  if (syndicationUrl) {
+    try {
+      const title = moduleTitleFromSyndication(await fetchPageHtml(syndicationUrl));
+      if (title) session.title = title;
+    } catch {
+      // Keep the last saved title if the syndication page cannot be read.
+    }
+  }
+  if (playerHookUrl) {
+    try {
+      const page = await fetchPageHtml(playerHookUrl);
+      const body = extractElementByClass(page, "embedded-document-root")
+        || extractElementByClass(page, "synd-content")
+        || page;
+      session.playerHookText = stripSyndicationChrome(htmlToPlain(body));
+    } catch {
+      // Keep the last saved hook text if the player page cannot be read.
+    }
+  } else {
+    session.playerHookText = "";
+  }
+  return session;
+}
+
 async function sessionLinks() {
   const sessions = await readJson("sessions");
   const list = Array.isArray(sessions) ? sessions : [];
@@ -555,6 +624,7 @@ async function saveSession(data) {
   const syndicationUrl = sanitizeHttpUrl(data.syndicationUrl) || syndicationFromHook(playerHookUrl);
   session.syndicationUrl = syndicationUrl;
   session.playerHookUrl = playerHookUrl;
+  await refreshSessionFromLinks(session);
   session.updatedAt = new Date().toISOString();
   await writeJson("sessions", list);
   return sessionLinks();
