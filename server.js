@@ -174,7 +174,8 @@ async function handleApi(req, res) {
     return;
   }
 
-  if (req.method === "POST" && url.pathname === "/api/session") {
+  if (req.method === "POST" && url.pathname === "/api/admin/session") {
+    if (!requireAdmin(req, res)) return;
     const body = await readBody(req);
     const session = await saveSession(body);
     sendJson(res, 200, { session });
@@ -244,7 +245,7 @@ async function handleApi(req, res) {
 
   if (req.method === "GET" && url.pathname === "/api/admin/yes-emails") {
     if (!requireAdmin(req, res)) return;
-    sendJson(res, 200, { emails: await yesEmails() });
+    sendJson(res, 200, await adminYesMail());
     return;
   }
 
@@ -257,7 +258,7 @@ async function handleApi(req, res) {
       return;
     }
     await deleteAccount(email);
-    sendJson(res, 200, { ok: true, emails: await yesEmails() });
+    sendJson(res, 200, { ok: true, ...(await adminYesMail()) });
     return;
   }
 
@@ -400,10 +401,16 @@ function sanitizeHttpUrl(value) {
   }
 }
 
-async function saveSession(data) {
-  const user = await findUserByEmail(data.email);
-  if (!user) throw new Error("login_required");
+async function sessionLinks() {
+  const sessions = await readJson("sessions");
+  const session = sessions.find((item) => item.id === currentSessionId);
+  return {
+    syndicationUrl: session?.syndicationUrl || "",
+    playerHookUrl: session?.playerHookUrl || ""
+  };
+}
 
+async function saveSession(data) {
   const sessions = await readJson("sessions");
   const session = sessions.find((item) => item.id === currentSessionId);
   if (!session) throw new Error("Session is missing.");
@@ -412,12 +419,7 @@ async function saveSession(data) {
   session.playerHookUrl = sanitizeHttpUrl(data.playerHookUrl);
   session.updatedAt = new Date().toISOString();
   await writeJson("sessions", sessions);
-  return {
-    id: session.id,
-    title: session.title,
-    syndicationUrl: session.syndicationUrl || "",
-    playerHookUrl: session.playerHookUrl || ""
-  };
+  return sessionLinks();
 }
 
 async function addTime(data) {
@@ -933,6 +935,50 @@ async function yesEmails() {
   }
   emails.sort((a, b) => a.handle.localeCompare(b.handle) || a.email.localeCompare(b.email));
   return emails;
+}
+
+async function adminSelfEmail() {
+  const fromEnv = normalizeEmail(process.env.ADMIN_EMAIL);
+  if (fromEnv) return fromEnv;
+  const sessions = await readJson("sessions");
+  const session = sessions.find((item) => item.id === currentSessionId);
+  const created = (session?.times || []).map((time) => normalizeEmail(time.createdBy)).find(Boolean);
+  return created || "";
+}
+
+async function leadingYesSlot() {
+  const sessions = await readJson("sessions");
+  const session = sessions.find((item) => item.id === currentSessionId);
+  const signups = await readJson("signups");
+  let best = null;
+  for (const time of session?.times || []) {
+    const yes = signups.filter((signup) => signup.votes?.[time.id] === "yes");
+    const stamp = `${time.date || ""}T${time.time || "00:00"}`;
+    if (
+      !best ||
+      yes.length > best.yesCount ||
+      (yes.length === best.yesCount && stamp < `${best.date || ""}T${best.time || "00:00"}`)
+    ) {
+      best = {
+        date: time.date || "",
+        time: time.time || "",
+        timezone: time.timezone || "",
+        lengthMinutes: time.lengthMinutes || null,
+        yesCount: yes.length,
+        handles: yes.map((signup) => signup.handle).filter(Boolean)
+      };
+    }
+  }
+  return best;
+}
+
+async function adminYesMail() {
+  return {
+    emails: await yesEmails(),
+    selfEmail: await adminSelfEmail(),
+    slot: await leadingYesSlot(),
+    ...(await sessionLinks())
+  };
 }
 
 function normalizeEmail(value) {

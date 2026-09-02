@@ -689,7 +689,7 @@ fieldset {
 .adventure-summary {
   display: grid;
   gap: 10px;
-  margin: 8px 0 4px;
+  margin: 8px 0 16px;
   padding: 12px 14px;
   border: 1px solid rgba(31, 79, 67, 0.14);
   border-radius: 12px;

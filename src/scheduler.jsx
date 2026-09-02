@@ -7,8 +7,6 @@ import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-quartz.css";
 import { ZONE_IANA } from "../timezones.js";
 
-ModuleRegistry.registerModules([AllCommunityModule]);
-
 function api(url, options = {}) {
   return fetch(url, {
     method: options.method || "GET",
@@ -95,7 +93,7 @@ function initials(handle) {
 function VoteCell({ people }) {
   return (
     <span className="vote-cell">
-      {people.map((person) => (
+      {(people || []).map((person) => (
         <span className={`grid-avatar${person.mine ? " mine" : ""}`} key={person.handle} title={person.handle}>
           {initials(person.handle)}
         </span>
@@ -173,10 +171,7 @@ function TimeGrid() {
   const [draft, setDraft] = useState({ date: "", time: "19:00", lengthMinutes: "120" });
   const [menu, setMenu] = useState(null);
   const [summaryUrl, setSummaryUrl] = useState("");
-  const [summaryDraft, setSummaryDraft] = useState("");
   const [hookUrl, setHookUrl] = useState("");
-  const [hookDraft, setHookDraft] = useState("");
-  const [linkNote, setLinkNote] = useState("");
   const [edit, setEdit] = useState(null);
   const [toast, setToast] = useState("");
   const toastTimer = useRef(null);
@@ -195,9 +190,7 @@ function TimeGrid() {
     const nextSummary = state.session?.syndicationUrl || "";
     const nextHook = state.session?.playerHookUrl || "";
     setSummaryUrl(nextSummary);
-    setSummaryDraft(nextSummary);
     setHookUrl(nextHook);
-    setHookDraft(nextHook);
     setRows((state.session?.times || []).map((time) => {
       const people = time.participants || [];
       const instant = time.date && time.time
@@ -342,25 +335,6 @@ function TimeGrid() {
     await load(email, userZone);
   }
 
-  async function saveLinks(event) {
-    event.preventDefault();
-    if (!email) {
-      window.dispatchEvent(new CustomEvent("amba-need-login"));
-      return;
-    }
-    setLinkNote("");
-    try {
-      await api("/api/session", {
-        method: "POST",
-        body: { email, syndicationUrl: summaryDraft, playerHookUrl: hookDraft }
-      });
-      setLinkNote("Links saved.");
-      await load(email, userZone);
-    } catch {
-      setLinkNote("Could not save links. Log in and try again.");
-    }
-  }
-
   const columnDefs = useMemo(() => [
     {
       field: "slot",
@@ -384,7 +358,7 @@ function TimeGrid() {
       minWidth: 140,
       sortable: true,
       comparator: (a, b) => (a?.length || 0) - (b?.length || 0),
-      cellRenderer: (params) => <VoteCell people={params.data.yes} />
+      cellRenderer: (params) => <VoteCell people={params.data?.yes} />
     },
     {
       colId: "maybe",
@@ -394,7 +368,7 @@ function TimeGrid() {
       minWidth: 140,
       sortable: true,
       comparator: (a, b) => (a?.length || 0) - (b?.length || 0),
-      cellRenderer: (params) => <VoteCell people={params.data.maybe} />
+      cellRenderer: (params) => <VoteCell people={params.data?.maybe} />
     },
     {
       colId: "no",
@@ -404,7 +378,7 @@ function TimeGrid() {
       minWidth: 140,
       sortable: true,
       comparator: (a, b) => (a?.length || 0) - (b?.length || 0),
-      cellRenderer: (params) => <VoteCell people={params.data.no} />
+      cellRenderer: (params) => <VoteCell people={params.data?.no} />
     }
   ], []);
 
@@ -414,52 +388,22 @@ function TimeGrid() {
         <p className="form-note">Set your time zone in Settings before you can use the grid. Times will show in your zone.</p>
       ) : null}
       {userZone ? <p className="form-note">Showing times in {userZone}.</p> : null}
-      <div className="adventure-summary">
-        <div className="session-link-row">
-          {summaryUrl ? (
-            <a className="adventure-summary-link" href={summaryUrl} target="_blank" rel="noopener noreferrer">
-              Adventure Summary
-            </a>
-          ) : (
-            <span className="adventure-summary-link is-empty">Adventure Summary</span>
-          )}
-          {hookUrl ? (
-            <a className="adventure-summary-link" href={hookUrl} target="_blank" rel="noopener noreferrer">
-              AMBA player hook
-            </a>
-          ) : (
-            <span className="adventure-summary-link is-empty">AMBA player hook</span>
-          )}
+      {summaryUrl || hookUrl ? (
+        <div className="adventure-summary">
+          <div className="session-link-row">
+            {summaryUrl ? (
+              <a className="adventure-summary-link" href={summaryUrl} target="_blank" rel="noopener noreferrer">
+                Adventure Summary
+              </a>
+            ) : null}
+            {hookUrl ? (
+              <a className="adventure-summary-link" href={hookUrl} target="_blank" rel="noopener noreferrer">
+                AMBA player hook
+              </a>
+            ) : null}
+          </div>
         </div>
-        {email ? (
-          <form className="adventure-summary-form" onSubmit={saveLinks}>
-            <label>
-              Adventure Summary URL
-              <input
-                type="text"
-                inputMode="url"
-                placeholder="https://… syndication page"
-                value={summaryDraft}
-                onChange={(event) => setSummaryDraft(event.target.value)}
-              />
-            </label>
-            <label>
-              AMBA player hook URL
-              <input
-                type="text"
-                inputMode="url"
-                placeholder="https://… player hook"
-                value={hookDraft}
-                onChange={(event) => setHookDraft(event.target.value)}
-              />
-            </label>
-            <button className="button secondary" type="submit">Save links</button>
-          </form>
-        ) : (
-          <p className="form-note">Log in to set the Adventure Summary and AMBA player hook links.</p>
-        )}
-        {linkNote ? <p className="form-note">{linkNote}</p> : null}
-      </div>
+      ) : null}
       {hookUrl ? (
         <div className="player-hook">
           <iframe
@@ -489,6 +433,7 @@ function TimeGrid() {
       </form>
       <div className="ag-theme-quartz scheduler-grid" onContextMenu={(event) => event.preventDefault()}>
         <AgGridReact
+          theme="legacy"
           rowData={rows}
           columnDefs={columnDefs}
           defaultColDef={{ resizable: true, sortable: true, autoHeight: false }}
@@ -603,6 +548,7 @@ function TimeGrid() {
 }
 
 try {
+  ModuleRegistry.registerModules([AllCommunityModule]);
   const mount = document.querySelector("#scheduler");
   if (mount) createRoot(mount).render(<TimeGrid />);
 } catch (error) {

@@ -11,14 +11,32 @@
     <section class="page-hero">
       <p class="eyebrow">Admin</p>
       <h1>Emails that said yes</h1>
-      <p class="lede">Copy this list to send mail yourself. The mail.amba.unwhelm.online button is not live yet.</p>
+      <p class="lede">Open a draft with yes players on BCC so they cannot see each other. You are on CC.</p>
     </section>
     <section class="doc">
+      <form class="adventure-summary" id="sessionLinksForm">
+        <div class="session-link-row">
+          <strong class="adventure-summary-link">Adventure Summary</strong>
+          <strong class="adventure-summary-link">AMBA player hook</strong>
+        </div>
+        <div class="adventure-summary-form">
+          <label>
+            Adventure Summary URL
+            <input id="syndicationUrl" type="text" inputmode="url" placeholder="https://… syndication page">
+          </label>
+          <label>
+            AMBA player hook URL
+            <input id="playerHookUrl" type="text" inputmode="url" placeholder="https://… player hook">
+          </label>
+          <button class="button secondary" type="submit">Save links</button>
+        </div>
+        <p class="form-note" id="sessionLinksNote"></p>
+      </form>
       <p id="yesStatus">Loading…</p>
       <div class="email-list" id="yesList"></div>
       <p class="form-actions">
         <button class="button primary" id="copyAll" type="button">Copy all</button>
-        <button class="button secondary" id="mailVia" type="button" disabled>Mail via mail.amba.unwhelm.online</button>
+        <button class="button secondary" id="mailVia" type="button">Open email draft</button>
       </p>
       <p class="form-note" id="copyNote"></p>
     </section>
@@ -31,7 +49,12 @@
     const yesList = document.querySelector("#yesList");
     const yesStatus = document.querySelector("#yesStatus");
     const copyNote = document.querySelector("#copyNote");
+    const syndicationUrl = document.querySelector("#syndicationUrl");
+    const playerHookUrl = document.querySelector("#playerHookUrl");
+    const sessionLinksNote = document.querySelector("#sessionLinksNote");
     let people = [];
+    let selfEmail = "";
+    let slot = null;
 
     async function load() {
       const response = await fetch("/api/admin/yes-emails", {
@@ -42,11 +65,20 @@
         return;
       }
       const data = await response.json();
+      fillAdmin(data);
+    }
+
+    function fillAdmin(data) {
+      selfEmail = data.selfEmail || "";
+      slot = data.slot || null;
+      syndicationUrl.value = data.syndicationUrl || "";
+      playerHookUrl.value = data.playerHookUrl || "";
       render(data.emails || []);
     }
 
     function render(nextPeople) {
       people = nextPeople;
+      document.querySelector("#mailVia").disabled = !people.length;
       yesStatus.textContent = people.length ? `${people.length} yes` : "No yes emails yet.";
       yesList.replaceChildren();
       if (!people.length) return;
@@ -88,13 +120,116 @@
         return;
       }
       const data = await response.json();
-      render(data.emails || []);
+      fillAdmin(data);
       copyNote.textContent = `Deleted ${person.email}.`;
     }
+
+    function slotWhen(nextSlot) {
+      if (!nextSlot?.date) return "";
+      const length = nextSlot.lengthMinutes ? `${nextSlot.lengthMinutes} min` : "";
+      return [nextSlot.date, nextSlot.time, nextSlot.timezone, length].filter(Boolean).join(" ");
+    }
+
+    function mailDraft() {
+      const when = slotWhen(slot);
+      const handles = [...new Set((slot?.handles || people.map((person) => person.handle)).filter(Boolean))];
+      const yesEmails = people.map((person) => person.email).filter(Boolean);
+      const bcc = yesEmails.filter((email) => email !== selfEmail);
+      const to = selfEmail || bcc[0] || yesEmails[0] || "";
+      const subject = when
+        ? `We have critical mass for ${when}`
+        : "We have critical mass for a sit-down";
+      const origin = window.location.origin;
+      const body = [
+        "Hi,",
+        "",
+        when ? `We have critical mass for ${when}.` : "We have critical mass for a sit-down.",
+        handles.length ? `Yes so far: ${handles.join(", ")}.` : "",
+        "",
+        "We'll play a short remote adventure while we learn AMBA, Owlbear, the new Wanderer's Guide UI, and live combat. Sheets in WG, the map in Owlbear, GM prep in AMBA. Bring two public characters; on Discord we'll pick four of eight to play.",
+        "",
+        `Signup: ${origin}/`,
+        `Session order: ${origin}/session.html`,
+        "",
+        "See you then."
+      ].filter((line, index, lines) => line !== "" || lines[index - 1] !== "").join("\r\n");
+
+      if (!to) {
+        copyNote.textContent = "No email address to open a draft with.";
+        return false;
+      }
+
+      const parts = [];
+      if (selfEmail) parts.push(`cc=${encodeURIComponent(selfEmail)}`);
+      if (bcc.length) parts.push(`bcc=${encodeURIComponent(bcc.join(","))}`);
+      parts.push(`subject=${encodeURIComponent(subject)}`);
+      parts.push(`body=${encodeURIComponent(body)}`);
+      const href = `mailto:${encodeURIComponent(to)}?${parts.join("&")}`;
+      const link = document.createElement("a");
+      link.href = href;
+      document.body.append(link);
+      link.click();
+      link.remove();
+
+      const eml = [
+        "X-Unsent: 1",
+        `To: ${to}`,
+        selfEmail ? `Cc: ${selfEmail}` : "",
+        bcc.length ? `Bcc: ${bcc.join(", ")}` : "",
+        `Subject: ${subject}`,
+        "MIME-Version: 1.0",
+        "Content-Type: text/plain; charset=utf-8",
+        "",
+        body
+      ].filter((line, index, lines) => line !== "" || lines[index - 1] !== "").join("\r\n");
+      const file = new Blob([eml], { type: "message/rfc822" });
+      const fileUrl = URL.createObjectURL(file);
+      const download = document.createElement("a");
+      download.href = fileUrl;
+      download.download = "amba-yes-invite.eml";
+      document.body.append(download);
+      download.click();
+      download.remove();
+      window.setTimeout(() => URL.revokeObjectURL(fileUrl), 2000);
+      return { bccCount: bcc.length };
+    }
+
+    document.querySelector("#sessionLinksForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      sessionLinksNote.textContent = "";
+      const response = await fetch("/api/admin/session", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          syndicationUrl: syndicationUrl.value,
+          playerHookUrl: playerHookUrl.value
+        })
+      });
+      if (!response.ok) {
+        sessionLinksNote.textContent = "Could not save links.";
+        return;
+      }
+      const data = await response.json();
+      syndicationUrl.value = data.session?.syndicationUrl || "";
+      playerHookUrl.value = data.session?.playerHookUrl || "";
+      sessionLinksNote.textContent = "Links saved. They show as hyperlinks on the signup page.";
+    });
 
     document.querySelector("#copyAll").addEventListener("click", async () => {
       await navigator.clipboard.writeText(people.map((person) => person.email).join("; "));
       copyNote.textContent = "Copied as a mail list (semicolon-separated).";
+    });
+
+    document.querySelector("#mailVia").addEventListener("click", () => {
+      if (!people.length) return;
+      const result = mailDraft();
+      if (!result) return;
+      copyNote.textContent = result.bccCount
+        ? "Opened a mail draft and downloaded amba-yes-invite.eml. Other yes players are on BCC; you are on CC."
+        : "Opened a mail draft to you (you are the only yes so far). Also downloaded amba-yes-invite.eml if the mail app did not open.";
     });
 
     load();
