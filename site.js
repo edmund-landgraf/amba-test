@@ -107,7 +107,10 @@ function wireEvents() {
   adminModal?.addEventListener("click", (event) => {
     if (event.target === adminModal) adminModal.close();
   });
-  closeLogin?.addEventListener("click", closeLoginModal);
+  closeLogin?.addEventListener("click", () => {
+    pendingTimesScroll = false;
+    closeLoginModal();
+  });
   closeProfile?.addEventListener("click", closeProfileModal);
   window.addEventListener("amba-need-login", joinTheTest);
   window.addEventListener("amba-need-timezone", () => {
@@ -128,7 +131,10 @@ function wireEvents() {
   });
 
   loginModal?.addEventListener("click", (event) => {
-    if (event.target === loginModal) closeLoginModal();
+    if (event.target === loginModal) {
+      pendingTimesScroll = false;
+      closeLoginModal();
+    }
   });
   profileModal?.addEventListener("click", (event) => {
     if (event.target === profileModal) closeProfileModal();
@@ -192,13 +198,25 @@ async function adminLogin(event) {
   }
 }
 
-function joinTheTest() {
+let pendingTimesScroll = false;
+
+function scrollToTimes() {
+  pendingTimesScroll = false;
   document.querySelector("#times")?.scrollIntoView({ behavior: "smooth" });
+}
+
+function joinTheTest() {
   if (!appState.user?.email) {
+    pendingTimesScroll = true;
     openLoginModal();
     return;
   }
-  if (!appState.user.timezone) openTimezoneModal();
+  if (!appState.user.timezone) {
+    pendingTimesScroll = true;
+    openTimezoneModal();
+    return;
+  }
+  scrollToTimes();
 }
 
 async function saveIdentity(event) {
@@ -225,8 +243,12 @@ async function login(event) {
   sessionStorage.setItem("ambaEmail", currentEmail);
   closeLoginModal();
   await loadState();
-  document.querySelector("#times")?.scrollIntoView({ behavior: "smooth" });
-  if (!appState.user?.timezone) openTimezoneModal();
+  if (!appState.user?.timezone) {
+    pendingTimesScroll = true;
+    openTimezoneModal();
+    return;
+  }
+  if (pendingTimesScroll) scrollToTimes();
 }
 
 async function logout() {
@@ -282,7 +304,7 @@ function syncIdentity() {
 function openLoginModal() {
   if (!loginModal) return;
   loginModal.showModal();
-  loginModal.querySelector("input")?.focus();
+  loginModal.querySelector("input")?.focus({ preventScroll: true });
 }
 
 function closeLoginModal() {
@@ -336,6 +358,7 @@ async function saveTimezone(event) {
   appState.user = result.user;
   if (timezoneModal?.open) timezoneModal.close();
   await loadState();
+  if (pendingTimesScroll) scrollToTimes();
 }
 
 function toggleSettingsMenu() {

@@ -1698,6 +1698,18 @@ footer {
   box-shadow: 0 28px 80px rgba(28, 36, 48, 0.24);
 }
 
+dialog.modal {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  height: fit-content;
+  max-width: min(720px, calc(100% - 32px));
+}
+
+dialog.modal::backdrop {
+  background: rgba(28, 36, 48, 0.48);
+}
+
 .small-modal {
   width: min(520px, 100%);
 }
