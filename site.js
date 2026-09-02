@@ -8,7 +8,7 @@ let appState = {
   pcs: []
 };
 
-let currentEmail = sessionStorage.getItem("ambaEmail") || "";
+let currentEmail = readStored("ambaEmail");
 
 const feedbackForm = document.querySelector("#feedbackForm");
 const feedbackNote = document.querySelector("#feedbackNote");
@@ -53,6 +53,31 @@ const profileDiscordUserId = document.querySelector("#profileDiscordUserId");
 const profileRedditUserId = document.querySelector("#profileRedditUserId");
 
 start();
+
+function readStored(key) {
+  const local = localStorage.getItem(key);
+  if (local) {
+    sessionStorage.removeItem(key);
+    return local;
+  }
+  const session = sessionStorage.getItem(key);
+  if (session) {
+    localStorage.setItem(key, session);
+    sessionStorage.removeItem(key);
+    return session;
+  }
+  return "";
+}
+
+function writeStored(key, value) {
+  localStorage.setItem(key, value);
+  sessionStorage.removeItem(key);
+}
+
+function clearStored(key) {
+  localStorage.removeItem(key);
+  sessionStorage.removeItem(key);
+}
 
 async function start() {
   fillTimezoneSelect();
@@ -200,7 +225,7 @@ async function adminLogin(event) {
   if (adminNote) adminNote.textContent = "";
   try {
     const result = await api("/api/admin/login", { method: "POST", body: { password } });
-    sessionStorage.setItem("ambaAdminToken", result.token);
+    writeStored("ambaAdminToken", result.token);
     window.location.href = "admin.html";
   } catch {
     if (adminNote) adminNote.textContent = "Wrong password.";
@@ -250,7 +275,7 @@ async function login(event) {
   const data = Object.fromEntries(new FormData(loginForm).entries());
   const result = await api("/api/login", { method: "POST", body: data });
   currentEmail = result.user.email;
-  sessionStorage.setItem("ambaEmail", currentEmail);
+  writeStored("ambaEmail", currentEmail);
   closeLoginModal();
   await loadState();
   if (!appState.user?.timezone) {
@@ -263,7 +288,7 @@ async function login(event) {
 
 async function logout() {
   currentEmail = "";
-  sessionStorage.removeItem("ambaEmail");
+  clearStored("ambaEmail");
   appState.user = null;
   await loadState();
 }
@@ -292,7 +317,7 @@ async function deleteProfile() {
 
   await api("/api/delete-account", { method: "POST", body: { email: appState.user.email } });
   currentEmail = "";
-  sessionStorage.removeItem("ambaEmail");
+  clearStored("ambaEmail");
   appState.user = null;
   closeProfileModal();
   await loadState();

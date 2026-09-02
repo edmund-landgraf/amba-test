@@ -180,7 +180,7 @@ function downloadIcal(row) {
 }
 
 function TimeGrid() {
-  const [email, setEmail] = useState(() => sessionStorage.getItem("ambaEmail") || "");
+  const [email, setEmail] = useState(() => localStorage.getItem("ambaEmail") || sessionStorage.getItem("ambaEmail") || "");
   const [userZone, setUserZone] = useState("");
   const [rows, setRows] = useState([]);
   const [draft, setDraft] = useState({ date: "", time: "19:00", lengthMinutes: "120" });

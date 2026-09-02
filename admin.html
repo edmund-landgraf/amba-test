@@ -146,7 +146,11 @@ Sign up on our test site (not AMBA itself): {{signupUrl}}
   <script src="header.js"></script>
   <script type="module" src="site.js"></script>
   <script>
-    const token = sessionStorage.getItem("ambaAdminToken") || "";
+    const token = localStorage.getItem("ambaAdminToken") || sessionStorage.getItem("ambaAdminToken") || "";
+    if (token) {
+      localStorage.setItem("ambaAdminToken", token);
+      sessionStorage.removeItem("ambaAdminToken");
+    }
     const yesList = document.querySelector("#yesList");
     const yesStatus = document.querySelector("#yesStatus");
     const copyNote = document.querySelector("#copyNote");
