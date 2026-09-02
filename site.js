@@ -95,9 +95,12 @@ function wireEvents() {
   identityForm?.addEventListener("submit", saveIdentity);
   loginForm?.addEventListener("submit", login);
   joinTest?.addEventListener("click", joinTheTest);
-  openAdmin?.addEventListener("click", () => adminModal?.showModal());
+  openAdmin?.addEventListener("click", openAdminModal);
   closeAdmin?.addEventListener("click", () => adminModal?.open && adminModal.close());
   adminForm?.addEventListener("submit", adminLogin);
+  adminForm?.querySelector('input[name="password"]')?.addEventListener("input", () => {
+    if (adminNote) adminNote.textContent = "";
+  });
   adminModal?.addEventListener("click", (event) => {
     if (event.target === adminModal) adminModal.close();
   });
@@ -160,15 +163,28 @@ function wireEvents() {
   wireWgDrop();
 }
 
+function openAdminModal() {
+  if (!adminModal) return;
+  const input = adminForm?.querySelector('input[name="password"]');
+  if (adminNote) adminNote.textContent = "";
+  if (input) input.value = "";
+  adminModal.showModal();
+  input?.focus();
+}
+
 async function adminLogin(event) {
   event.preventDefault();
-  const data = Object.fromEntries(new FormData(adminForm).entries());
+  const form = event.currentTarget;
+  const input = form.querySelector('input[name="password"]');
+  const password = String(input?.value || "").trim();
+  if (adminNote) adminNote.textContent = "";
   try {
-    const result = await api("/api/admin/login", { method: "POST", body: data });
+    const result = await api("/api/admin/login", { method: "POST", body: { password } });
     sessionStorage.setItem("ambaAdminToken", result.token);
     window.location.href = "admin.html";
   } catch {
     if (adminNote) adminNote.textContent = "Wrong password.";
+    input?.select();
   }
 }
 
@@ -229,7 +245,7 @@ async function saveFeedback(event) {
     }
   });
   feedbackForm.reset();
-  feedbackNote.textContent = "Suggestion saved.";
+  feedbackNote.textContent = "Note saved.";
 }
 
 async function deleteProfile() {

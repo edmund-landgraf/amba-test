@@ -1,10 +1,10 @@
 [
   {
     "id": "amba-workflow-test-1",
-    "title": "AMBA Workflow Test",
+    "title": "An AMBA Adventure",
     "targetPlayers": 4,
     "format": "Remote",
-    "scope": "Workflow test",
+    "scope": "Short adventure",
     "times": []
   }
 ]

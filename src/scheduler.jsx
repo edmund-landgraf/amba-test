@@ -103,16 +103,91 @@ function VoteCell({ people }) {
   );
 }
 
+function calStamp(date) {
+  return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+}
+
+function eventWindow(row) {
+  if (!row?.startIso) return null;
+  const start = new Date(row.startIso);
+  if (Number.isNaN(start.getTime())) return null;
+  const end = new Date(start.getTime() + (Number(row.lengthMinutes) || 120) * 60 * 1000);
+  return { start, end };
+}
+
+function eventTitle(row) {
+  return row.sessionTitle || "AMBA session";
+}
+
+function eventDetails(row) {
+  return [row.slot, "An AMBA Adventure"].filter(Boolean).join("\n");
+}
+
+function openGoogleCalendar(row) {
+  const range = eventWindow(row);
+  if (!range) return;
+  const url = new URL("https://calendar.google.com/calendar/render");
+  url.searchParams.set("action", "TEMPLATE");
+  url.searchParams.set("text", eventTitle(row));
+  url.searchParams.set("dates", `${calStamp(range.start)}/${calStamp(range.end)}`);
+  url.searchParams.set("details", eventDetails(row));
+  globalThis.open(url.toString(), "_blank", "noopener,noreferrer");
+}
+
+function downloadIcal(row) {
+  const range = eventWindow(row);
+  if (!range) return;
+  const stamp = calStamp(new Date());
+  const ics = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//AMBA//Schedule//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+    `UID:${row.id}@amba-test`,
+    `DTSTAMP:${stamp}`,
+    `DTSTART:${calStamp(range.start)}`,
+    `DTEND:${calStamp(range.end)}`,
+    `SUMMARY:${eventTitle(row).replace(/\n/g, " ")}`,
+    `DESCRIPTION:${eventDetails(row).replace(/\n/g, "\\n")}`,
+    "END:VEVENT",
+    "END:VCALENDAR"
+  ].join("\r\n");
+  const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+  const href = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = href;
+  link.download = "amba-session.ics";
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(href);
+}
+
 function TimeGrid() {
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => sessionStorage.getItem("ambaEmail") || "");
   const [userZone, setUserZone] = useState("");
   const [rows, setRows] = useState([]);
   const [draft, setDraft] = useState({ date: "", time: "19:00", lengthMinutes: "120" });
+  const [menu, setMenu] = useState(null);
+  const [summaryUrl, setSummaryUrl] = useState("");
+  const [summaryDraft, setSummaryDraft] = useState("");
+  const [hookUrl, setHookUrl] = useState("");
+  const [hookDraft, setHookDraft] = useState("");
+  const [linkNote, setLinkNote] = useState("");
 
   const load = useCallback(async (nextEmail = email, nextZone = userZone) => {
     const state = await api(`/api/state${nextEmail ? `?email=${encodeURIComponent(nextEmail)}` : ""}`);
     const zone = nextZone || state.user?.timezone || "";
     setUserZone(zone);
+    const sessionTitle = state.session?.title || "AMBA session";
+    const nextSummary = state.session?.syndicationUrl || "";
+    const nextHook = state.session?.playerHookUrl || "";
+    setSummaryUrl(nextSummary);
+    setSummaryDraft(nextSummary);
+    setHookUrl(nextHook);
+    setHookDraft(nextHook);
     setRows((state.session?.times || []).map((time) => {
       const people = time.participants || [];
       const instant = time.date && time.time
@@ -124,6 +199,9 @@ function TimeGrid() {
       return {
         id: time.id,
         slot,
+        sessionTitle,
+        startIso: instant ? instant.toISOString() : "",
+        lengthMinutes: time.lengthMinutes || 120,
         yes: people.filter((person) => person.status === "yes"),
         maybe: people.filter((person) => person.status === "maybe"),
         no: people.filter((person) => person.status === "no"),
@@ -144,6 +222,27 @@ function TimeGrid() {
     window.addEventListener("amba-auth", onAuth);
     return () => window.removeEventListener("amba-auth", onAuth);
   }, [load]);
+
+  useEffect(() => {
+    if (!menu) return undefined;
+    function close() {
+      setMenu(null);
+    }
+    function onKey(event) {
+      if (event.key === "Escape") close();
+    }
+    const timer = window.setTimeout(() => {
+      window.addEventListener("click", close);
+      window.addEventListener("scroll", close, true);
+    }, 0);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("click", close);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [menu]);
 
   function requireReady() {
     if (!email) {
@@ -181,6 +280,25 @@ function TimeGrid() {
     await load(email, userZone);
   }
 
+  async function saveLinks(event) {
+    event.preventDefault();
+    if (!email) {
+      window.dispatchEvent(new CustomEvent("amba-need-login"));
+      return;
+    }
+    setLinkNote("");
+    try {
+      await api("/api/session", {
+        method: "POST",
+        body: { email, syndicationUrl: summaryDraft, playerHookUrl: hookDraft }
+      });
+      setLinkNote("Links saved.");
+      await load(email, userZone);
+    } catch {
+      setLinkNote("Could not save links. Log in and try again.");
+    }
+  }
+
   const columnDefs = useMemo(() => [
     {
       field: "slot",
@@ -189,30 +307,41 @@ function TimeGrid() {
       minWidth: 420,
       flex: 1.4,
       sortable: true,
-      filter: true
+      filter: true,
+      comparator: (_a, _b, nodeA, nodeB) => {
+        const a = nodeA?.data?.startIso || "";
+        const b = nodeB?.data?.startIso || "";
+        return a.localeCompare(b);
+      }
     },
     {
       colId: "yes",
       headerName: "Yes",
+      field: "yes",
       flex: 1,
       minWidth: 140,
-      sortable: false,
+      sortable: true,
+      comparator: (a, b) => (a?.length || 0) - (b?.length || 0),
       cellRenderer: (params) => <VoteCell people={params.data.yes} />
     },
     {
       colId: "maybe",
       headerName: "Maybe",
+      field: "maybe",
       flex: 1,
       minWidth: 140,
-      sortable: false,
+      sortable: true,
+      comparator: (a, b) => (a?.length || 0) - (b?.length || 0),
       cellRenderer: (params) => <VoteCell people={params.data.maybe} />
     },
     {
       colId: "no",
       headerName: "No",
+      field: "no",
       flex: 1,
       minWidth: 140,
-      sortable: false,
+      sortable: true,
+      comparator: (a, b) => (a?.length || 0) - (b?.length || 0),
       cellRenderer: (params) => <VoteCell people={params.data.no} />
     }
   ], []);
@@ -223,6 +352,62 @@ function TimeGrid() {
         <p className="form-note">Set your time zone in Settings before you can use the grid. Times will show in your zone.</p>
       ) : null}
       {userZone ? <p className="form-note">Showing times in {userZone}.</p> : null}
+      <div className="adventure-summary">
+        <div className="session-link-row">
+          {summaryUrl ? (
+            <a className="adventure-summary-link" href={summaryUrl} target="_blank" rel="noopener noreferrer">
+              Adventure Summary
+            </a>
+          ) : (
+            <span className="adventure-summary-link is-empty">Adventure Summary</span>
+          )}
+          {hookUrl ? (
+            <a className="adventure-summary-link" href={hookUrl} target="_blank" rel="noopener noreferrer">
+              AMBA player hook
+            </a>
+          ) : (
+            <span className="adventure-summary-link is-empty">AMBA player hook</span>
+          )}
+        </div>
+        {email ? (
+          <form className="adventure-summary-form" onSubmit={saveLinks}>
+            <label>
+              Adventure Summary URL
+              <input
+                type="text"
+                inputMode="url"
+                placeholder="https://… syndication page"
+                value={summaryDraft}
+                onChange={(event) => setSummaryDraft(event.target.value)}
+              />
+            </label>
+            <label>
+              AMBA player hook URL
+              <input
+                type="text"
+                inputMode="url"
+                placeholder="https://… player hook"
+                value={hookDraft}
+                onChange={(event) => setHookDraft(event.target.value)}
+              />
+            </label>
+            <button className="button secondary" type="submit">Save links</button>
+          </form>
+        ) : (
+          <p className="form-note">Log in to set the Adventure Summary and AMBA player hook links.</p>
+        )}
+        {linkNote ? <p className="form-note">{linkNote}</p> : null}
+      </div>
+      {hookUrl ? (
+        <div className="player-hook">
+          <iframe
+            title="AMBA player hook"
+            src={hookUrl}
+            referrerPolicy="no-referrer"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+          />
+        </div>
+      ) : null}
       <form className="add-row" onSubmit={addRow}>
         <label>Date <input required type="date" value={draft.date} onChange={(event) => setDraft({ ...draft, date: event.target.value })} /></label>
         <label>Time
@@ -240,11 +425,12 @@ function TimeGrid() {
         </label>
         <button className="button primary" type="submit">Add row</button>
       </form>
-      <div className="ag-theme-quartz scheduler-grid">
+      <div className="ag-theme-quartz scheduler-grid" onContextMenu={(event) => event.preventDefault()}>
         <AgGridReact
           rowData={rows}
           columnDefs={columnDefs}
-          defaultColDef={{ resizable: true, autoHeight: false }}
+          defaultColDef={{ resizable: true, sortable: true, autoHeight: false }}
+          sortingOrder={["asc", "desc"]}
           rowHeight={72}
           headerHeight={48}
           animateRows
@@ -255,8 +441,45 @@ function TimeGrid() {
             if (status !== "yes" && status !== "maybe" && status !== "no") return;
             vote(event.data.id, status, event.data.mine);
           }}
+          onCellContextMenu={(event) => {
+            event.event?.preventDefault();
+            event.event?.stopPropagation();
+            if (!event.data) return;
+            const x = Math.min(event.event.clientX, window.innerWidth - 220);
+            const y = Math.min(event.event.clientY, window.innerHeight - 120);
+            setMenu({ x, y, row: event.data });
+          }}
         />
       </div>
+      {menu ? (
+        <div
+          className="schedule-context-menu"
+          style={{ left: menu.x, top: menu.y }}
+          onClick={(event) => event.stopPropagation()}
+          onContextMenu={(event) => event.preventDefault()}
+        >
+          <button
+            type="button"
+            disabled={!menu.row.startIso}
+            onClick={() => {
+              openGoogleCalendar(menu.row);
+              setMenu(null);
+            }}
+          >
+            Save to Google Calendar
+          </button>
+          <button
+            type="button"
+            disabled={!menu.row.startIso}
+            onClick={() => {
+              downloadIcal(menu.row);
+              setMenu(null);
+            }}
+          >
+            Save to iCal
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

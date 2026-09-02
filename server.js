@@ -10,7 +10,7 @@ loadEnv();
 const root = __dirname;
 const dataDir = path.join(root, "data");
 const port = Number(process.env.PORT || 3000);
-const adminPassword = String(process.env.ADMIN_PASSWORD || "");
+const adminPassword = String(process.env.ADMIN_PASSWORD || "").trim();
 const adminTokens = new Set();
 const currentSessionId = "amba-workflow-test-1";
 const discordGuildId = "1534196054944121074";
@@ -170,6 +170,13 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "POST" && url.pathname === "/api/session") {
+    const body = await readBody(req);
+    const session = await saveSession(body);
+    sendJson(res, 200, { session });
+    return;
+  }
+
   if (req.method === "POST" && url.pathname === "/api/times") {
     const body = await readBody(req);
     const time = await addTime(body);
@@ -200,7 +207,7 @@ async function handleApi(req, res) {
 
   if (req.method === "POST" && url.pathname === "/api/admin/login") {
     const body = await readBody(req);
-    if (!adminPassword || !passwordsMatch(body.password, adminPassword)) {
+    if (!adminPassword || !passwordsMatch(String(body.password || "").trim(), adminPassword)) {
       sendJson(res, 401, { error: "unauthorized" });
       return;
     }
@@ -349,6 +356,39 @@ async function deleteAccount(email) {
   await writeJson("users", users.filter((item) => item.email !== normalized));
   await writeJson("signups", (await readJson("signups")).filter((item) => item.email !== normalized));
   await writeJson("feedback", (await readJson("feedback")).filter((item) => item.email !== normalized));
+}
+
+function sanitizeHttpUrl(value) {
+  let raw = String(value || "").trim();
+  if (!raw) return "";
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(raw)) raw = `https://${raw}`;
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+}
+
+async function saveSession(data) {
+  const user = await findUserByEmail(data.email);
+  if (!user) throw new Error("login_required");
+
+  const sessions = await readJson("sessions");
+  const session = sessions.find((item) => item.id === currentSessionId);
+  if (!session) throw new Error("Session is missing.");
+
+  session.syndicationUrl = sanitizeHttpUrl(data.syndicationUrl);
+  session.playerHookUrl = sanitizeHttpUrl(data.playerHookUrl);
+  session.updatedAt = new Date().toISOString();
+  await writeJson("sessions", sessions);
+  return {
+    id: session.id,
+    title: session.title,
+    syndicationUrl: session.syndicationUrl || "",
+    playerHookUrl: session.playerHookUrl || ""
+  };
 }
 
 async function addTime(data) {

@@ -24,7 +24,7 @@
   const header = document.createElement("header");
   header.className = "site-header";
   header.innerHTML = `
-    <a class="brand" href="index.html">AMBA Workflow Test</a>
+    <a class="brand" href="index.html">AMBA Adventure</a>
     <nav aria-label="Main navigation">${nav}</nav>
     <div class="header-actions">
       <button class="admin-gate" id="openAdmin" type="button">+a</button>
@@ -82,9 +82,9 @@
         <label>Discord handle <input name="discord" autocomplete="off" placeholder="Optional"></label>
         <label>Character status
           <select name="characterStatus">
-            <option>I have two test characters</option>
-            <option>I have one test character</option>
-            <option>I need to create them</option>
+            <option>I have two characters ready</option>
+            <option>I have one character</option>
+            <option>I am still making them</option>
             <option>I am not sure yet</option>
           </select>
         </label>
@@ -113,7 +113,7 @@
       <p class="eyebrow">Admin</p>
       <h2 id="adminTitle">Admin password</h2>
       <form id="adminForm">
-        <label>Password <input required type="password" name="password" autocomplete="current-password"></label>
+        <label>Password <input required type="password" name="password" autocomplete="off"></label>
         <button class="button primary" type="submit">Open yes list</button>
         <p class="form-note" id="adminNote"></p>
       </form>
