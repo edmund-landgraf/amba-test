@@ -5,6 +5,29 @@
     "targetPlayers": 4,
     "format": "Remote",
     "scope": "Short adventure",
-    "times": []
+    "times": [
+      {
+        "id": "1d37e84a-a4f5-47b1-a91e-def587e61cfd",
+        "title": "2026-09-03 19:00 Pacific 120 min",
+        "date": "2026-09-03",
+        "time": "19:00",
+        "timezone": "Pacific",
+        "lengthMinutes": 120,
+        "note": "",
+        "createdBy": "edmund.landgraf@gmail.com",
+        "createdAt": "2026-08-31T16:45:30.344Z"
+      },
+      {
+        "id": "dc0a10c3-37c1-48ee-8285-3cbba1e56cfe",
+        "title": "2026-09-04 19:00 Pacific 120 min",
+        "date": "2026-09-04",
+        "time": "19:00",
+        "timezone": "Pacific",
+        "lengthMinutes": 120,
+        "note": "",
+        "createdBy": "edmund.landgraf@gmail.com",
+        "createdAt": "2026-08-31T16:45:38.329Z"
+      }
+    ]
   }
 ]

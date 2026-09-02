@@ -71,6 +71,10 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 403, { error: code });
       return;
     }
+    if (code === "not_found") {
+      sendJson(res, 404, { error: code });
+      return;
+    }
     if (code === "bad_filename" || code === "invalid_json") {
       sendJson(res, 400, { error: code });
       return;
@@ -184,6 +188,27 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "POST" && url.pathname === "/api/times/update") {
+    const body = await readBody(req);
+    const time = await updateTime(body);
+    sendJson(res, 200, { time });
+    return;
+  }
+
+  if (req.method === "PATCH" && url.pathname === "/api/times") {
+    const body = await readBody(req);
+    const time = await updateTime(body);
+    sendJson(res, 200, { time });
+    return;
+  }
+
+  if (req.method === "DELETE" && url.pathname === "/api/times") {
+    const body = await readBody(req);
+    const result = await deleteTime(body);
+    sendJson(res, 200, result);
+    return;
+  }
+
   if (req.method === "POST" && url.pathname === "/api/slot") {
     const body = await readBody(req);
     const signup = await saveSlot(body);
@@ -289,16 +314,20 @@ async function getState(email) {
   const feedback = await readJson("feedback");
   const user = email ? await findUserByEmail(email) : null;
   const session = sessions.find((item) => item.id === currentSessionId);
-  const times = (session?.times || []).map((time) => ({
-    ...time,
-    participants: signups
-      .filter((signup) => signup.votes?.[time.id])
-      .map((signup) => ({
-        handle: signup.handle,
-        status: signup.votes[time.id] === "in" ? "" : signup.votes[time.id],
-        mine: Boolean(user && signup.email === user.email)
-      }))
-  }));
+  const times = (session?.times || []).map((time) => {
+    const { createdBy, ...publicTime } = time;
+    return {
+      ...publicTime,
+      createdByMe: Boolean(user && createdBy && createdBy === user.email),
+      participants: signups
+        .filter((signup) => signup.votes?.[time.id])
+        .map((signup) => ({
+          handle: signup.handle,
+          status: signup.votes[time.id] === "in" ? "" : signup.votes[time.id],
+          mine: Boolean(user && signup.email === user.email)
+        }))
+    };
+  });
 
   return {
     session: session ? { ...session, times } : null,
@@ -416,6 +445,58 @@ async function addTime(data) {
   session.times.push(time);
   await writeJson("sessions", sessions);
   return time;
+}
+
+async function updateTime(data) {
+  const user = await findUserByEmail(data.email);
+  if (!user) throw new Error("login_required");
+
+  const timeId = String(data.timeId || "").trim();
+  if (!timeId) throw new Error("Time is required.");
+
+  const sessions = await readJson("sessions");
+  const session = sessions.find((item) => item.id === currentSessionId);
+  const time = (session?.times || []).find((item) => item.id === timeId);
+  if (!time) throw new Error("not_found");
+  if (!time.createdBy || time.createdBy !== user.email) throw new Error("forbidden");
+
+  const date = String(data.date || "").trim();
+  const clock = String(data.time || "").trim();
+  const lengthMinutes = Number(data.lengthMinutes || data.length || 0);
+  if (!date || !clock || !lengthMinutes) throw new Error("Date, time, and session length are required.");
+
+  time.date = date;
+  time.time = clock;
+  time.lengthMinutes = lengthMinutes;
+  time.title = [date, clock, time.timezone, `${lengthMinutes} min`].filter(Boolean).join(" ");
+  time.updatedAt = new Date().toISOString();
+
+  await writeJson("sessions", sessions);
+  return time;
+}
+
+async function deleteTime(data) {
+  const user = await findUserByEmail(data.email);
+  if (!user) throw new Error("login_required");
+
+  const timeId = String(data.timeId || "").trim();
+  if (!timeId) throw new Error("Time is required.");
+
+  const sessions = await readJson("sessions");
+  const session = sessions.find((item) => item.id === currentSessionId);
+  const time = (session?.times || []).find((item) => item.id === timeId);
+  if (!time) throw new Error("not_found");
+  if (!time.createdBy || time.createdBy !== user.email) throw new Error("forbidden");
+
+  session.times = session.times.filter((item) => item.id !== timeId);
+  await writeJson("sessions", sessions);
+
+  const signups = await readJson("signups");
+  for (const signup of signups) {
+    if (signup.votes?.[timeId]) delete signup.votes[timeId];
+  }
+  await writeJson("signups", signups);
+  return { ok: true };
 }
 
 async function saveSlot(data) {

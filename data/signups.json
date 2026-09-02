@@ -7,9 +7,12 @@
     "discord": "",
     "timezone": "Pacific",
     "role": "admin",
-    "characterStatus": "",
-    "votes": {},
-    "updatedAt": "2026-08-29T21:24:24.481Z"
+    "characterStatus": "I need to create them",
+    "votes": {
+      "1d37e84a-a4f5-47b1-a91e-def587e61cfd": "yes",
+      "dc0a10c3-37c1-48ee-8285-3cbba1e56cfe": "yes"
+    },
+    "updatedAt": "2026-08-31T16:47:58.888Z"
   },
   {
     "id": "45ac0efc-448c-4ada-bc74-671665390294",
