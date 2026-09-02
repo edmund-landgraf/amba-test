@@ -16,17 +16,17 @@
     <section class="doc">
       <form class="adventure-summary" id="sessionLinksForm">
         <div class="session-link-row">
-          <strong class="adventure-summary-link">Adventure Summary</strong>
-          <strong class="adventure-summary-link">AMBA player hook</strong>
+          <a class="adventure-summary-link is-empty" id="summaryPreview" href="#" target="_blank" rel="noopener noreferrer">Adventure Summary</a>
+          <a class="adventure-summary-link is-empty" id="hookPreview" href="#" target="_blank" rel="noopener noreferrer">AMBA player hook</a>
         </div>
         <div class="adventure-summary-form">
           <label>
             Adventure Summary URL
-            <input id="syndicationUrl" type="text" inputmode="url" placeholder="https://… syndication page">
+            <input id="syndicationUrl" type="text" inputmode="url" autocomplete="off" placeholder="https://amba.unwhelm.online/syndicate/…">
           </label>
           <label>
             AMBA player hook URL
-            <input id="playerHookUrl" type="text" inputmode="url" placeholder="https://… player hook">
+            <input id="playerHookUrl" type="text" inputmode="url" autocomplete="off" placeholder="https://amba.unwhelm.online/syndicate/…/p/…">
           </label>
           <button class="button secondary" type="submit">Save links</button>
         </div>
@@ -51,10 +51,32 @@
     const copyNote = document.querySelector("#copyNote");
     const syndicationUrl = document.querySelector("#syndicationUrl");
     const playerHookUrl = document.querySelector("#playerHookUrl");
+    const summaryPreview = document.querySelector("#summaryPreview");
+    const hookPreview = document.querySelector("#hookPreview");
     const sessionLinksNote = document.querySelector("#sessionLinksNote");
     let people = [];
     let selfEmail = "";
     let slot = null;
+
+    function bindPreview(link, href) {
+      const url = String(href || "").trim();
+      const ok = /^https?:\/\//i.test(url);
+      link.classList.toggle("is-empty", !ok);
+      if (ok) {
+        link.href = url;
+        link.removeAttribute("aria-disabled");
+        link.onclick = null;
+      } else {
+        link.removeAttribute("href");
+        link.setAttribute("aria-disabled", "true");
+        link.onclick = (event) => event.preventDefault();
+      }
+    }
+
+    function refreshPreviews() {
+      bindPreview(summaryPreview, syndicationUrl.value);
+      bindPreview(hookPreview, playerHookUrl.value);
+    }
 
     async function load() {
       const response = await fetch("/api/admin/yes-emails", {
@@ -73,6 +95,7 @@
       slot = data.slot || null;
       syndicationUrl.value = data.syndicationUrl || "";
       playerHookUrl.value = data.playerHookUrl || "";
+      refreshPreviews();
       render(data.emails || []);
     }
 
@@ -194,28 +217,38 @@
       return { bccCount: bcc.length };
     }
 
+    syndicationUrl.addEventListener("input", refreshPreviews);
+    playerHookUrl.addEventListener("input", refreshPreviews);
+    refreshPreviews();
+
     document.querySelector("#sessionLinksForm").addEventListener("submit", async (event) => {
       event.preventDefault();
-      sessionLinksNote.textContent = "";
-      const response = await fetch("/api/admin/session", {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${token}`,
-          "content-type": "application/json"
-        },
-        body: JSON.stringify({
-          syndicationUrl: syndicationUrl.value,
-          playerHookUrl: playerHookUrl.value
-        })
-      });
-      if (!response.ok) {
-        sessionLinksNote.textContent = "Could not save links.";
-        return;
+      sessionLinksNote.textContent = "Saving…";
+      try {
+        const response = await fetch("/api/admin/session", {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${token}`,
+            "content-type": "application/json"
+          },
+          body: JSON.stringify({
+            syndicationUrl: syndicationUrl.value,
+            playerHookUrl: playerHookUrl.value
+          })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const why = data.detail || data.error || response.statusText || String(response.status);
+          sessionLinksNote.textContent = `Could not save links (${why}). Re-open admin with +a if this says unauthorized.`;
+          return;
+        }
+        syndicationUrl.value = data.session?.syndicationUrl || "";
+        playerHookUrl.value = data.session?.playerHookUrl || "";
+        refreshPreviews();
+        sessionLinksNote.textContent = "Links saved. They show as hyperlinks on the signup page.";
+      } catch (error) {
+        sessionLinksNote.textContent = `Could not save links (${error.message}). Is the site server running the latest server.js?`;
       }
-      const data = await response.json();
-      syndicationUrl.value = data.session?.syndicationUrl || "";
-      playerHookUrl.value = data.session?.playerHookUrl || "";
-      sessionLinksNote.textContent = "Links saved. They show as hyperlinks on the signup page.";
     });
 
     document.querySelector("#copyAll").addEventListener("click", async () => {

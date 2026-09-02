@@ -391,6 +391,7 @@ async function deleteAccount(email) {
 function sanitizeHttpUrl(value) {
   let raw = String(value || "").trim();
   if (!raw) return "";
+  if (/[…]/.test(raw) || /\s/.test(raw)) return "";
   if (!/^[a-z][a-z0-9+.-]*:/i.test(raw)) raw = `https://${raw}`;
   try {
     const parsed = new URL(raw);
@@ -401,9 +402,22 @@ function sanitizeHttpUrl(value) {
   }
 }
 
+function syndicationFromHook(hookUrl) {
+  try {
+    const parsed = new URL(hookUrl);
+    parsed.search = "";
+    parsed.hash = "";
+    parsed.pathname = parsed.pathname.replace(/\/p\/[0-9a-f-]{36}\/?$/i, "");
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+}
+
 async function sessionLinks() {
   const sessions = await readJson("sessions");
-  const session = sessions.find((item) => item.id === currentSessionId);
+  const list = Array.isArray(sessions) ? sessions : [];
+  const session = list.find((item) => item.id === currentSessionId);
   return {
     syndicationUrl: session?.syndicationUrl || "",
     playerHookUrl: session?.playerHookUrl || ""
@@ -412,13 +426,23 @@ async function sessionLinks() {
 
 async function saveSession(data) {
   const sessions = await readJson("sessions");
-  const session = sessions.find((item) => item.id === currentSessionId);
-  if (!session) throw new Error("Session is missing.");
+  const list = Array.isArray(sessions) ? sessions : [];
+  let session = list.find((item) => item.id === currentSessionId);
+  if (!session) {
+    session = {
+      id: currentSessionId,
+      title: "An AMBA Adventure",
+      times: []
+    };
+    list.push(session);
+  }
 
-  session.syndicationUrl = sanitizeHttpUrl(data.syndicationUrl);
-  session.playerHookUrl = sanitizeHttpUrl(data.playerHookUrl);
+  const playerHookUrl = sanitizeHttpUrl(data.playerHookUrl);
+  const syndicationUrl = sanitizeHttpUrl(data.syndicationUrl) || syndicationFromHook(playerHookUrl);
+  session.syndicationUrl = syndicationUrl;
+  session.playerHookUrl = playerHookUrl;
   session.updatedAt = new Date().toISOString();
-  await writeJson("sessions", sessions);
+  await writeJson("sessions", list);
   return sessionLinks();
 }
 
