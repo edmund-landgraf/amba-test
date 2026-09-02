@@ -102,6 +102,17 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/player-hook") {
+    const { playerHookUrl } = await sessionLinks();
+    const html = await playerHookPreviewHtml(playerHookUrl);
+    res.writeHead(200, {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "public, max-age=120"
+    });
+    res.end(html);
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/api/wg-exports") {
     const email = normalizeEmail(url.searchParams.get("email"));
     if (!await findUserByEmail(email)) {
@@ -400,6 +411,109 @@ function sanitizeHttpUrl(value) {
   } catch {
     return "";
   }
+}
+
+async function playerHookPreviewHtml(hookUrl) {
+  const url = sanitizeHttpUrl(hookUrl);
+  if (!url) {
+    return hookPreviewDocument("<p>No player hook URL is saved yet.</p>");
+  }
+  try {
+    const response = await fetch(url, {
+      redirect: "follow",
+      headers: { accept: "text/html", "user-agent": "amba-test-hook-preview" },
+      signal: AbortSignal.timeout(12000)
+    });
+    if (!response.ok) {
+      return hookPreviewDocument(`<p>Could not load the player hook (${response.status}).</p>`);
+    }
+    const page = await response.text();
+    const styles = extractInnerByTag(page, "style", (chunk) => chunk.includes("embedded-document-root") || chunk.includes("lore-box"));
+    const body = extractElementByClass(page, "embedded-document-root")
+      || extractElementByClass(page, "synd-content")
+      || "<p>Could not find the handout HTML on that page.</p>";
+    return hookPreviewDocument(rewriteHookUrls(body, url), styles);
+  } catch (error) {
+    return hookPreviewDocument(`<p>Could not load the player hook (${error.message}).</p>`);
+  }
+}
+
+function hookPreviewDocument(body, styles = "") {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    html, body { margin: 0; background: #fff; color: #1a1612; }
+    body { font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .preview-root { padding: 4px 8px 12px; }
+  </style>
+  ${styles}
+</head>
+<body class="preview-root">${body}</body>
+</html>`;
+}
+
+function extractInnerByTag(html, tag, matchFn) {
+  const open = new RegExp(`<${tag}[^>]*>`, "ig");
+  let found = "";
+  let hit;
+  while ((hit = open.exec(html))) {
+    const end = html.toLowerCase().indexOf(`</${tag}>`, hit.index + hit[0].length);
+    if (end < 0) continue;
+    const inner = html.slice(hit.index, end + tag.length + 3);
+    if (!matchFn || matchFn(inner)) found += inner;
+  }
+  return found;
+}
+
+function extractElementByClass(html, className) {
+  const attr = html.search(new RegExp(`class=["'][^"']*\\b${className}\\b[^"']*["']`, "i"));
+  if (attr < 0) return "";
+  const start = html.lastIndexOf("<", attr);
+  const tagMatch = html.slice(start).match(/^<([a-z][a-z0-9]*)/i);
+  if (!tagMatch) return "";
+  const tag = tagMatch[1];
+  return sliceBalancedTag(html, start, tag);
+}
+
+function sliceBalancedTag(html, start, tag) {
+  const lower = html.toLowerCase();
+  const openRe = new RegExp(`<${tag}\\b`, "ig");
+  const closeToken = `</${tag}>`;
+  openRe.lastIndex = start;
+  const first = openRe.exec(html);
+  if (!first) return "";
+  let depth = 1;
+  let i = first.index + first[0].length;
+  while (i < html.length && depth > 0) {
+    const nextOpen = lower.indexOf(`<${tag}`, i);
+    const nextClose = lower.indexOf(closeToken, i);
+    if (nextClose < 0) return html.slice(start);
+    const openIsNext = nextOpen >= 0 && nextOpen < nextClose && html[nextOpen + 1] !== "/";
+    if (openIsNext) {
+      depth += 1;
+      i = nextOpen + tag.length + 1;
+    } else {
+      depth -= 1;
+      i = nextClose + closeToken.length;
+    }
+  }
+  return html.slice(start, i);
+}
+
+function rewriteHookUrls(html, baseUrl) {
+  return html.replace(/\s(href|src)=["']([^"']+)["']/gi, (full, attr, value) => {
+    if (!value || value.startsWith("#") || value.startsWith("data:") || value.startsWith("mailto:") || value.startsWith("javascript:")) {
+      return full;
+    }
+    try {
+      return ` ${attr}="${new URL(value, baseUrl).toString()}"`;
+    } catch {
+      return full;
+    }
+  });
 }
 
 function syndicationFromHook(hookUrl) {

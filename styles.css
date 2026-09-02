@@ -186,16 +186,38 @@ main:has(.doc) .lede {
 }
 
 .hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  justify-items: start;
-  gap: 0;
-  padding: 36px 0 16px;
-  align-content: start;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding: 16px 0 12px;
+}
+
+.hero-copy {
+  flex: 1 1 28rem;
+  min-width: 0;
+}
+
+.hero .eyebrow {
+  margin: 0 0 6px;
+}
+
+.hero h1 {
+  max-width: 860px;
+  margin: 0;
+  font-size: clamp(1.25rem, 2.4vw, 1.7rem);
+  line-height: 1.2;
+}
+
+.hero .lede {
+  max-width: 860px;
+  margin: 8px 0 0;
 }
 
 .hero .button {
-  margin-top: 18px;
+  margin-top: 2px;
+  flex: 0 0 auto;
 }
 
 .discord-panel {
@@ -412,6 +434,14 @@ h3 {
 .note {
   padding: 28px 0 58px;
   border-top: 1px solid rgba(222, 215, 201, 0.86);
+}
+
+#times.band {
+  padding: 14px 0 36px;
+}
+
+#times h2 {
+  margin-bottom: 8px;
 }
 
 .section-head {
@@ -724,7 +754,7 @@ fieldset {
   border-radius: 12px;
   overflow: hidden;
   background: #fff;
-  height: 220px;
+  height: min(52vh, 480px);
 }
 
 .player-hook iframe {
@@ -1416,10 +1446,6 @@ footer {
 
   .settings-menu {
     right: 0;
-  }
-
-  .hero {
-    padding-top: 28px;
   }
 
   h1 {

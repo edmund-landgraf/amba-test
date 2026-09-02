@@ -17,7 +17,6 @@
       <form class="adventure-summary" id="sessionLinksForm">
         <div class="session-link-row">
           <a class="adventure-summary-link is-empty" id="summaryPreview" href="#" target="_blank" rel="noopener noreferrer">Adventure Summary</a>
-          <a class="adventure-summary-link is-empty" id="hookPreview" href="#" target="_blank" rel="noopener noreferrer">AMBA player hook</a>
         </div>
         <div class="adventure-summary-form">
           <label>
@@ -52,7 +51,6 @@
     const syndicationUrl = document.querySelector("#syndicationUrl");
     const playerHookUrl = document.querySelector("#playerHookUrl");
     const summaryPreview = document.querySelector("#summaryPreview");
-    const hookPreview = document.querySelector("#hookPreview");
     const sessionLinksNote = document.querySelector("#sessionLinksNote");
     let people = [];
     let selfEmail = "";
@@ -75,7 +73,6 @@
 
     function refreshPreviews() {
       bindPreview(summaryPreview, syndicationUrl.value);
-      bindPreview(hookPreview, playerHookUrl.value);
     }
 
     async function load() {
@@ -169,7 +166,7 @@
         when ? `We have critical mass for ${when}.` : "We have critical mass for a sit-down.",
         handles.length ? `Yes so far: ${handles.join(", ")}.` : "",
         "",
-        "We'll play a short remote adventure while we learn AMBA, Owlbear, the new Wanderer's Guide UI, and live combat. Sheets in WG, the map in Owlbear, GM prep in AMBA. Bring two public characters; on Discord we'll pick four of eight to play.",
+        "A new way for GMs to play adventures: sheets in WG, the map in Owlbear, GM prep in AMBA. Bring two public characters; on Discord we'll pick four of eight to play.",
         "",
         `Signup: ${origin}/`,
         `Session order: ${origin}/session.html`,

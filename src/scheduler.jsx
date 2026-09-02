@@ -388,19 +388,12 @@ function TimeGrid() {
         <p className="form-note">Set your time zone in Settings before you can use the grid. Times will show in your zone.</p>
       ) : null}
       {userZone ? <p className="form-note">Showing times in {userZone}.</p> : null}
-      {summaryUrl || hookUrl ? (
+      {summaryUrl ? (
         <div className="adventure-summary">
           <div className="session-link-row">
-            {summaryUrl ? (
-              <a className="adventure-summary-link" href={summaryUrl} target="_blank" rel="noopener noreferrer">
-                Adventure Summary
-              </a>
-            ) : null}
-            {hookUrl ? (
-              <a className="adventure-summary-link" href={hookUrl} target="_blank" rel="noopener noreferrer">
-                AMBA player hook
-              </a>
-            ) : null}
+            <a className="adventure-summary-link" href={summaryUrl} target="_blank" rel="noopener noreferrer">
+              Adventure Summary
+            </a>
           </div>
         </div>
       ) : null}
@@ -408,9 +401,9 @@ function TimeGrid() {
         <div className="player-hook">
           <iframe
             title="AMBA player hook"
-            src={hookUrl}
+            src="/api/player-hook"
             referrerPolicy="no-referrer"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+            sandbox=""
           />
         </div>
       ) : null}
