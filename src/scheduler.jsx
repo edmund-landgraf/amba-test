@@ -174,6 +174,12 @@ function TimeGrid() {
   const [hookUrl, setHookUrl] = useState("");
   const [edit, setEdit] = useState(null);
   const [toast, setToast] = useState("");
+  const [narrowHook, setNarrowHook] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches
+  );
+  const [hookExpanded, setHookExpanded] = useState(() =>
+    typeof window === "undefined" || !window.matchMedia("(max-width: 860px)").matches
+  );
   const toastTimer = useRef(null);
 
   function showToast(message) {
@@ -239,6 +245,17 @@ function TimeGrid() {
       if (toastTimer.current) clearTimeout(toastTimer.current);
     };
   }, [load]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 860px)");
+    function sync(event) {
+      const matches = event.matches;
+      setNarrowHook(matches);
+      setHookExpanded(!matches);
+    }
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
 
   useEffect(() => {
     if (!menu) return undefined;
@@ -398,16 +415,27 @@ function TimeGrid() {
         </div>
       ) : null}
       {hookUrl ? (
-        <div className="player-hook">
-          <iframe
-            title="AMBA player hook"
-            src="/api/player-hook"
-            referrerPolicy="no-referrer"
-            sandbox=""
-          />
+        <div className={`player-hook-wrap${narrowHook && !hookExpanded ? "" : " is-expanded"}`}>
+          {narrowHook ? (
+            <button
+              className="player-hook-toggle"
+              type="button"
+              onClick={() => setHookExpanded((open) => !open)}
+            >
+              {hookExpanded ? "Show less" : "Read the player hook"}
+            </button>
+          ) : null}
+          <div className="player-hook">
+            <iframe
+              title="AMBA player hook"
+              src="/api/player-hook"
+              referrerPolicy="no-referrer"
+              sandbox=""
+            />
+          </div>
         </div>
       ) : null}
-      <form className="add-row" onSubmit={addRow}>
+      <form id="mark-times" className="add-row" onSubmit={addRow}>
         <label>Date <input required type="date" value={draft.date} onChange={(event) => setDraft({ ...draft, date: event.target.value })} /></label>
         <label>Time
           <select required value={draft.time} onChange={(event) => setDraft({ ...draft, time: event.target.value })}>
