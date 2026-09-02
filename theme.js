@@ -15,7 +15,7 @@
     document.documentElement.style.colorScheme = next;
   }
 
-  apply(stored() || "light");
+  apply(stored() || "dark");
 
   window.toggleAmbaTheme = function toggleAmbaTheme() {
     const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
