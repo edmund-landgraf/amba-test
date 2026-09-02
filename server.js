@@ -632,14 +632,14 @@ function stripSyndicationChrome(text) {
 }
 
 function moduleTitleFromSyndication(html) {
-  const h1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-  let raw = htmlToPlain(h1 ? h1[1] : "");
+  const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  let raw = htmlToPlain(title ? title[1] : "");
+  raw = raw.replace(/\s*[·|].*$/, "").replace(/\s*[–—].*$/, "");
   if (!raw) {
-    const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-    raw = htmlToPlain(title ? title[1] : "");
-    raw = raw.replace(/\s*[·|].*$/, "").replace(/\s*[–—].*$/, "");
+    const h1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+    raw = htmlToPlain(h1 ? h1[1] : "");
   }
-  return raw.replace(/\s*\([^)]*\)/g, "").replace(/\s+/g, " ").trim();
+  return raw.replace(/\s*\([^)]*\)\s*$/g, "").replace(/\s+/g, " ").trim();
 }
 
 async function refreshSessionFromLinks(session) {
@@ -674,6 +674,7 @@ async function sessionLinks() {
   const list = Array.isArray(sessions) ? sessions : [];
   const session = list.find((item) => item.id === currentSessionId);
   return {
+    title: session?.title || "",
     syndicationUrl: session?.syndicationUrl || "",
     playerHookUrl: session?.playerHookUrl || ""
   };

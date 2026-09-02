@@ -152,6 +152,7 @@ Sign up on our test site (not AMBA itself): {{signupUrl}}
     let people = [];
     let selfEmail = "";
     let slot = null;
+    let adventureTitle = "";
     const defaultTemplates = {
       reddit: {
         title: "[Online] [PF2e] looking for {{players}} players — {{adventureTitle}}",
@@ -226,6 +227,7 @@ Sign up on our test site (not AMBA itself): {{signupUrl}}
     function fillAdmin(data) {
       selfEmail = data.selfEmail || "";
       slot = data.slot || null;
+      adventureTitle = String(data.title || "").trim();
       syndicationUrl.value = data.syndicationUrl || "";
       playerHookUrl.value = data.playerHookUrl || "";
       refreshPreviews();
@@ -289,10 +291,9 @@ Sign up on our test site (not AMBA itself): {{signupUrl}}
       const yesEmails = people.map((person) => person.email).filter(Boolean);
       const bcc = yesEmails.filter((email) => email !== selfEmail);
       const to = selfEmail || bcc[0] || yesEmails[0] || "";
-      const subject = when
-        ? `We have critical mass for ${when}`
-        : "We have critical mass for a sit-down";
+      const packet = String(syndicationUrl.value || "").trim();
       const origin = window.location.origin;
+      const subject = adventureTitle || "An AMBA Adventure";
       const body = [
         "Hi,",
         "",
@@ -301,6 +302,7 @@ Sign up on our test site (not AMBA itself): {{signupUrl}}
         "",
         "A new way for GMs to play adventures: sheets in WG, the map in Owlbear, GM prep in AMBA. Bring two public characters; on Discord we'll pick four of eight to play.",
         "",
+        packet ? `Player packet: ${packet}` : "",
         `Signup: ${origin}/`,
         `Session order: ${origin}/session.html`,
         "",

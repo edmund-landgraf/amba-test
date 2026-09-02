@@ -121,11 +121,17 @@ function eventTitle(row) {
   return row.sessionTitle || "AMBA session";
 }
 
+function signupSiteUrl() {
+  if (typeof window === "undefined") return "https://amba-test.unwhelm.online/";
+  return `${window.location.origin}/`;
+}
+
 function eventDetails(row) {
   return [
     row.slot,
     row.playerHookText,
-    row.playerHookUrl ? `Player packet: ${row.playerHookUrl}` : "",
+    row.syndicationUrl ? `Player packet: ${row.syndicationUrl}` : "",
+    `Signup: ${signupSiteUrl()}`,
     `Discord: ${DISCORD_JOIN_URL}`,
     `Wanderer's Guide (new UI): ${WANDERERS_GUIDE_NEW_UI_URL}`
   ].filter(Boolean).join("\n\n");
@@ -220,6 +226,7 @@ function TimeGrid() {
         slot,
         sessionTitle,
         playerHookText,
+        syndicationUrl: nextSummary,
         playerHookUrl: nextHook,
         startIso: instant ? instant.toISOString() : "",
         date: time.date || "",
