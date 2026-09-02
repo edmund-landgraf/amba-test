@@ -28,6 +28,14 @@
     <nav aria-label="Main navigation">${nav}</nav>
     <div class="header-actions">
       <button class="admin-gate" id="openAdmin" type="button">+a</button>
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch to dark mode">
+        <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="currentColor" d="M15.1 3.3a.8.8 0 0 1 1 .97 8.2 8.2 0 1 1-10.27 10.3.8.8 0 0 1 1.07-1 6.6 6.6 0 0 0 8.2-8.2.8.8 0 0 1 .97-1.07Z"/>
+        </svg>
+        <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="currentColor" d="M12 7.2a4.8 4.8 0 1 1 0 9.6 4.8 4.8 0 0 1 0-9.6Zm0-5.2a.9.9 0 0 1 .9.9v1.6a.9.9 0 1 1-1.8 0V2.9A.9.9 0 0 1 12 2Zm0 16.4a.9.9 0 0 1 .9.9v1.6a.9.9 0 1 1-1.8 0v-1.6a.9.9 0 0 1 .9-.9Zm10-7.4a.9.9 0 0 1-.9.9h-1.6a.9.9 0 1 1 0-1.8h1.6a.9.9 0 0 1 .9.9ZM4.5 12a.9.9 0 0 1-.9.9H2a.9.9 0 1 1 0-1.8h1.6a.9.9 0 0 1 .9.9Zm14.4-6.9a.9.9 0 0 1 0 1.27l-1.13 1.13a.9.9 0 1 1-1.27-1.27L17.63 4a.9.9 0 0 1 1.27 0ZM6.5 16.63a.9.9 0 0 1 0 1.27l-1.13 1.13A.9.9 0 1 1 4.1 17.76l1.13-1.13a.9.9 0 0 1 1.27 0Zm11.13 1.27a.9.9 0 0 1-1.27 0l-1.13-1.13a.9.9 0 1 1 1.27-1.27l1.13 1.13a.9.9 0 0 1 0 1.27ZM6.5 5.1a.9.9 0 0 1 0 1.27L5.37 7.5A.9.9 0 1 1 4.1 6.23L5.23 5.1A.9.9 0 0 1 6.5 5.1Z"/>
+        </svg>
+      </button>
       <menu class="account-menu">
         <button class="avatar-button" id="accountButton" type="button" aria-haspopup="menu" aria-expanded="false">
           <span id="accountInitials">?</span>
@@ -47,6 +55,17 @@
     </div>
   `;
   document.body.prepend(header);
+
+  const themeToggle = header.querySelector("#themeToggle");
+  function syncThemeToggle() {
+    const dark = document.documentElement.dataset.theme === "dark";
+    themeToggle?.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
+  }
+  syncThemeToggle();
+  themeToggle?.addEventListener("click", () => {
+    window.toggleAmbaTheme?.();
+    syncThemeToggle();
+  });
 
   if (document.querySelector("#loginModal")) return;
 

@@ -399,39 +399,83 @@ function TimeGrid() {
     }
   ], []);
 
+  const statusMount = typeof document !== "undefined" ? document.querySelector("#schedule-status") : null;
+  const hookMount = typeof document !== "undefined" ? document.querySelector("#player-hook") : null;
+  const hookBand = typeof document !== "undefined" ? document.querySelector("#player-hook-band") : null;
+
+  useEffect(() => {
+    if (!hookBand) return;
+    hookBand.hidden = !hookUrl;
+  }, [hookUrl, hookBand]);
+
+  const zoneNote = email && !userZone
+    ? "Set your time zone in Settings before you can use the grid. Times will show in your zone."
+    : userZone
+      ? `Showing times in ${userZone}.`
+      : "";
+
+  const statusGrid = (
+    <div className="status-table-wrap">
+      <table className="status-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Yes</th>
+            <th>Maybe</th>
+            <th>No</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length ? rows.map((row) => (
+            <tr key={row.id}>
+              <th scope="row">{row.slot}</th>
+              <td><VoteCell people={row.yes} /></td>
+              <td><VoteCell people={row.maybe} /></td>
+              <td><VoteCell people={row.no} /></td>
+            </tr>
+          )) : (
+            <tr>
+              <td colSpan={4} className="status-table-empty">No session rows yet.</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  const hookBlock = hookUrl ? (
+      <div className={`player-hook-wrap${narrowHook && !hookExpanded ? "" : " is-expanded"}`}>
+        {narrowHook ? (
+          <button
+            className="player-hook-toggle"
+            type="button"
+            onClick={() => setHookExpanded((open) => !open)}
+          >
+            {hookExpanded ? "Show less" : "Read the player hook"}
+          </button>
+        ) : null}
+        <div className="player-hook">
+          <iframe
+            title="AMBA player hook"
+            src="/api/player-hook"
+            referrerPolicy="no-referrer"
+            sandbox=""
+          />
+        </div>
+      </div>
+  ) : null;
+
   return (
     <section className="scheduler">
-      {email && !userZone ? (
-        <p className="form-note">Set your time zone in Settings before you can use the grid. Times will show in your zone.</p>
-      ) : null}
-      {userZone ? <p className="form-note">Showing times in {userZone}.</p> : null}
+      {zoneNote ? <p className="form-note">{zoneNote}</p> : null}
+      {statusMount ? createPortal(statusGrid, statusMount) : statusGrid}
+      {hookMount && hookBlock ? createPortal(hookBlock, hookMount) : hookBlock}
       {summaryUrl ? (
         <div className="adventure-summary">
           <div className="session-link-row">
             <a className="adventure-summary-link" href={summaryUrl} target="_blank" rel="noopener noreferrer">
               Adventure Summary
             </a>
-          </div>
-        </div>
-      ) : null}
-      {hookUrl ? (
-        <div className={`player-hook-wrap${narrowHook && !hookExpanded ? "" : " is-expanded"}`}>
-          {narrowHook ? (
-            <button
-              className="player-hook-toggle"
-              type="button"
-              onClick={() => setHookExpanded((open) => !open)}
-            >
-              {hookExpanded ? "Show less" : "Read the player hook"}
-            </button>
-          ) : null}
-          <div className="player-hook">
-            <iframe
-              title="AMBA player hook"
-              src="/api/player-hook"
-              referrerPolicy="no-referrer"
-              sandbox=""
-            />
           </div>
         </div>
       ) : null}

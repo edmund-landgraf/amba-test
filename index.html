@@ -6,6 +6,7 @@
   <title>An AMBA Adventure</title>
   <meta name="description" content="A new way for GMs to play adventures with AMBA, Wanderer's Guide, Owlbear, and live combat.">
   <link rel="stylesheet" href="styles.css">
+  <script src="theme.js"></script>
   <link rel="stylesheet" href="grid/scheduler.css">
 </head>
 <body>
@@ -19,10 +20,22 @@
       <button class="button primary" id="joinTest" type="button">Join in</button>
     </section>
 
+    <section id="status" class="band">
+      <p class="eyebrow">Who's in</p>
+      <h2>Schedule at a glance</h2>
+      <div id="schedule-status"></div>
+    </section>
+
+    <section id="player-hook-band" class="band" hidden>
+      <p class="eyebrow">The pitch</p>
+      <h2>Player Hook</h2>
+      <div id="player-hook"></div>
+    </section>
+
     <section id="times" class="band">
       <p class="eyebrow">When you're free</p>
       <h2>Mark times that work</h2>
-      <p class="wide-copy">Set your time zone in Settings first. Add a row with date, time, and session length in your zone. Click Yes, Maybe, or No to place your avatar. We'll pick a sit-down from what people mark—not a rigid calendar. <a href="#mark-times">Jump to times</a>.</p>
+      <p class="wide-copy">Set your time zone in Settings first. Add a row with date, time, and session length in your zone. Click Yes, Maybe, or No to place your avatar. We'll pick a sit-down from what people mark—not a rigid calendar.</p>
       <section id="scheduler"></section>
     </section>
 
