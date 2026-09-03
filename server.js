@@ -15,6 +15,8 @@ const siteFile = path.join(runtimeDir, "site.json");
 const port = Number(process.env.PORT || 3000);
 const adminPassword = String(process.env.ADMIN_PASSWORD || "").trim();
 const adminTokens = new Set();
+const ADMIN_COOKIE = "ambaAdminToken";
+const ADMIN_COOKIE_MAX_AGE = 60 * 60 * 24 * 30;
 const {
   FALLBACK_ADVENTURE_ID,
   emptyAdventure,
@@ -23,6 +25,13 @@ const {
 } = require("./lib/adventure-defaults");
 const backup = require("./lib/runtime-backup");
 const { provisionNewAdventure } = require("./lib/module-switch");
+const {
+  DEFAULT_DISCORD_HOSTS,
+  listDiscordHosts,
+  parseDiscordGuildId,
+  resolveDiscordHost,
+  coerceDiscordHost
+} = require("./lib/discord-hosts");
 const discordGuildId = "1534196054944121074";
 
 const jsonFiles = {
@@ -257,7 +266,7 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 404, { error: code });
       return;
     }
-    if (code === "bad_filename" || code === "invalid_json" || code === "bad_sheet_url" || code === "sheet_limit" || code === "not_public") {
+    if (code === "bad_filename" || code === "invalid_json" || code === "bad_sheet_url" || code === "sheet_limit" || code === "not_public" || code === "discord_url_required" || code === "discord_host_unknown") {
       sendJson(res, 400, { error: code });
       return;
     }
@@ -273,7 +282,8 @@ async function handleApi(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
   if (req.method === "GET" && url.pathname === "/api/discord-widget") {
-    sendJson(res, 200, await discordWidgetStatus());
+    const guildId = parseDiscordGuildId(url.searchParams.get("guildId"));
+    sendJson(res, 200, await discordWidgetStatus(guildId));
     return;
   }
 
@@ -433,6 +443,12 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "POST" && url.pathname === "/api/discord-host") {
+    const body = await readBody(req);
+    sendJson(res, 200, await saveDiscordHost(body));
+    return;
+  }
+
   if (req.method === "POST" && url.pathname === "/api/times") {
     const body = await readBody(req);
     const time = await addTime(body);
@@ -482,15 +498,21 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/admin/ok") {
+    if (!requireAdmin(req, res)) return;
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
   if (req.method === "POST" && url.pathname === "/api/admin/login") {
     const body = await readBody(req);
     if (!adminPassword || !passwordsMatch(String(body.password || "").trim(), adminPassword)) {
       sendJson(res, 401, { error: "unauthorized" });
       return;
     }
-    const token = crypto.randomUUID();
+    const token = mintAdminToken();
     adminTokens.add(token);
-    sendJson(res, 200, { token });
+    sendJson(res, 200, { token }, { "set-cookie": adminCookieHeader(token) });
     return;
   }
 
@@ -702,9 +724,10 @@ async function serveStatic(req, res) {
   }
 }
 
-async function discordWidgetStatus() {
+async function discordWidgetStatus(guildId) {
+  if (!guildId) return { enabled: false };
   try {
-    const response = await fetch(`https://discord.com/api/guilds/${discordGuildId}/widget.json`);
+    const response = await fetch(`https://discord.com/api/guilds/${guildId}/widget.json`);
     if (response.ok) return { enabled: true };
     return { enabled: false };
   } catch {
@@ -747,6 +770,7 @@ async function getState(email) {
 
   return {
     session: { ...publicSession(adventure), times },
+    discordHostChoices: await discordHostChoices(),
     user: user ? publicUser(user, adventure) : null,
     signups: signups.map(publicSignup),
     feedback: feedback.map(publicFeedback),
@@ -1027,6 +1051,7 @@ async function sessionLinks() {
   const session = await liveAdventure();
   return {
     title: session.title || "",
+    ambaModuleId: session.ambaModuleId || session.id || "",
     syndicationUrl: session.syndicationUrl || "",
     playerHookUrl: session.playerHookUrl || ""
   };
@@ -1038,6 +1063,8 @@ async function saveSession(data) {
   const syndicationUrl = sanitizeHttpUrl(data.syndicationUrl) || syndicationFromHook(playerHookUrl);
   session.syndicationUrl = syndicationUrl;
   session.playerHookUrl = playerHookUrl;
+  if (data.ambaModuleId) session.ambaModuleId = String(data.ambaModuleId).trim();
+  if (data.title) session.title = String(data.title).trim();
   await refreshSessionFromLinks(session);
   session.updatedAt = new Date().toISOString();
   await writeAdventure(session);
@@ -1052,6 +1079,32 @@ async function saveDesiredPlayers(data) {
   session.updatedAt = new Date().toISOString();
   await writeAdventure(session);
   return { targetPlayers: session.targetPlayers };
+}
+
+async function discordHostChoices() {
+  try {
+    const raw = JSON.parse(await fs.readFile(path.join(dataDir, "discord-hosts.json"), "utf8"));
+    const hosts = listDiscordHosts(raw);
+    if (hosts.length) return hosts;
+  } catch {
+    /* use defaults */
+  }
+  return listDiscordHosts(DEFAULT_DISCORD_HOSTS);
+}
+
+async function saveDiscordHost(data) {
+  const user = await findUserByEmail(data.email);
+  if (!user) throw new Error("login_required");
+  const name = String(data.name || "").trim();
+  const session = await liveAdventure();
+  if (!name) {
+    session.discordHost = null;
+  } else {
+    session.discordHost = resolveDiscordHost(data, await discordHostChoices());
+  }
+  session.updatedAt = new Date().toISOString();
+  await writeAdventure(session);
+  return { discordHost: coerceDiscordHost(session.discordHost) };
 }
 
 async function addTime(data) {
@@ -1467,17 +1520,63 @@ function publicFeedback(item) {
   };
 }
 
+function parseCookies(req) {
+  const out = {};
+  for (const part of String(req.headers.cookie || "").split(";")) {
+    const index = part.indexOf("=");
+    if (index < 0) continue;
+    const key = part.slice(0, index).trim();
+    if (!key) continue;
+    try {
+      out[key] = decodeURIComponent(part.slice(index + 1).trim());
+    } catch {
+      out[key] = part.slice(index + 1).trim();
+    }
+  }
+  return out;
+}
+
+function mintAdminToken() {
+  const id = crypto.randomUUID();
+  if (!adminPassword) return id;
+  return `${id}.${crypto.createHmac("sha256", adminPassword).update(id).digest("hex")}`;
+}
+
+function isSignedAdminToken(token) {
+  if (!adminPassword) return false;
+  const value = String(token || "");
+  const dot = value.lastIndexOf(".");
+  if (dot < 1) return false;
+  const id = value.slice(0, dot);
+  const sig = value.slice(dot + 1);
+  const expected = crypto.createHmac("sha256", adminPassword).update(id).digest("hex");
+  const left = Buffer.from(sig);
+  const right = Buffer.from(expected);
+  return left.length === right.length && crypto.timingSafeEqual(left, right);
+}
+
+function adminTokenFromReq(req) {
+  const bearer = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
+  if (bearer) return bearer;
+  return String(parseCookies(req)[ADMIN_COOKIE] || "").trim();
+}
+
+function adminCookieHeader(token) {
+  return `${ADMIN_COOKIE}=${encodeURIComponent(token)}; Path=/; Max-Age=${ADMIN_COOKIE_MAX_AGE}; SameSite=Lax`;
+}
+
 function requireAdmin(req, res) {
-  const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
-  if (!adminTokens.has(token)) {
+  const token = adminTokenFromReq(req);
+  if (!token || (!adminTokens.has(token) && !isSignedAdminToken(token))) {
     sendJson(res, 401, { error: "unauthorized" });
     return false;
   }
+  adminTokens.add(token);
   return true;
 }
 
-function sendJson(res, status, value) {
-  res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
+function sendJson(res, status, value, extraHeaders = {}) {
+  res.writeHead(status, { "content-type": "application/json; charset=utf-8", ...extraHeaders });
   res.end(JSON.stringify(value));
 }
 
@@ -1820,7 +1919,8 @@ function publicSession(adventure) {
     syndicationUrl: adventure.syndicationUrl || "",
     playerHookUrl: adventure.playerHookUrl || "",
     playerHookText: adventure.playerHookText || "",
-    ambaModuleId: adventure.ambaModuleId || adventure.id
+    ambaModuleId: adventure.ambaModuleId || adventure.id,
+    discordHost: coerceDiscordHost(adventure.discordHost)
   };
 }
 
@@ -2398,6 +2498,7 @@ async function adminYesMail() {
     slot: await leadingYesSlot(),
     modules,
     title: links.title,
+    ambaModuleId: links.ambaModuleId,
     syndicationUrl: links.syndicationUrl,
     playerHookUrl: links.playerHookUrl
   };

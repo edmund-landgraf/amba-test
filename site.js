@@ -54,7 +54,23 @@ const profileRedditUserId = document.querySelector("#profileRedditUserId");
 
 start();
 
+function readCookie(name) {
+  for (const part of String(document.cookie || "").split(";")) {
+    const index = part.indexOf("=");
+    if (index < 0) continue;
+    if (part.slice(0, index).trim() !== name) continue;
+    try {
+      return decodeURIComponent(part.slice(index + 1).trim());
+    } catch {
+      return part.slice(index + 1).trim();
+    }
+  }
+  return "";
+}
+
 function readStored(key) {
+  const cookie = key === "ambaAdminToken" ? readCookie(key) : "";
+  if (cookie) return cookie;
   const local = localStorage.getItem(key);
   if (local) {
     sessionStorage.removeItem(key);
@@ -72,11 +88,17 @@ function readStored(key) {
 function writeStored(key, value) {
   localStorage.setItem(key, value);
   sessionStorage.removeItem(key);
+  if (key === "ambaAdminToken") {
+    document.cookie = `${key}=${encodeURIComponent(value)}; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax`;
+  }
 }
 
 function clearStored(key) {
   localStorage.removeItem(key);
   sessionStorage.removeItem(key);
+  if (key === "ambaAdminToken") {
+    document.cookie = `${key}=; Path=/; Max-Age=0; SameSite=Lax`;
+  }
 }
 
 function askConfirm(message, { title = "Overwrite?", ok = "Overwrite" } = {}) {
@@ -117,8 +139,7 @@ async function start() {
   fillTimezoneSelect();
   await loadState();
   wireEvents();
-  wireDiscordVoiceToggles();
-  await setupDiscordWidget();
+  await renderDiscordPanel();
 }
 
 function fillTimezoneSelect(selected = "") {
@@ -223,6 +244,7 @@ function wireEvents() {
   settingsModal?.querySelectorAll(".settings-tab").forEach((button) => {
     button.addEventListener("click", () => showSettingsTab(button.dataset.settingsTab));
   });
+  document.querySelector("#discordHostSelect")?.addEventListener("change", syncDiscordHostFields);
   loginForm?.addEventListener("submit", login);
   joinTest?.addEventListener("click", joinTheTest);
   openAdmin?.addEventListener("click", openAdminModal);
@@ -335,14 +357,38 @@ function resetAdminModal() {
   if (host) host.hidden = true;
 }
 
-function openAdminModal() {
+async function openAdminModal() {
   if (!adminModal) return;
   resetAdminModal();
   const input = adminForm?.querySelector('input[name="password"]');
   if (adminNote) adminNote.textContent = "";
   if (input) input.value = "";
   adminModal.showModal();
+  if (await restoreAdminSession()) return;
   input?.focus();
+}
+
+async function restoreAdminSession() {
+  const token = readStored("ambaAdminToken");
+  if (!token) return false;
+  try {
+    const response = await fetch("/api/admin/ok", {
+      headers: { authorization: `Bearer ${token}` }
+    });
+    if (!response.ok) {
+      clearStored("ambaAdminToken");
+      return false;
+    }
+    writeStored("ambaAdminToken", token);
+    if (document.documentElement.dataset.layout === "phone") {
+      window.location.href = "admin.html";
+      return true;
+    }
+    await openAdminShell();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function openAdminShell() {
@@ -358,22 +404,21 @@ async function openAdminShell() {
     const doc = new DOMParser().parseFromString(html, "text/html");
     const main = doc.querySelector("main");
     host.replaceChildren(document.importNode(main, true));
-    const css = document.createElement("link");
-    css.rel = "stylesheet";
-    css.href = "grid/backup-grid.css";
-    host.prepend(css);
     host.dataset.filled = "1";
   }
   await loadScriptOnce("admin.js");
-  try {
-    await loadScriptOnce("grid/backup-grid.js");
-  } catch (error) {
-    console.warn(error);
-  }
   window.mountAmbaAdmin(host.querySelector("main") || host, {
     onUnauthorized: () => {
       resetAdminModal();
       if (adminNote) adminNote.textContent = "Admin session expired. Enter the password again.";
+    },
+    onLogout: () => {
+      if (host) {
+        delete host.dataset.filled;
+        host.replaceChildren();
+      }
+      resetAdminModal();
+      adminModal?.close();
     }
   });
 }
@@ -553,6 +598,116 @@ function showSettingsTab(name) {
   });
 }
 
+const DISCORD_HOST_MANUAL = "__manual__";
+
+function fillDiscordHostFields() {
+  const select = document.querySelector("#discordHostSelect");
+  const url = document.querySelector("#discordHostUrl");
+  if (!select) return;
+  const choices = appState.discordHostChoices || [];
+  const host = appState.session?.discordHost;
+  select.replaceChildren();
+  select.append(new Option("Not set", ""));
+  for (const choice of choices) {
+    const option = new Option(choice.name, choice.name);
+    option.title = choice.desc || "";
+    select.append(option);
+  }
+  select.append(new Option("Enter URL manually", DISCORD_HOST_MANUAL));
+  const matched = choices.find((choice) => choice.name === host?.name);
+  if (!host?.inviteLink) select.value = "";
+  else if (matched) select.value = matched.name;
+  else select.value = DISCORD_HOST_MANUAL;
+  if (url) url.value = host?.inviteLink || matched?.inviteLink || "";
+  syncDiscordHostFields();
+}
+
+function syncDiscordHostFields() {
+  const select = document.querySelector("#discordHostSelect");
+  const url = document.querySelector("#discordHostUrl");
+  const desc = document.querySelector("#discordHostDesc");
+  const choices = appState.discordHostChoices || [];
+  const name = select?.value || "";
+  const choice = choices.find((item) => item.name === name);
+  if (desc) {
+    desc.textContent = choice?.desc
+      || (name === DISCORD_HOST_MANUAL ? "Paste a Discord server, channel, or invite URL." : "");
+  }
+  if (select) select.title = choice?.desc || "";
+  if (url) {
+    url.readOnly = Boolean(choice);
+    if (choice) url.value = choice.inviteLink || "";
+  }
+}
+
+async function renderDiscordPanel() {
+  const panel = document.querySelector("#discordHostPanel");
+  if (!panel) return;
+  const host = appState.session?.discordHost;
+  const lede = document.querySelector("#discordPageLede");
+  const title = document.querySelector("#discordPanelTitle");
+  const copy = document.querySelector("#discordPanelCopy");
+  const links = document.querySelector("#discordPanelLinks");
+  panel.classList.remove("has-widget");
+  panel.querySelector(".discord-frame")?.remove();
+
+  if (!host?.inviteLink) {
+    if (lede) lede.textContent = "This site is not connected to a Discord server. Pick one in Settings → Discord, or leave Find server to host as a stub.";
+    if (title) title.textContent = "Voice and text";
+    if (copy) copy.textContent = "No Discord widget, invite, or voice link is loaded from this page.";
+    if (links) {
+      links.replaceChildren();
+      const stub = document.createElement("button");
+      stub.type = "button";
+      stub.className = "button primary is-stub";
+      stub.disabled = true;
+      stub.setAttribute("aria-disabled", "true");
+      stub.textContent = "Find server to host";
+      links.append(stub);
+    }
+    return;
+  }
+
+  if (lede) lede.textContent = host.desc || `Voice and text use ${host.name}.`;
+  if (title) title.textContent = host.name;
+  let enabled = false;
+  if (host.guildId) {
+    try {
+      const data = await api(`/api/discord-widget?guildId=${encodeURIComponent(host.guildId)}`);
+      enabled = Boolean(data.enabled);
+    } catch {
+      enabled = false;
+    }
+  }
+
+  if (enabled && host.guildId) {
+    if (copy) copy.textContent = host.desc || "In-page Discord widget. Join from the widget if Server Widget is on.";
+    if (links) links.replaceChildren();
+    panel.classList.add("has-widget");
+    const frame = document.createElement("div");
+    frame.className = "discord-frame";
+    const iframe = document.createElement("iframe");
+    iframe.title = `${host.name} Discord widget`;
+    iframe.src = `https://discord.com/widget?id=${encodeURIComponent(host.guildId)}&theme=dark`;
+    iframe.sandbox = "allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts";
+    frame.append(iframe);
+    panel.append(frame);
+    return;
+  }
+
+  if (copy) copy.textContent = "This Discord server is not set up for the in-page bot. Use the link to open it in Discord.";
+  if (links) {
+    links.replaceChildren();
+    const open = document.createElement("a");
+    open.className = "button primary";
+    open.href = host.inviteLink;
+    open.target = "_blank";
+    open.rel = "noopener noreferrer";
+    open.textContent = "Open in Discord";
+    links.append(open);
+  }
+}
+
 function openSettingsModal() {
   if (!settingsModal) return;
   if (!appState.user?.email) {
@@ -572,6 +727,7 @@ function openSettingsModal() {
     const desiredField = settingsForm.querySelector('input[name="desiredPlayers"]');
     if (desiredField) desiredField.value = String(appState.session?.targetPlayers || 4);
   }
+  fillDiscordHostFields();
   settingsModal.showModal();
   settingsForm?.querySelector('input[name="discordUserId"]')?.focus({ preventScroll: true });
 }
@@ -604,8 +760,25 @@ async function saveSettings(event) {
       desiredPlayers: data.desiredPlayers
     }
   });
+  const discordNote = document.querySelector("#settingsDiscordNote");
+  try {
+    await api("/api/discord-host", {
+      method: "POST",
+      body: {
+        email: appState.user.email,
+        name: data.discordHostName,
+        url: data.discordHostUrl
+      }
+    });
+    if (discordNote) discordNote.textContent = "";
+  } catch {
+    if (discordNote) discordNote.textContent = "Could not save the Discord server. Check the URL, or pick a named host.";
+    showSettingsTab("discord");
+    return;
+  }
   if (settingsModal?.open) settingsModal.close();
   await loadState();
+  await renderDiscordPanel();
 }
 
 async function saveTimezone(event) {
@@ -970,45 +1143,3 @@ function formatLocalBytes(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function wireDiscordVoiceToggles() {
-  const buttons = document.querySelectorAll(".discord-voice-toggle");
-  const on = sessionStorage.getItem("ambaDiscordVoice") === "1";
-  for (const button of buttons) {
-    setDiscordVoiceState(button, on, false);
-    button.addEventListener("click", () => {
-      const next = button.getAttribute("aria-pressed") !== "true";
-      setDiscordVoiceState(button, next, true);
-      sessionStorage.setItem("ambaDiscordVoice", next ? "1" : "0");
-    });
-  }
-}
-
-function setDiscordVoiceState(button, on, openVoice) {
-  button.setAttribute("aria-pressed", on ? "true" : "false");
-  button.setAttribute("aria-label", on ? "Voice recording on" : "Voice listening");
-  const label = button.querySelector(".discord-voice-label");
-  if (label) label.textContent = on ? "Record" : "Listen";
-  if (on && openVoice && button.dataset.voiceUrl) {
-    window.open(button.dataset.voiceUrl, "_blank", "noopener,noreferrer");
-  }
-}
-
-async function setupDiscordWidget() {
-  const frame = document.querySelector(".discord-frame");
-  if (!frame) return;
-  let enabled = false;
-  try {
-    const data = await api("/api/discord-widget");
-    enabled = Boolean(data.enabled);
-  } catch {
-    enabled = false;
-  }
-  if (!enabled) return;
-  const fallback = frame.querySelector(".discord-widget-fallback");
-  fallback?.remove();
-  const iframe = document.createElement("iframe");
-  iframe.title = "AMBA Discord server widget";
-  iframe.src = "https://discord.com/widget?id=1534196054944121074&theme=dark";
-  iframe.sandbox = "allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts";
-  frame.prepend(iframe);
-}

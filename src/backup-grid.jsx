@@ -122,7 +122,8 @@ function BackupGrid({ rows, token, onChange }) {
       columnDefs={columnDefs}
       overlayNoRowsTemplate="No backups yet."
       suppressCellFocus
-      domLayout="autoHeight"
+      headerHeight={48}
+      rowHeight={48}
     />
   );
 }

@@ -13,32 +13,19 @@
     <section class="page-hero">
       <p class="eyebrow">Voice and text</p>
       <h1>AMBA Discord</h1>
-      <p class="lede">Voice for the adventure lives here. You do not need to log in on this site. Use Join to open the AMBA server in Discord. The in-page member list only appears if the Discord server widget is turned on.</p>
+      <p class="lede" id="discordPageLede">This site is not connected to a Discord server. Pick one in Settings → Discord, or leave Find server to host as a stub.</p>
     </section>
 
-    <section class="discord-panel" aria-labelledby="discordPanelTitle">
+    <section class="discord-panel" id="discordHostPanel" aria-labelledby="discordPanelTitle">
       <div class="discord-panel-head">
         <div>
-          <p class="eyebrow">Channels</p>
-          <h2 id="discordPanelTitle">Text and voice</h2>
-          <p>This panel is a member list only. Discord’s widget cannot show history or a message box. Use Open text to type in the chat channel. Listen / Record opens voice in Discord.</p>
+          <p class="eyebrow">Host</p>
+          <h2 id="discordPanelTitle">Voice and text</h2>
+          <p id="discordPanelCopy">No Discord widget, invite, or voice link is loaded from this page.</p>
         </div>
-        <div class="discord-panel-links">
-          <a class="button primary" href="https://discord.com/channels/1534196054944121074/" target="_blank" rel="noopener noreferrer">Join</a>
-          <a class="button secondary" href="https://discord.com/channels/1534196054944121074/1543359939957891092" target="_blank" rel="noopener noreferrer">Open text</a>
-          <button type="button" class="discord-voice-toggle" aria-pressed="false" aria-label="Voice listening" data-voice-url="https://discord.com/channels/1534196054944121074/1543359964968517662">
-            <svg class="discord-voice-icon discord-voice-listen" viewBox="0 0 24 24" aria-hidden="true">
-              <path fill="currentColor" d="M12 3a4 4 0 0 0-4 4v2H7a3 3 0 0 0-3 3v2a1 1 0 1 0 2 0v-2a1 1 0 0 1 1-1h1v6a4 4 0 0 0 4 4h.5a1 1 0 1 0 0-2H12a2 2 0 0 1-2-2v-6h8v6a2 2 0 0 1-2 2h-.5a1 1 0 1 0 0 2H16a4 4 0 0 0 4-4v-6h-1V9a3 3 0 0 0-3-3h-1V7a4 4 0 0 0-4-4Zm2 4h-4V7a2 2 0 1 1 4 0v1Z"/>
-            </svg>
-            <svg class="discord-voice-icon discord-voice-record" viewBox="0 0 24 24" aria-hidden="true">
-              <path fill="currentColor" d="M12 2a4 4 0 0 0-4 4v6a4 4 0 0 0 8 0V6a4 4 0 0 0-4-4Zm-6 10a1 1 0 0 1 1 1 5 5 0 0 0 10 0 1 1 0 1 1 2 0 7 7 0 0 1-6 6.93V22a1 1 0 1 1-2 0v-2.07A7 7 0 0 1 5 13a1 1 0 0 1 1-1Z"/>
-            </svg>
-            <span class="discord-voice-label">Listen</span>
-          </button>
+        <div class="discord-panel-links" id="discordPanelLinks">
+          <button type="button" class="button primary is-stub" disabled aria-disabled="true">Find server to host</button>
         </div>
-      </div>
-      <div class="discord-frame">
-        <p class="discord-widget-fallback">No in-page preview. Discord’s server widget is off, so a member list cannot load. Use Join — that does not require a login on this site.</p>
       </div>
     </section>
 

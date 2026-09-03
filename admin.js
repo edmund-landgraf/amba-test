@@ -3,11 +3,28 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
   if (!root || root.dataset.adminMounted === "1") return;
   root.dataset.adminMounted = "1";
   let promoteState = null;
-    const token = localStorage.getItem("ambaAdminToken") || sessionStorage.getItem("ambaAdminToken") || "";
+    const token = (() => {
+      const cookie = document.cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith("ambaAdminToken="));
+      if (cookie) {
+        try {
+          return decodeURIComponent(cookie.slice("ambaAdminToken=".length));
+        } catch {
+          return cookie.slice("ambaAdminToken=".length);
+        }
+      }
+      return localStorage.getItem("ambaAdminToken") || sessionStorage.getItem("ambaAdminToken") || "";
+    })();
     if (token) {
       localStorage.setItem("ambaAdminToken", token);
       sessionStorage.removeItem("ambaAdminToken");
+      document.cookie = `ambaAdminToken=${encodeURIComponent(token)}; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax`;
     }
+    function clearAdminToken() {
+      localStorage.removeItem("ambaAdminToken");
+      sessionStorage.removeItem("ambaAdminToken");
+      document.cookie = "ambaAdminToken=; Path=/; Max-Age=0; SameSite=Lax";
+    }
+
     const yesList = q("#yesList");
     const yesStatus = q("#yesStatus");
     const copyNote = q("#copyNote");
@@ -18,7 +35,25 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
     const adventureSelect = q("#adventureSelect");
     const sessionLinksToggle = q("#sessionLinksToggle");
     const sessionLinksNote = q("#sessionLinksNote");
+    const ambaConnectNote = q("#ambaConnectNote");
+    function ambaApiOrigins() {
+      const host = String(location.hostname || "");
+      if (host === "localhost" || host === "127.0.0.1") {
+        const proto = location.protocol;
+        return [`${proto}//${host}:5190`, `${proto}//${host}:3101`];
+      }
+      if (host === "amba.unwhelm.online") return [location.origin];
+      return ["https://amba.unwhelm.online"];
+    }
+
+    function ambaApiOrigin() {
+      return ambaApiOrigins()[0];
+    }
     let linksEditing = false;
+    let ambaModules = null;
+    let liveAmbaModuleId = "";
+    let setupMode = "connect";
+    let lastAdventureData = null;
     let people = [];
     let selfEmail = "";
     let slot = null;
@@ -76,7 +111,48 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       sessionLinksToggle.type = "button";
     }
 
+    function setSetupMode(mode, options = {}) {
+      setupMode = mode === "manual" ? "manual" : "connect";
+      const wrap = q("#ambaPublishedWrap");
+      const connectBtn = q("#connectAmba");
+      const manualBtn = q("#manualAmba");
+      const isManual = setupMode === "manual";
+      if (wrap) wrap.hidden = isManual;
+      if (sessionLinksToggle) sessionLinksToggle.hidden = !isManual;
+      if (connectBtn) {
+        connectBtn.classList.toggle("primary", !isManual);
+        connectBtn.classList.toggle("secondary", isManual);
+        connectBtn.classList.toggle("is-active", !isManual);
+      }
+      if (manualBtn) {
+        manualBtn.classList.toggle("primary", isManual);
+        manualBtn.classList.toggle("secondary", !isManual);
+        manualBtn.classList.toggle("is-active", isManual);
+      }
+      if (isManual) {
+        ambaModules = null;
+        if (adventureSelect) adventureSelect.dataset.source = "manual";
+        setLinksEditing(true);
+        const message = "Manual AMBA. Paste the adventure summary and player-hook syndication links, then Save.";
+        if (ambaConnectNote) ambaConnectNote.textContent = message;
+        if (!options.silent) sessionLinksNote.textContent = message;
+        return;
+      }
+      setLinksEditing(false);
+      if (lastAdventureData) fillAdventureSelect(lastAdventureData);
+      if (!options.silent && !ambaModules) {
+        const message = ambaConnectCopy();
+        if (ambaConnectNote) ambaConnectNote.textContent = message;
+      }
+    }
+
     function fillAdventureSelect(data) {
+      lastAdventureData = data;
+      if (setupMode === "manual") return;
+      if (ambaModules) {
+        fillAmbaModuleSelect(ambaModules, preferredAmbaModule(ambaModules)?.id || "");
+        return;
+      }
       adventureSelect.replaceChildren();
       const modules = data.modules?.modules || [];
       const selectedId = data.modules?.selectedId || "";
@@ -93,8 +169,120 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         option.selected = module.id === selectedId || (modules.length ? modules.length === 1 : true);
         adventureSelect.append(option);
       }
+      adventureSelect.dataset.source = "local";
       adventureSelect.dataset.liveId = selectedId;
       adventureSelect.disabled = !adventureSelect.options.length;
+    }
+
+    function parseAmbaModules(payload) {
+      const list = Array.isArray(payload) ? payload : payload?.modules || [];
+      return list.filter((module) => module && module.id && (!module.publicationStatus || module.publicationStatus === "published"));
+    }
+
+    function preferredAmbaModule(modules) {
+      return modules.find((module) => module.id === liveAmbaModuleId)
+        || modules.find((module) => module.adventureSummaryUrl && module.adventureSummaryUrl === syndicationUrl.value)
+        || modules.find((module) => module.playerHookUrl && module.playerHookUrl === playerHookUrl.value)
+        || modules[0]
+        || null;
+    }
+
+    function applyAmbaModule(module) {
+      if (!module) return;
+      syndicationUrl.value = module.adventureSummaryUrl || "";
+      playerHookUrl.value = module.playerHookUrl || "";
+      refreshPreviews();
+    }
+
+    function fillAmbaModuleSelect(modules, selectedId) {
+      adventureSelect.replaceChildren();
+      for (const module of modules) {
+        const option = document.createElement("option");
+        option.value = module.id;
+        option.textContent = module.title || module.id;
+        option.selected = module.id === selectedId;
+        adventureSelect.append(option);
+      }
+      adventureSelect.dataset.source = "amba";
+      adventureSelect.dataset.liveId = selectedId || "";
+      adventureSelect.disabled = !modules.length;
+    }
+
+    function ambaConnectCopy() {
+      const origin = ambaApiOrigin();
+      const local = /localhost|127\.0\.0\.1/.test(origin);
+      return local
+        ? `This page talks to AMBA at ${origin} (same browser login as Adventure Maker). Log in there, then try Connect to AMBA again. Or use Manual AMBA to paste the two links.`
+        : `This page talks to AMBA at ${origin}, which trusts amba-play and amba-test. Log in to AMBA, then try Connect to AMBA again. Or use Manual AMBA to paste the two links.`;
+    }
+
+    function ambaLoginHint(detail) {
+      const message = detail || ambaConnectCopy();
+      if (ambaConnectNote) ambaConnectNote.textContent = message;
+      sessionLinksNote.textContent = message;
+    }
+
+    async function fetchPublishedModules(origin) {
+      const response = await fetch(`${origin}/api/modules?status=published`, {
+        credentials: "include",
+        mode: "cors",
+        headers: { accept: "application/json" }
+      });
+      return { origin, response };
+    }
+
+    async function connectToAmba() {
+      const origins = ambaApiOrigins();
+      if (ambaConnectNote) ambaConnectNote.textContent = `Connecting to AMBA (${origins.join(", ")})…`;
+      sessionLinksNote.textContent = `Connecting to AMBA (${origins.join(", ")})…`;
+      let lastOrigin = origins[0];
+      let lastStatus = 0;
+      let lastKind = "network";
+      try {
+        let matched = null;
+        for (const origin of origins) {
+          lastOrigin = origin;
+          try {
+            const { response } = await fetchPublishedModules(origin);
+            lastStatus = response.status;
+            const contentType = response.headers.get("content-type") || "";
+            if (response.status === 401 || response.status === 403) {
+              lastKind = "auth";
+              continue;
+            }
+            if (!response.ok || !contentType.includes("json")) {
+              lastKind = "http";
+              continue;
+            }
+            matched = { origin, modules: parseAmbaModules(await response.json()) };
+            break;
+          } catch {
+            lastKind = "network";
+          }
+        }
+        if (!matched) {
+          ambaModules = null;
+          if (lastKind === "auth") {
+            ambaLoginHint(`AMBA did not see a logged-in session (${lastOrigin}). Log in at ${origins[0]}/app, then try again.`);
+            return;
+          }
+          ambaLoginHint(`Could not reach AMBA API at /api/modules (not /app) via ${origins.join(" or ")}. Restart Adventure Maker so CORS allows ${location.origin}.`);
+          return;
+        }
+        setSetupMode("connect", { silent: true });
+        ambaModules = matched.modules;
+        const selected = preferredAmbaModule(matched.modules);
+        fillAmbaModuleSelect(matched.modules, selected?.id || "");
+        if (selected) applyAmbaModule(selected);
+        const message = matched.modules.length
+          ? `Connected to ${matched.origin}. ${matched.modules.length} published module${matched.modules.length === 1 ? "" : "s"}.`
+          : `Connected to ${matched.origin}, but there are no published modules yet.`;
+        if (ambaConnectNote) ambaConnectNote.textContent = message;
+        sessionLinksNote.textContent = message;
+      } catch {
+        ambaModules = null;
+        ambaLoginHint(`Could not reach AMBA API at /api/modules via ${lastOrigin}${lastStatus ? ` (${lastStatus})` : ""}.`);
+      }
     }
 
     
@@ -116,7 +304,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         fillAdmin(data);
         await loadPromote();
         const hash = location.hash.replace("#", "");
-        if (hash === "promote" || hash === "backup") showTab(hash);
+        if (hash === "setup" || hash === "promote" || hash === "backup") showTab(hash);
       } catch (error) {
         yesStatus.textContent = error.message || "Could not load yes emails.";
       }
@@ -126,12 +314,13 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       selfEmail = data.selfEmail || "";
       slot = data.slot || null;
       adventureTitle = String(data.title || "").trim();
+      liveAmbaModuleId = String(data.ambaModuleId || "").trim();
       syndicationUrl.value = data.syndicationUrl || "";
       playerHookUrl.value = data.playerHookUrl || "";
-      setLinksEditing(false);
       refreshPreviews();
       render(data.emails || []);
       fillAdventureSelect(data);
+      setSetupMode(setupMode, { silent: true });
     }
 
     function render(nextPeople) {
@@ -501,7 +690,13 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         headers: headers(),
         body: JSON.stringify({
           syndicationUrl: syndicationUrl.value,
-          playerHookUrl: playerHookUrl.value
+          playerHookUrl: playerHookUrl.value,
+          ...(adventureSelect.dataset.source === "amba" && adventureSelect.value
+            ? {
+                ambaModuleId: adventureSelect.value,
+                title: ambaModules?.find((module) => module.id === adventureSelect.value)?.title || undefined
+              }
+            : {})
         })
       });
       const data = await response.json().catch(() => ({}));
@@ -511,7 +706,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       }
       syndicationUrl.value = data.session?.syndicationUrl || "";
       playerHookUrl.value = data.session?.playerHookUrl || "";
-      setLinksEditing(false);
+      setLinksEditing(setupMode === "manual");
       refreshPreviews();
       sessionLinksNote.textContent = "Links saved. They show as hyperlinks on the signup page.";
     }
@@ -520,6 +715,19 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       const previous = adventureSelect.dataset.liveId || "";
       const id = adventureSelect.value;
       if (!id || id === previous) return;
+      if (adventureSelect.dataset.source === "amba") {
+        const module = ambaModules?.find((item) => item.id === id);
+        applyAmbaModule(module);
+        liveAmbaModuleId = id;
+        adventureSelect.dataset.liveId = id;
+        try {
+          await saveSessionLinks();
+          sessionLinksNote.textContent = `Bound syndication links from ${module?.title || "the selected AMBA module"}.`;
+        } catch (error) {
+          sessionLinksNote.textContent = error.message;
+        }
+        return;
+      }
       const ok = await (window.askAmbaConfirm
         ? window.askAmbaConfirm("Make this the live adventure people see? Archives keep their own session rows and votes.", { title: "Switch live adventure?", ok: "Switch" })
         : Promise.resolve(confirm("Make this the live adventure people see?")));
@@ -540,6 +748,9 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         await load();
       }
     });
+
+    q("#connectAmba")?.addEventListener("click", () => connectToAmba());
+    q("#manualAmba")?.addEventListener("click", () => setSetupMode("manual"));
 
     q("#startNewRun")?.addEventListener("click", async () => {
       const title = String(q("#newRunTitle")?.value || "").trim();
@@ -587,6 +798,15 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       }
     });
 
+    q("#adminLogout")?.addEventListener("click", () => {
+      clearAdminToken();
+      delete root.dataset.adminMounted;
+      if (options.page) {
+        window.location.href = "index.html";
+        return;
+      }
+      options.onLogout?.();
+    });
     q("#copyAll").addEventListener("click", async () => {
       await navigator.clipboard.writeText(people.map((person) => person.email).join("; "));
       copyNote.textContent = "Copied as a mail list (semicolon-separated).";
@@ -754,6 +974,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
 
     const titles = {
       yes: ["Emails that said yes", "Open a draft with yes players on BCC so they cannot see each other. You are on CC."],
+      setup: ["Setup", "Connect to AMBA and pick a published adventure, or use Manual AMBA and paste the two syndication links."],
       promote: ["Promote", "Push looking-for-players posts. Every template sends people back here to sign up."],
       backup: ["Backup", "Save a timestamped JSON snapshot of this site. Restore replaces live data after you confirm."]
     };
@@ -761,6 +982,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       const tab = titles[name] ? name : "yes";
       const panels = {
         yes: q("#panelYes"),
+        setup: q("#panelSetup"),
         promote: q("#panelPromote"),
         backup: q("#panelBackup")
       };
@@ -781,20 +1003,116 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       history.replaceState(null, "", "#" + tab);
       if (tab === "backup") refreshBackups();
     }
+    function formatBackupBytes(bytes) {
+      const n = Number(bytes) || 0;
+      if (n < 1024) return `${n} B`;
+      if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+      return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+    }
+    function formatBackupWhen(iso) {
+      if (!iso) return "";
+      const date = new Date(iso);
+      if (Number.isNaN(date.getTime())) return iso;
+      return date.toLocaleString();
+    }
+    function fillBackupGrid(rows) {
+      const host = q("#backupGrid");
+      if (!host) return;
+      const list = Array.isArray(rows) ? rows : [];
+      const table = document.createElement("table");
+      table.className = "backup-table";
+      table.innerHTML = "<thead><tr><th>File name</th><th>Created</th><th>Size</th><th></th></tr></thead>";
+      const tbody = document.createElement("tbody");
+      if (!list.length) {
+        const empty = document.createElement("tr");
+        empty.innerHTML = '<td colspan="4" class="backup-empty">No backups yet.</td>';
+        tbody.append(empty);
+      } else {
+        for (const row of list) {
+          const tr = document.createElement("tr");
+          const name = document.createElement("td");
+          name.textContent = row.name || "";
+          const created = document.createElement("td");
+          created.textContent = formatBackupWhen(row.exportedAt);
+          const size = document.createElement("td");
+          size.textContent = formatBackupBytes(row.bytes);
+          const actions = document.createElement("td");
+          actions.className = "backup-actions";
+          const restore = document.createElement("button");
+          restore.type = "button";
+          restore.className = "button secondary";
+          restore.textContent = "Restore";
+          restore.addEventListener("click", async () => {
+            const ok = await (window.askAmbaConfirm
+              ? window.askAmbaConfirm(`Overwrite all live AMBA Test data with ${row.name}?`)
+              : Promise.resolve(confirm(`Overwrite all live AMBA Test data with ${row.name}?`)));
+            if (!ok) return;
+            const note = q("#backupNote");
+            try {
+              await promoteFetch("/api/admin/backups/restore", {
+                method: "POST",
+                headers: headers(),
+                body: JSON.stringify({ name: row.name })
+              });
+              if (note) note.textContent = "Restored " + row.name;
+            } catch (error) {
+              if (note) note.textContent = error.message;
+            }
+          });
+          const download = document.createElement("button");
+          download.type = "button";
+          download.className = "button secondary";
+          download.textContent = "Download";
+          download.addEventListener("click", async () => {
+            const response = await fetch(`/api/admin/backups/file?name=${encodeURIComponent(row.name)}`, {
+              headers: { authorization: `Bearer ${token}` }
+            });
+            const blob = await response.blob();
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = row.name;
+            document.body.append(a);
+            a.click();
+            a.remove();
+            window.setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+          });
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.className = "button danger";
+          remove.textContent = "Delete";
+          remove.addEventListener("click", async () => {
+            if (!confirm(`Delete ${row.name}?`)) return;
+            const note = q("#backupNote");
+            try {
+              await promoteFetch(`/api/admin/backups/file?name=${encodeURIComponent(row.name)}`, {
+                method: "DELETE",
+                headers: { authorization: `Bearer ${token}` }
+              });
+              if (note) note.textContent = "Deleted " + row.name;
+              await refreshBackups();
+            } catch (error) {
+              if (note) note.textContent = error.message;
+            }
+          });
+          actions.append(restore, download, remove);
+          tr.append(name, created, size, actions);
+          tbody.append(tr);
+        }
+      }
+      table.append(tbody);
+      host.replaceChildren(table);
+    }
     async function refreshBackups() {
       const note = q("#backupNote");
+      if (!q("#backupGrid")?.querySelector("table")) fillBackupGrid([]);
       try {
         const data = await promoteFetch("/api/admin/backups", { headers: { authorization: "Bearer " + token } });
-        window.mountAmbaBackupGrid?.(q("#backupGrid"), {
-          rows: data.backups || [],
-          token,
-          onChange: refreshBackups
-        });
-        if (note && !(data.backups || []).length) note.textContent = "No backups yet.";
+        fillBackupGrid(data.backups || []);
       } catch (error) {
         if (note) note.textContent = error.message;
       }
     }
+    fillBackupGrid([]);
     q("#makeBackup")?.addEventListener("click", async () => {
       const note = q("#backupNote");
       if (note) note.textContent = "Saving backup…";

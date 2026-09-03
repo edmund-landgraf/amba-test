@@ -146,6 +146,7 @@
       <h2 id="settingsTitle">Settings</h2>
       <nav class="settings-tabs" aria-label="Settings sections">
         <button type="button" class="settings-tab is-active" data-settings-tab="comms" aria-current="page">Comms</button>
+        <button type="button" class="settings-tab" data-settings-tab="discord">Discord</button>
         <button type="button" class="settings-tab" data-settings-tab="export">Export</button>
       </nav>
       <form id="settingsForm">
@@ -165,6 +166,20 @@
           </label>
           <p class="form-note">Used to mark a row Live, scheduled to play. It does not cap signups yet.</p>
           <button class="button primary" type="submit">Save settings</button>
+        </section>
+        <section class="settings-tab-panel" id="settingsPanelDiscord" data-settings-panel="discord" hidden>
+          <p class="modal-copy">Pick a saved Discord server or paste a server URL. That choice is the Discord page bot. If the server has not enabled Server Widget, the page shows a join link instead.</p>
+          <label>Server
+            <select name="discordHostName" id="discordHostSelect" title="">
+              <option value="">Not set</option>
+            </select>
+          </label>
+          <p class="form-note" id="discordHostDesc"></p>
+          <label>Server URL
+            <input name="discordHostUrl" id="discordHostUrl" autocomplete="off" placeholder="https://discord.com/channels/… or discord.gg/…">
+          </label>
+          <button class="button primary" type="submit">Save settings</button>
+          <p class="form-note" id="settingsDiscordNote"></p>
         </section>
       </form>
       <section class="settings-tab-panel" id="settingsPanelExport" data-settings-panel="export" hidden>

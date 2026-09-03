@@ -10,23 +10,34 @@
 </head>
 <body>
   <main>
-    <section class="page-hero">
-      <p class="eyebrow">Admin</p>
-      <h1 id="adminTitle">Emails that said yes</h1>
-      <p class="lede" id="adminLede">Open a draft with yes players on BCC so they cannot see each other. You are on CC.</p>
+    <section class="page-hero admin-hero">
+      <div>
+        <p class="eyebrow">Admin</p>
+        <h1 id="adminTitle">Emails that said yes</h1>
+        <p class="lede" id="adminLede">Open a draft with yes players on BCC so they cannot see each other. You are on CC.</p>
+      </div>
+      <button class="button secondary" id="adminLogout" type="button">Log out</button>
     </section>
     <nav class="admin-tabs" aria-label="Admin sections">
       <button type="button" class="admin-tab is-active" data-tab="yes" aria-current="page">Yes emails</button>
+      <button type="button" class="admin-tab" data-tab="setup">Setup</button>
       <button type="button" class="admin-tab" data-tab="promote">Promote</button>
       <button type="button" class="admin-tab" data-tab="backup">Backup</button>
     </nav>
-    <section class="doc admin-tab-panel" id="panelYes">
+    <section class="doc admin-tab-panel" id="panelSetup" hidden>
       <form class="adventure-summary" id="sessionLinksForm">
-        <label>
-          Adventure
-          <select id="adventureSelect"></select>
-        </label>
-        <p class="form-note">Live adventure is the one people see. Archives stay on disk so old backups restore to the original id. Start a new run to switch modules: roster is copied, session rows and votes are not.</p>
+        <p class="form-actions setup-amba-mode" role="group" aria-label="AMBA source">
+          <button class="button primary" id="connectAmba" type="button">Connect to AMBA</button>
+          <button class="button secondary" id="manualAmba" type="button">Manual AMBA</button>
+        </p>
+        <p class="form-note" id="ambaConnectNote">Connect calls AMBA GET /api/modules (the editor SPA is /app; the API is not under /app). Localhost uses :5190 then :3101. amba-play and amba-test use amba.unwhelm.online. Manual AMBA skips that and lets you paste the two links.</p>
+        <div id="ambaPublishedWrap">
+          <label>
+            Adventure
+            <select id="adventureSelect"></select>
+          </label>
+          <p class="form-note">After you connect, published AMBA modules fill this list. Pick one and the summary and player-hook links are added for you.</p>
+        </div>
         <p class="form-actions">
           <label>New run title
             <input id="newRunTitle" type="text" autocomplete="off" placeholder="Adventure title">
@@ -49,6 +60,8 @@
         </div>
         <p class="form-note" id="sessionLinksNote"></p>
       </form>
+    </section>
+    <section class="doc admin-tab-panel" id="panelYes">
       <p id="yesStatus">Loading…</p>
       <div class="email-list" id="yesList"></div>
       <p class="form-actions">
@@ -157,15 +170,13 @@ Sign up on our test site (not AMBA itself): {{signupUrl}}
         </label>
       </p>
       <p class="form-note" id="backupNote"></p>
-      <link rel="stylesheet" href="grid/backup-grid.css">
-      <div id="backupGrid" class="ag-theme-quartz backup-grid"></div>
+      <div id="backupGrid" class="backup-grid"></div>
     </section>
   </main>
   <footer><p><a href="index.html">Back to signup</a></p></footer>
   <script src="header.js"></script>
   <script src="admin.js"></script>
   <script type="module" src="site.js"></script>
-  <script src="grid/backup-grid.js"></script>
   <script>
     window.mountAmbaAdmin(document.querySelector("main"), { page: true });
   </script>
