@@ -42,9 +42,9 @@
 
     <section class="doc logged-in-only">
       <h2>Your public sheet links</h2>
-      <p>Two links per player. Old UI: <a href="https://amba.wandersguide.site/sheet/1">amba.wandersguide.site/sheet/…</a>. New UI: <a href="https://wgui.wandersguide.site/sheet/1">wgui.wandersguide.site/sheet/…</a>. Same public, read-only sheet. You can edit or delete a link later.</p>
+      <p>Two links per player. Old UI: <a href="https://amba.wandersguide.site/">amba.wandersguide.site</a> <code>/sheet/…</code>. New UI: <a href="https://wgui.wandersguide.site/">wgui.wandersguide.site</a> <code>/sheet/…</code>. Same public, read-only sheet. You can edit or delete a link later.</p>
       <form id="wgSheetForm" class="sheet-link-form">
-        <label>Sheet link <input name="url" type="url" required placeholder="https://wgui.wandersguide.site/sheet/1"></label>
+        <label>Sheet link <input name="url" type="url" required placeholder="https://wgui.wandersguide.site/sheet/…"></label>
         <input type="hidden" name="replaceUrl" value="">
         <button class="button primary" type="submit">Save link</button>
         <button class="button" type="button" id="wgSheetCancel" hidden>Cancel edit</button>
@@ -55,6 +55,16 @@
 
     <section class="doc">
       <p>Old UI (original builder): <a href="https://amba.wandersguide.site/">amba.wandersguide.site</a>. New UI: <a href="https://wgui.wandersguide.site/">wgui.wandersguide.site</a>. Same WG account on both—like Pathbuilder 2e desktop vs web, not two different characters. The GM keeps AMBA on the Discord share. Players do not need AMBA accounts: they use the <strong>player syndication link</strong> (<a href="session.html">Session</a> step 6) for the adventure packet. Optional: an AMBA account plus module sharing to follow encounter design (Session step 5).</p>
+
+      <h2>Have a character on Pathbuilder?</h2>
+      <p>Bring it into WG with WG’s own importer. Do not drop a Pathbuilder file on <a href="upload.html">Uploads</a>—that page only takes WG JSON.</p>
+      <ol>
+        <li>In <a href="https://pathbuilder2e.com/">Pathbuilder 2e</a>, open the character, use the menu, and choose <strong>Export JSON</strong>. Pathbuilder gives a six-digit id (it hosts the JSON; you paste the id, not a file).</li>
+        <li>In the <strong>new</strong> UI, open <strong>Characters</strong> (<a href="https://wgui.wandersguide.site/">wgui.wandersguide.site</a>).</li>
+        <li>Open the import menu next to Create Character (upload icon). Choose <strong>Import from Pathbuilder</strong>.</li>
+        <li>Paste the six-digit id and import. That creates a WG character on your account.</li>
+      </ol>
+      <p>Then treat it like any other WG PC: turn on <strong>Public Character</strong>, export <strong>WG</strong> JSON, and drop that file on Uploads. You still need two characters that are not twins—import a second Pathbuilder PC or build the other one in WG.</p>
 
       <h2>Public Character — old UI and new UI</h2>
       <p>Turn on <strong>Public Character</strong> for both PCs so anyone with the sheet link can open them—the equivalent of a public Pathbuilder share, not a locked Foundry actor. Same label in both UIs; different clicks to get there.</p>
