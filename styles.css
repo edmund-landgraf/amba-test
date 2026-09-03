@@ -881,6 +881,66 @@ fieldset {
   border: 1px solid var(--warm);
 }
 
+.md-editor {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--input-bg);
+}
+
+.md-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  background: var(--sky);
+}
+
+.md-toolbar-btn {
+  min-width: 2rem;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.md-toolbar-btn:hover {
+  border-color: var(--accent);
+}
+
+#manualHook {
+  width: 100%;
+  min-height: 16rem;
+  border: 0;
+  border-radius: 0;
+  resize: vertical;
+}
+
+.player-hook-md {
+  overflow: auto;
+  padding: 12px 16px 16px;
+  color: var(--ink);
+}
+
+.player-hook-md h1,
+.player-hook-md h2,
+.player-hook-md h3 {
+  margin: 0.4em 0 0.35em;
+  color: var(--accent-strong);
+}
+
+.player-hook-md p,
+.player-hook-md li {
+  margin: 0 0 0.65em;
+}
+
 .player-hook-wrap {
   margin: 12px 0 4px;
 }

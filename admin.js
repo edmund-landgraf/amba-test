@@ -1120,6 +1120,36 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
     });
 
     q("#connectAmba")?.addEventListener("click", () => connectToAmba());
+    q("#refreshAmba")?.addEventListener("click", async () => {
+      if (!ambaModules) {
+        sessionLinksNote.textContent = "Connect to AMBA first. Refresh needs the AMBA API.";
+        return;
+      }
+      sessionLinksNote.textContent = "Refreshing published modules and syndication…";
+      await connectToAmba();
+      if (!ambaModules) return;
+      try {
+        const response = await fetch("/api/admin/session/refresh", {
+          method: "POST",
+          headers: headers(),
+          body: "{}"
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          sessionLinksNote.textContent = data.error || "Could not refresh syndication from the API.";
+          return;
+        }
+        syndicationUrl.value = data.session?.syndicationUrl || syndicationUrl.value;
+        playerHookUrl.value = data.session?.playerHookUrl || playerHookUrl.value;
+        adventureTitle = displayAdventureTitle(data.session?.title) || data.session?.title || adventureTitle;
+        if (adventureName) adventureName.value = adventureTitle;
+        refreshPreviews();
+        syncAdventurePicker();
+        sessionLinksNote.textContent = "Refreshed from the AMBA API and syndication pages.";
+      } catch (error) {
+        sessionLinksNote.textContent = error.message;
+      }
+    });
     q("#manualAmba")?.addEventListener("click", () => setSetupMode("manual"));
     q("#writeManual")?.addEventListener("click", () => setSetupMode("write"));
     q("#saveManualWrite")?.addEventListener("click", async () => {
