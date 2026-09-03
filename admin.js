@@ -3,6 +3,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
   if (!root || root.dataset.adminMounted === "1") return;
   root.dataset.adminMounted = "1";
   let promoteState = null;
+  let questionnaireState = { questions: [], responses: [] };
     const token = (() => {
       const cookie = document.cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith("ambaAdminToken="));
       if (cookie) {

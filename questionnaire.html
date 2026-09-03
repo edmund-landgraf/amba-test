@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Questionnaire | An AMBA Adventure</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="layout.js"></script>
+  <script src="theme.js"></script>
+</head>
+<body>
+  <main>
+    <section class="page-hero">
+      <p class="eyebrow">Questionnaire</p>
+      <h1>Answer the GM's questions</h1>
+      <p class="lede">Share the table details that help the GM prepare. Your answers are tied to your email login and shown to the GM by handle.</p>
+    </section>
+
+    <section class="doc questionnaire-page">
+      <div id="questionnaireLogin" class="questionnaire-empty" hidden>
+        <h2>Log in to answer</h2>
+        <p>Your handle keeps responses readable without showing your email to the table.</p>
+        <button class="button primary" id="questionnaireLoginButton" type="button">Log in by email</button>
+      </div>
+
+      <div id="questionnaireEmpty" class="questionnaire-empty" hidden>
+        <h2>No questions yet</h2>
+        <p>The GM has not set up the questionnaire yet. Check back after the builder is saved in Admin.</p>
+      </div>
+
+      <form id="questionnaireForm" class="questionnaire-form" hidden>
+        <div class="questionnaire-form-head">
+          <div>
+            <p class="eyebrow">Player view</p>
+            <h2 id="questionnaireTitle">Questionnaire</h2>
+          </div>
+          <p id="questionnaireHandle" class="form-note"></p>
+        </div>
+        <div id="questionnaireFields"></div>
+        <p class="form-actions">
+          <button class="button primary" type="submit">Save answers</button>
+        </p>
+        <p class="form-note" id="questionnaireNote"></p>
+      </form>
+    </section>
+  </main>
+
+  <footer><p><a href="index.html">Back to signup</a></p></footer>
+
+  <script src="header.js"></script>
+  <script type="module" src="site.js"></script>
+  <script src="questionnaire.js"></script>
+</body>
+</html>

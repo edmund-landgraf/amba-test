@@ -24,6 +24,7 @@ const {
   mergePromote
 } = require("./lib/adventure-defaults");
 const backup = require("./lib/runtime-backup");
+const questionnaire = require("./lib/questionnaire");
 const { provisionNewAdventure } = require("./lib/module-switch");
 const {
   DEFAULT_DISCORD_HOSTS,
@@ -36,12 +37,14 @@ const discordGuildId = "1534196054944121074";
 
 const jsonFiles = {
   users: path.join(runtimeDir, "users.json"),
-  feedback: path.join(runtimeDir, "feedback.json")
+  feedback: path.join(runtimeDir, "feedback.json"),
+  questionnaire: path.join(runtimeDir, "questionnaire.json")
 };
 
 const jsonDefaults = {
   users: [],
-  feedback: []
+  feedback: [],
+  questionnaire: questionnaire.defaultQuestionnaire
 };
 
 const PAST_SESSION_LOCK_MS = 15 * 60 * 1000;
@@ -266,8 +269,8 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 404, { error: code });
       return;
     }
-    if (code === "bad_filename" || code === "invalid_json" || code === "bad_sheet_url" || code === "sheet_limit" || code === "not_public" || code === "discord_url_required" || code === "discord_host_unknown") {
-      sendJson(res, 400, { error: code });
+    if (code === "bad_filename" || code === "invalid_json" || code === "bad_sheet_url" || code === "sheet_limit" || code === "not_public" || code === "discord_url_required" || code === "discord_host_unknown" || code === "questionnaire_invalid") {
+      sendJson(res, 400, { error: code, details: error.details || undefined });
       return;
     }
     sendJson(res, 500, { error: "server_error", detail: error.message });
@@ -406,6 +409,7 @@ async function handleApi(req, res) {
         users: [],
         adventures: [],
         feedback: [],
+        questionnaire: questionnaire.defaultQuestionnaire,
         wgExportIndex: {}
       }, email));
     }
@@ -419,6 +423,28 @@ async function handleApi(req, res) {
     const merged = backup.mergeUserNode(state, body, email);
     await backup.applyImport(dataDir, merged);
     sendJson(res, 200, { ok: true, kind: "user-node", email });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/questionnaire") {
+    const data = await readQuestionnaire();
+    sendJson(res, 200, questionnaire.publicQuestionnaire(data, url.searchParams.get("email")));
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/questionnaire/response") {
+    const body = await readBody(req);
+    const user = await findUserByEmail(body.email);
+    if (!user) throw new Error("login_required");
+    const saved = await saveQuestionnaireResponse(user, body.answers || {});
+    sendJson(res, 200, {
+      response: {
+        handle: saved.handle,
+        answers: saved.answers,
+        submittedAt: saved.submittedAt,
+        updatedAt: saved.updatedAt
+      }
+    });
     return;
   }
 
@@ -519,6 +545,31 @@ async function handleApi(req, res) {
   if (req.method === "GET" && url.pathname === "/api/admin/yes-emails") {
     if (!requireAdmin(req, res)) return;
     sendJson(res, 200, await adminYesMail());
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/admin/questionnaire") {
+    if (!requireAdmin(req, res)) return;
+    sendJson(res, 200, await readQuestionnaire());
+    return;
+  }
+
+  if (req.method === "PUT" && url.pathname === "/api/admin/questionnaire") {
+    if (!requireAdmin(req, res)) return;
+    const body = await readBody(req);
+    sendJson(res, 200, await saveQuestionnaireQuestions(body.questions || []));
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/admin/questionnaire/export.json") {
+    if (!requireAdmin(req, res)) return;
+    const data = await readQuestionnaire();
+    res.writeHead(200, {
+      "content-type": "application/json; charset=utf-8",
+      "content-disposition": "attachment; filename=\"amba-questionnaire.json\"",
+      "cache-control": "no-store"
+    });
+    res.end(`${JSON.stringify(data, null, 2)}\n`);
     return;
   }
 
@@ -839,6 +890,9 @@ async function deleteAccount(email) {
 
   await writeJson("users", users.filter((item) => item.email !== normalized));
   await writeJson("feedback", (await readJson("feedback")).filter((item) => item.email !== normalized));
+  const questionnaireData = await readQuestionnaire();
+  questionnaireData.responses = (questionnaireData.responses || []).filter((item) => item.email !== normalized);
+  await writeQuestionnaire(questionnaireData);
   const names = await fs.readdir(adventuresDir);
   for (const name of names) {
     if (!name.endsWith(".json")) continue;
@@ -847,6 +901,31 @@ async function deleteAccount(email) {
     adventure.wgSheets = (adventure.wgSheets || []).filter((item) => item.email !== normalized);
     await writeAdventure(adventure);
   }
+}
+
+async function readQuestionnaire() {
+  return questionnaire.coerceQuestionnaire(await readJson("questionnaire"));
+}
+
+async function writeQuestionnaire(value) {
+  await writeJson("questionnaire", questionnaire.coerceQuestionnaire(value));
+}
+
+async function saveQuestionnaireQuestions(questions) {
+  const existing = await readQuestionnaire();
+  const next = {
+    questions: questionnaire.coerceQuestions(questions),
+    responses: existing.responses || []
+  };
+  await writeQuestionnaire(next);
+  return next;
+}
+
+async function saveQuestionnaireResponse(user, answers) {
+  const existing = await readQuestionnaire();
+  const saved = questionnaire.saveResponse(existing, user, answers);
+  await writeQuestionnaire(saved.questionnaire);
+  return saved.response;
 }
 
 function sanitizeHttpUrl(value) {
@@ -1633,7 +1712,8 @@ async function restoreFromPayload(raw) {
     kind: "full",
     users: coerced.users.length,
     adventures: coerced.adventures.length,
-    feedback: coerced.feedback.length
+    feedback: coerced.feedback.length,
+    questionnaireResponses: coerced.questionnaire.responses.length
   };
 }
 

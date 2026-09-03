@@ -9,6 +9,7 @@
     ["wg.html", "WG"],
     ["upload.html", "Uploads"],
     ["owlbear.html", "Owlbear"],
+    ["questionnaire.html", "Questionnaire"],
     ["feedback.html", "Feedback"]
   ];
 

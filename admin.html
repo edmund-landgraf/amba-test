@@ -22,6 +22,7 @@
       <button type="button" class="admin-tab is-active" data-tab="yes" aria-current="page">Yes emails</button>
       <button type="button" class="admin-tab" data-tab="setup">Setup</button>
       <button type="button" class="admin-tab" data-tab="promote">Promote</button>
+      <button type="button" class="admin-tab" data-tab="questionnaire">Questionnaire</button>
       <button type="button" class="admin-tab" data-tab="backup">Backup</button>
     </nav>
     <section class="doc admin-tab-panel" id="panelSetup" hidden>
@@ -161,6 +162,42 @@ Sign up on our test site (not AMBA itself): {{signupUrl}}
         <p class="form-note" id="postsNote"></p>
         <div class="email-list" id="postsList"></div>
       </div>
+    </section>
+    <section class="doc admin-tab-panel" id="panelQuestionnaire" hidden>
+      <div class="questionnaire-admin-layout">
+        <form class="promote-card questionnaire-builder" id="questionnaireBuilderForm">
+          <div class="questionnaire-admin-head">
+            <div>
+              <h2>Builder</h2>
+              <p class="form-note">Add questions, edit options, and preview the player form before saving.</p>
+            </div>
+            <label class="questionnaire-preview-toggle">
+              <input id="questionnairePreviewToggle" type="checkbox">
+              View as player
+            </label>
+          </div>
+          <div id="questionnaireBuilderList"></div>
+          <p class="form-actions">
+            <button class="button secondary" id="addQuestionnaireQuestion" type="button">Add question</button>
+            <button class="button primary" type="submit">Save questionnaire</button>
+          </p>
+          <p class="form-note" id="questionnaireBuilderNote"></p>
+        </form>
+        <section class="promote-card questionnaire-preview-card" id="questionnairePreviewCard" hidden>
+          <h2>Player preview</h2>
+          <div id="questionnairePreview"></div>
+        </section>
+      </div>
+      <section class="promote-card">
+        <div class="questionnaire-admin-head">
+          <div>
+            <h2>Responses</h2>
+            <p class="form-note" id="questionnaireResponsesNote">Responses appear by handle.</p>
+          </div>
+          <button class="button secondary" id="questionnaireExport" type="button">Download JSON</button>
+        </div>
+        <div class="email-list questionnaire-response-list" id="questionnaireResponses"></div>
+      </section>
     </section>
     <section class="doc admin-tab-panel" id="panelBackup" hidden>
       <p class="form-actions">
