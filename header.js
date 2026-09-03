@@ -160,6 +160,10 @@
             <label><input type="radio" name="preferredComm" value="discord"> Discord</label>
             <label><input type="radio" name="preferredComm" value="reddit"> Reddit</label>
           </fieldset>
+          <label># of players desired
+            <input name="desiredPlayers" type="number" min="1" max="12" step="1" value="4">
+          </label>
+          <p class="form-note">Used to mark a row Live, scheduled to play. It does not cap signups yet.</p>
           <button class="button primary" type="submit">Save settings</button>
         </section>
       </form>

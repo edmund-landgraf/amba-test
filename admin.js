@@ -100,19 +100,26 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
     
 
     async function load() {
-      const response = await fetch("/api/admin/yes-emails", {
-        headers: { authorization: `Bearer ${token}` }
-      });
-      if (!response.ok) {
-        if (options.page) window.location.href = "index.html";
-        else options.onUnauthorized?.();
-        return;
+      try {
+        const response = await fetch("/api/admin/yes-emails", {
+          headers: { authorization: `Bearer ${token}` }
+        });
+        if (!response.ok) {
+          yesStatus.textContent = response.status === 401
+            ? "Admin session expired. Close this and open +a again."
+            : `Could not load yes emails (${response.status}).`;
+          if (options.page) window.location.href = "index.html";
+          else options.onUnauthorized?.();
+          return;
+        }
+        const data = await response.json();
+        fillAdmin(data);
+        await loadPromote();
+        const hash = location.hash.replace("#", "");
+        if (hash === "promote" || hash === "backup") showTab(hash);
+      } catch (error) {
+        yesStatus.textContent = error.message || "Could not load yes emails.";
       }
-      const data = await response.json();
-      fillAdmin(data);
-      await loadPromote();
-      const hash = location.hash.replace("#", "");
-      if (hash === "promote" || hash === "backup") showTab(hash);
     }
 
     function fillAdmin(data) {

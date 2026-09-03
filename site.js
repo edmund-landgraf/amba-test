@@ -235,8 +235,8 @@ function wireEvents() {
     if (adminNote) adminNote.textContent = "";
   });
   adminModal?.addEventListener("close", resetAdminModal);
-  adminModal?.addEventListener("click", (event) => {
-    if (event.target === adminModal) adminModal.close();
+  adminModal?.addEventListener("cancel", (event) => {
+    event.preventDefault();
   });
   closeLogin?.addEventListener("click", () => {
     pendingTimesScroll = false;
@@ -365,7 +365,11 @@ async function openAdminShell() {
     host.dataset.filled = "1";
   }
   await loadScriptOnce("admin.js");
-  await loadScriptOnce("grid/backup-grid.js");
+  try {
+    await loadScriptOnce("grid/backup-grid.js");
+  } catch (error) {
+    console.warn(error);
+  }
   window.mountAmbaAdmin(host.querySelector("main") || host, {
     onUnauthorized: () => {
       resetAdminModal();
@@ -565,6 +569,8 @@ function openSettingsModal() {
     const radio = settingsForm.querySelector(`input[name="preferredComm"][value="${preferred}"]`)
       || settingsForm.querySelector('input[name="preferredComm"][value="email"]');
     if (radio) radio.checked = true;
+    const desiredField = settingsForm.querySelector('input[name="desiredPlayers"]');
+    if (desiredField) desiredField.value = String(appState.session?.targetPlayers || 4);
   }
   settingsModal.showModal();
   settingsForm?.querySelector('input[name="discordUserId"]')?.focus({ preventScroll: true });
@@ -591,6 +597,13 @@ async function saveSettings(event) {
     }
   });
   appState.user = result.user;
+  await api("/api/desired-players", {
+    method: "POST",
+    body: {
+      email: appState.user.email,
+      desiredPlayers: data.desiredPlayers
+    }
+  });
   if (settingsModal?.open) settingsModal.close();
   await loadState();
 }

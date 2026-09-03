@@ -1213,6 +1213,24 @@ fieldset {
   cursor: not-allowed;
 }
 
+.scheduler-grid .scheduler-row-disabled .ag-cell {
+  opacity: 0.72;
+}
+
+.scheduler-grid .scheduler-row-live .ag-cell {
+  background: rgba(31, 79, 67, 0.08);
+}
+
+.status-table tr.is-signups-disabled th,
+.status-table tr.is-signups-disabled td {
+  opacity: 0.72;
+}
+
+.status-table tr.is-scheduled-live th,
+.status-table tr.is-scheduled-live td {
+  background: rgba(31, 79, 67, 0.08);
+}
+
 .edit-row {
   display: grid;
   gap: 12px;
@@ -2305,6 +2323,10 @@ label.button.secondary {
   -webkit-user-select: none;
   -webkit-touch-callout: none;
   touch-action: none;
+}
+
+[data-layout="phone"] .glance-vote:disabled {
+  cursor: not-allowed;
 }
 
 [data-layout="phone"] .glance-vote-cell.is-mine .glance-vote {

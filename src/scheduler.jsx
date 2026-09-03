@@ -146,6 +146,7 @@ function GlanceVoteCell({ people, status, row, onActivate }) {
   }
 
   function startPress(event) {
+    if (row.signupsDisabled) return;
     if (event.pointerType === "mouse" && event.button !== 0) return;
     moved.current = false;
     armed.current = false;
@@ -193,7 +194,10 @@ function GlanceVoteCell({ people, status, row, onActivate }) {
       <button
         type="button"
         className="glance-vote"
-        aria-label={`${status}. Press and hold or double-tap to set. Drag left or right while holding.`}
+        disabled={row.signupsDisabled}
+        aria-label={row.signupsDisabled
+          ? `${status}. Signups are closed for this row.`
+          : `${status}. Press and hold or double-tap to set. Drag left or right while holding.`}
         onPointerDown={startPress}
         onPointerMove={movePress}
         onPointerUp={endPress}
@@ -305,6 +309,7 @@ function TimeGrid() {
   const [summaryUrl, setSummaryUrl] = useState("");
   const [hookUrl, setHookUrl] = useState("");
   const [edit, setEdit] = useState(null);
+  const [reschedule, setReschedule] = useState(null);
   const [toast, setToast] = useState("");
   const phoneLayout = isPhoneLayout();
   const [narrowHook, setNarrowHook] = useState(() =>
@@ -340,9 +345,15 @@ function TimeGrid() {
       const slot = zone && instant
         ? [formatForUser(instant, zone), time.lengthMinutes ? `${time.lengthMinutes} min` : ""].filter(Boolean).join(" · ")
         : "Set your time zone to see this session";
+      const statusLabel = time.signupsDisabled
+        ? "Not enough players"
+        : time.scheduledToPlay
+          ? "Live, scheduled to play"
+          : "";
+      const label = statusLabel ? `${slot} · ${statusLabel}` : slot;
       return {
         id: time.id,
-        slot,
+        slot: label,
         sessionTitle,
         playerHookText,
         syndicationUrl: nextSummary,
@@ -356,7 +367,9 @@ function TimeGrid() {
         no: people.filter((person) => person.status === "no"),
         mine: people.find((person) => person.mine)?.status || "",
         mineNote: people.find((person) => person.mine)?.note || "",
-        createdByMe: Boolean(time.createdByMe)
+        createdByMe: Boolean(time.createdByMe),
+        signupsDisabled: Boolean(time.signupsDisabled),
+        scheduledToPlay: Boolean(time.scheduledToPlay)
       };
     }).sort((a, b) => (a.startIso || "").localeCompare(b.startIso || "")));
   }, [email, userZone]);
@@ -375,15 +388,18 @@ function TimeGrid() {
       if (event.key === "Escape") {
         setMenu(null);
         setEdit(null);
+        setReschedule(null);
       }
     };
     window.addEventListener("keydown", onKey);
+    const poll = window.setInterval(() => load(email, userZone), 60 * 1000);
     return () => {
       window.removeEventListener("amba-auth", onAuth);
       window.removeEventListener("keydown", onKey);
+      window.clearInterval(poll);
       if (toastTimer.current) clearTimeout(toastTimer.current);
     };
-  }, [load]);
+  }, [load, email, userZone]);
 
   useEffect(() => {
     if (phoneLayout) {
@@ -402,7 +418,8 @@ function TimeGrid() {
 
   useEffect(() => {
     if (!menu) return undefined;
-    function close() {
+    function close(event) {
+      if (event?.target?.closest?.(".grid-context-menu")) return;
       setMenu(null);
     }
     function onKey(event) {
@@ -433,8 +450,16 @@ function TimeGrid() {
     return true;
   }
 
+  function rowLocked(timeId) {
+    return Boolean(rows.find((row) => row.id === timeId)?.signupsDisabled);
+  }
+
   async function vote(timeId, status, current) {
     if (!requireReady()) return;
+    if (rowLocked(timeId)) {
+      showToast("Signups closed for this row");
+      return;
+    }
     const next = current === status ? "leave" : status;
     await api("/api/slot", { method: "POST", body: { email, timeId, status: next } });
     await load(email, userZone);
@@ -455,12 +480,20 @@ function TimeGrid() {
 
   async function setSlot(timeId, status) {
     if (!requireReady()) return;
+    if (rowLocked(timeId)) {
+      showToast("Signups closed for this row");
+      return;
+    }
     await api("/api/slot", { method: "POST", body: { email, timeId, status } });
     await load(email, userZone);
   }
 
   function slideVote(row, status) {
     if (!requireReady()) return;
+    if (row.signupsDisabled) {
+      showToast("Signups closed for this row");
+      return;
+    }
     if (row.mine === status) return;
     setRows((current) => current.map((item) => (item.id === row.id ? applyMine(item, status) : item)));
     setSlot(row.id, status);
@@ -500,6 +533,77 @@ function TimeGrid() {
     };
     setEdit(null);
     showToast("saved");
+    await api("/api/times/update", { method: "POST", body: payload });
+    await load(email, userZone);
+  }
+
+  function markRowClosed(timeId) {
+    setRows((current) => current.map((item) => {
+      if (item.id !== timeId) return item;
+      const base = String(item.slot || "").replace(/ · (Not enough players|Live, scheduled to play)$/, "");
+      return {
+        ...item,
+        signupsDisabled: true,
+        scheduledToPlay: false,
+        slot: `${base} · Not enough players`
+      };
+    }));
+  }
+
+  async function closeSignups(row) {
+    if (!requireReady()) return;
+    const timeId = row?.timeId || row?.id;
+    if (!timeId) return;
+    setMenu(null);
+    markRowClosed(timeId);
+    try {
+      await api("/api/times/update", {
+        method: "POST",
+        body: {
+          email,
+          timeId,
+          date: row.date,
+          time: row.time,
+          lengthMinutes: Number(row.lengthMinutes) || 120,
+          signupsDisabled: true
+        }
+      });
+      showToast("Signups closed for this row");
+      await load(email, userZone);
+    } catch (error) {
+      showToast(error.message || "Could not close signups");
+      await load(email, userZone);
+    }
+  }
+
+  function openReschedule(row) {
+    if (!requireReady()) return;
+    if (!row?.signupsDisabled) return;
+    setMenu(null);
+    setReschedule({
+      timeId: row.timeId || row.id,
+      date: row.date,
+      time: TIME_STEPS.includes(row.time) ? row.time : "19:00",
+      lengthMinutes: ["60", "90", "120", "180"].includes(String(row.lengthMinutes)) ? String(row.lengthMinutes) : "120"
+    });
+  }
+
+  async function saveReschedule(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!reschedule) return;
+    if (!requireReady()) return;
+    const payload = {
+      email,
+      timeId: reschedule.timeId,
+      date: reschedule.date,
+      time: reschedule.time,
+      lengthMinutes: Number(reschedule.lengthMinutes),
+      convertYesToMaybe: true,
+      signupsDisabled: false
+    };
+    setReschedule(null);
+    showToast("rescheduled");
     await api("/api/times/update", { method: "POST", body: payload });
     await load(email, userZone);
   }
@@ -596,7 +700,7 @@ function TimeGrid() {
         </thead>
         <tbody>
           {rows.length ? rows.map((row) => (
-            <tr key={row.id}>
+            <tr key={row.id} className={row.signupsDisabled ? "is-signups-disabled" : row.scheduledToPlay ? "is-scheduled-live" : ""}>
               <th scope="row">{row.slot}</th>
               {phoneLayout ? VOTE_COLS.map((status) => (
                 <GlanceVoteCell
@@ -655,7 +759,7 @@ function TimeGrid() {
         <div className="adventure-summary">
           <div className="session-link-row">
             <a className="adventure-summary-link" href={summaryUrl} target="_blank" rel="noopener noreferrer">
-              Adventure Summary
+              Player Pack
             </a>
           </div>
         </div>
@@ -690,10 +794,19 @@ function TimeGrid() {
           animateRows
           overlayNoRowsTemplate="Grid is empty. Add a row."
           getRowId={(params) => params.data.id}
+          getRowClass={(params) => {
+            if (params.data?.signupsDisabled) return "scheduler-row-disabled";
+            if (params.data?.scheduledToPlay) return "scheduler-row-live";
+            return "";
+          }}
           onCellClicked={(event) => {
             setMenu(null);
             const status = event.column?.getColId();
             if (status !== "yes" && status !== "maybe" && status !== "no") return;
+            if (event.data?.signupsDisabled) {
+              showToast("Signups closed for this row");
+              return;
+            }
             vote(event.data.id, status, event.data.mine);
           }}
           onCellContextMenu={(event) => {
@@ -701,13 +814,14 @@ function TimeGrid() {
             event.event?.stopPropagation();
             if (!event.data) return;
             const x = Math.min(event.event.clientX, window.innerWidth - 220);
-            const y = Math.min(event.event.clientY, window.innerHeight - 180);
+            const y = Math.min(event.event.clientY, window.innerHeight - 220);
             setMenu({
               x,
               y,
               row: event.data,
               timeId: event.data.id,
               createdByMe: event.data.createdByMe,
+              signupsDisabled: event.data.signupsDisabled,
               date: event.data.date,
               time: event.data.time,
               lengthMinutes: event.data.lengthMinutes
@@ -760,6 +874,31 @@ function TimeGrid() {
             >
               Delete row
             </button>
+            {menu.signupsDisabled ? (
+              <button
+                type="button"
+                title="Pick a new time. Yes votes become Maybe."
+                onMouseDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openReschedule(menu.row);
+                }}
+              >
+                Reschedule
+              </button>
+            ) : (
+              <button
+                type="button"
+                title="Close signups for this row only"
+                onMouseDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  closeSignups(menu.row);
+                }}
+              >
+                Not Enough Players
+              </button>
+            )}
           </menu>
         </div>
       ) : null}
@@ -785,6 +924,33 @@ function TimeGrid() {
                 </select>
               </label>
               <button className="button primary" type="button" onClick={saveEdit}>Save</button>
+            </form>
+          </div>
+        </div>,
+        document.body
+      ) : null}
+      {reschedule ? createPortal(
+        <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setReschedule(null); }}>
+          <div className="modal small-modal" role="dialog" aria-labelledby="rescheduleRowTitle" onMouseDown={(event) => event.stopPropagation()}>
+            <button className="modal-close" type="button" aria-label="Close reschedule" onClick={() => setReschedule(null)}>x</button>
+            <h2 id="rescheduleRowTitle">Reschedule</h2>
+            <p className="modal-copy">Pick a new date and time. Everyone who said Yes on this row moves to Maybe, and signups reopen.</p>
+            <form className="edit-row" onSubmit={saveReschedule}>
+              <label>Date <input required type="date" value={reschedule.date} onChange={(event) => setReschedule({ ...reschedule, date: event.target.value })} /></label>
+              <label>Time
+                <select required value={reschedule.time} onChange={(event) => setReschedule({ ...reschedule, time: event.target.value })}>
+                  {TIME_STEPS.map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </label>
+              <label>Session length
+                <select required value={reschedule.lengthMinutes} onChange={(event) => setReschedule({ ...reschedule, lengthMinutes: event.target.value })}>
+                  <option value="60">60 minutes</option>
+                  <option value="90">90 minutes</option>
+                  <option value="120">120 minutes</option>
+                  <option value="180">180 minutes</option>
+                </select>
+              </label>
+              <button className="button primary" type="submit">Reschedule</button>
             </form>
           </div>
         </div>,

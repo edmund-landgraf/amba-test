@@ -35,6 +35,90 @@ const jsonDefaults = {
   feedback: []
 };
 
+const PAST_SESSION_LOCK_MS = 15 * 60 * 1000;
+let zoneIanaPromise;
+
+function zoneIanaMap() {
+  if (!zoneIanaPromise) zoneIanaPromise = import("./timezones.js").then((mod) => mod.ZONE_IANA);
+  return zoneIanaPromise;
+}
+
+function ianaForLabel(label, zoneIana) {
+  if (zoneIana[label]) return zoneIana[label];
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: label });
+    return label;
+  } catch {
+    return "UTC";
+  }
+}
+
+function tzOffsetMs(date, timeZone) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23"
+    }).formatToParts(date).filter((part) => part.type !== "literal").map((part) => [part.type, part.value])
+  );
+  const asUTC = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour),
+    Number(parts.minute),
+    Number(parts.second)
+  );
+  return asUTC - date.getTime();
+}
+
+function wallTimeToUtc(dateStr, timeStr, zoneLabel, zoneIana) {
+  if (!dateStr || !timeStr) return null;
+  const timeZone = ianaForLabel(zoneLabel || "Pacific", zoneIana);
+  const [year, month, day] = String(dateStr).split("-").map(Number);
+  const [hour, minute] = String(timeStr || "00:00").split(":").map(Number);
+  if (![year, month, day, hour, minute].every(Number.isFinite)) return null;
+  let utc = Date.UTC(year, month - 1, day, hour, minute, 0);
+  for (let i = 0; i < 3; i += 1) {
+    const offset = tzOffsetMs(new Date(utc), timeZone);
+    utc = Date.UTC(year, month - 1, day, hour, minute, 0) - offset;
+  }
+  return new Date(utc);
+}
+
+function desiredPlayerCount(adventure) {
+  const n = Number(adventure?.targetPlayers);
+  return Number.isFinite(n) && n > 0 ? Math.min(12, Math.round(n)) : 4;
+}
+
+function yesCountForTime(adventure, timeId) {
+  return (adventure.signups || []).filter((signup) => signup.votes?.[timeId] === "yes").length;
+}
+
+async function applyPastSessionLocks(adventure) {
+  const zoneIana = await zoneIanaMap();
+  const desired = desiredPlayerCount(adventure);
+  const now = Date.now();
+  let changed = false;
+  for (const time of adventure.times || []) {
+    if (time.signupsDisabled) continue;
+    if (yesCountForTime(adventure, time.id) >= desired) continue;
+    const start = wallTimeToUtc(time.date, time.time, time.timezone || "Pacific", zoneIana);
+    if (!start || Number.isNaN(start.getTime())) continue;
+    if (now < start.getTime() + PAST_SESSION_LOCK_MS) continue;
+    time.signupsDisabled = true;
+    time.updatedAt = new Date().toISOString();
+    changed = true;
+  }
+  if (changed) await writeAdventure(adventure);
+  return adventure;
+}
+
 function adventureFile(id) {
   return path.join(adventuresDir, `${safeAdventureId(id)}.json`);
 }
@@ -165,7 +249,7 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 401, { error: code });
       return;
     }
-    if (code === "forbidden") {
+    if (code === "forbidden" || code === "signups_disabled") {
       sendJson(res, 403, { error: code });
       return;
     }
@@ -340,6 +424,12 @@ async function handleApi(req, res) {
     const body = await readBody(req);
     const session = await saveSession(body);
     sendJson(res, 200, { session });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/desired-players") {
+    const body = await readBody(req);
+    sendJson(res, 200, await saveDesiredPlayers(body));
     return;
   }
 
@@ -623,30 +713,35 @@ async function discordWidgetStatus() {
 }
 
 async function getState(email) {
-  const adventure = await liveAdventure();
+  const adventure = await applyPastSessionLocks(await liveAdventure());
   const signups = adventure.signups || [];
   const feedback = await readJson("feedback");
   const users = await readJson("users");
   const user = email ? await findUserByEmail(email) : null;
+  const desired = desiredPlayerCount(adventure);
   const times = (adventure.times || []).map((time) => {
     const { createdBy, ...publicTime } = time;
+    const participants = signups
+      .filter((signup) => signup.votes?.[time.id])
+      .map((signup) => {
+        const status = signup.votes[time.id] === "in" ? "" : signup.votes[time.id];
+        const note = (status === "maybe" || status === "no")
+          ? String(signup.voteNotes?.[time.id] || "").trim()
+          : "";
+        return {
+          handle: signup.handle,
+          status,
+          note,
+          mine: Boolean(user && signup.email === user.email)
+        };
+      });
+    const yesCount = participants.filter((person) => person.status === "yes").length;
     return {
       ...publicTime,
       createdByMe: Boolean(user && createdBy && createdBy === user.email),
-      participants: signups
-        .filter((signup) => signup.votes?.[time.id])
-        .map((signup) => {
-          const status = signup.votes[time.id] === "in" ? "" : signup.votes[time.id];
-          const note = (status === "maybe" || status === "no")
-            ? String(signup.voteNotes?.[time.id] || "").trim()
-            : "";
-          return {
-            handle: signup.handle,
-            status,
-            note,
-            mine: Boolean(user && signup.email === user.email)
-          };
-        })
+      signupsDisabled: Boolean(time.signupsDisabled),
+      scheduledToPlay: !time.signupsDisabled && yesCount >= desired,
+      participants
     };
   });
 
@@ -949,6 +1044,16 @@ async function saveSession(data) {
   return sessionLinks();
 }
 
+async function saveDesiredPlayers(data) {
+  const user = await findUserByEmail(data.email);
+  if (!user) throw new Error("login_required");
+  const session = await liveAdventure();
+  session.targetPlayers = desiredPlayerCount({ targetPlayers: data.desiredPlayers });
+  session.updatedAt = new Date().toISOString();
+  await writeAdventure(session);
+  return { targetPlayers: session.targetPlayers };
+}
+
 async function addTime(data) {
   const session = await liveAdventure();
   if (!Array.isArray(session.times)) session.times = [];
@@ -986,17 +1091,29 @@ async function updateTime(data) {
   const session = await liveAdventure();
   const time = (session.times || []).find((item) => item.id === timeId);
   if (!time) throw new Error("not_found");
-  if (!time.createdBy || time.createdBy !== user.email) throw new Error("forbidden");
+  const lockOp = data.signupsDisabled === true || data.signupsDisabled === false || Boolean(data.convertYesToMaybe);
+  if (!lockOp && (!time.createdBy || time.createdBy !== user.email)) throw new Error("forbidden");
 
   const date = String(data.date || "").trim();
   const clock = String(data.time || "").trim();
   const lengthMinutes = Number(data.lengthMinutes || data.length || 0);
-  if (!date || !clock || !lengthMinutes) throw new Error("Date, time, and session length are required.");
+  const hasSchedule = Boolean(date && clock && lengthMinutes);
+  const disableToggle = data.signupsDisabled === true || data.signupsDisabled === false;
+  if (!hasSchedule && !disableToggle) throw new Error("Date, time, and session length are required.");
 
-  time.date = date;
-  time.time = clock;
-  time.lengthMinutes = lengthMinutes;
-  time.title = [date, clock, time.timezone, `${lengthMinutes} min`].filter(Boolean).join(" ");
+  if (hasSchedule) {
+    time.date = date;
+    time.time = clock;
+    time.lengthMinutes = lengthMinutes;
+    time.title = [date, clock, time.timezone, `${lengthMinutes} min`].filter(Boolean).join(" ");
+  }
+  if (disableToggle) time.signupsDisabled = Boolean(data.signupsDisabled);
+  if (data.convertYesToMaybe) {
+    time.signupsDisabled = false;
+    for (const signup of session.signups || []) {
+      if (signup.votes?.[timeId] === "yes") signup.votes[timeId] = "maybe";
+    }
+  }
   time.updatedAt = new Date().toISOString();
 
   await writeAdventure(session);
@@ -1069,6 +1186,9 @@ async function saveSlot(data) {
   if (!user) throw new Error("User is required.");
   const timeId = String(data.timeId || "").trim();
   if (!timeId) throw new Error("Time is required.");
+  const session = await applyPastSessionLocks(await liveAdventure());
+  const locked = (session.times || []).find((item) => item.id === timeId);
+  if (locked?.signupsDisabled) throw new Error("signups_disabled");
   const status = data.status === "leave" || data.status === "yes" || data.status === "maybe" || data.status === "no"
     ? data.status
     : "in";
