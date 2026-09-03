@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import { createPortal } from "react-dom";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-quartz.css";
-import { ZONE_IANA } from "../timezones.js";
+import { renderMarkdown } from "./markdown.js";
 
 function api(url, options = {}) {
   return fetch(url, {
@@ -333,6 +333,8 @@ function TimeGrid() {
   const [menu, setMenu] = useState(null);
   const [summaryUrl, setSummaryUrl] = useState("");
   const [hookUrl, setHookUrl] = useState("");
+  const [hookText, setHookText] = useState("");
+  const [setupSource, setSetupSource] = useState("connect");
   const [edit, setEdit] = useState(null);
   const [reschedule, setReschedule] = useState(null);
   const [toast, setToast] = useState("");
@@ -362,6 +364,8 @@ function TimeGrid() {
     const playerHookText = state.session?.playerHookText || "";
     setSummaryUrl(nextSummary);
     setHookUrl(nextHook);
+    setHookText(playerHookText);
+    setSetupSource(state.session?.setupSource === "manual" ? "manual" : "connect");
     setRows((state.session?.times || []).map((time) => {
       const people = time.participants || [];
       const instant = time.date && time.time
@@ -720,8 +724,9 @@ function TimeGrid() {
 
   useEffect(() => {
     if (!hookBand) return;
-    hookBand.hidden = !hookUrl;
-  }, [hookUrl, hookBand]);
+    const show = setupSource === "manual" ? Boolean(hookText.trim()) : Boolean(hookUrl);
+    hookBand.hidden = !show;
+  }, [hookUrl, hookText, setupSource, hookBand]);
 
   const zoneNote = email && !userZone
     ? "Set your time zone in Settings before you can mark times. Times will show in your zone."
@@ -776,7 +781,24 @@ function TimeGrid() {
     </div>
   );
 
-  const hookBlock = hookUrl ? (
+  const manualPitch = setupSource === "manual" && hookText.trim();
+  const hookBlock = manualPitch ? (
+      <div className={`player-hook-wrap${narrowHook && !hookExpanded ? "" : " is-expanded"}`}>
+        {narrowHook ? (
+          <button
+            className="player-hook-toggle"
+            type="button"
+            onClick={() => setHookExpanded((open) => !open)}
+          >
+            {hookExpanded ? "Show less" : "Read the player hook"}
+          </button>
+        ) : null}
+        <div
+          className="player-hook player-hook-md"
+          dangerouslySetInnerHTML={{ __html: renderMarkdown(hookText) }}
+        />
+      </div>
+  ) : hookUrl ? (
       <div className={`player-hook-wrap${narrowHook && !hookExpanded ? "" : " is-expanded"}`}>
         {narrowHook ? (
           <button
@@ -803,7 +825,7 @@ function TimeGrid() {
       {zoneNote ? <p className="form-note">{zoneNote}</p> : null}
       {statusMount ? createPortal(statusGrid, statusMount) : statusGrid}
       {hookMount && hookBlock ? createPortal(hookBlock, hookMount) : hookBlock}
-      {summaryUrl ? (
+      {setupSource === "manual" ? null : summaryUrl ? (
         <div className="adventure-summary">
           <div className="session-link-row">
             <a className="adventure-summary-link" href={summaryUrl} target="_blank" rel="noopener noreferrer">

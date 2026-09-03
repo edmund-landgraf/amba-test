@@ -126,6 +126,8 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       el.textContent = connected ? "Connected" : "Not connected";
       el.classList.toggle("status-pill--on", connected);
       el.classList.toggle("status-pill--off", !connected);
+      const refreshBtn = q("#refreshAmba");
+      if (refreshBtn) refreshBtn.disabled = !connected;
     }
 
     function setAmbaConnectNote(message) {
@@ -358,10 +360,12 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       liveAmbaModuleId = String(data.ambaModuleId || "").trim();
       syndicationUrl.value = data.syndicationUrl || "";
       playerHookUrl.value = data.playerHookUrl || "";
+      if (manualHook) manualHook.value = data.playerHookText || "";
+      if (manualTitle) manualTitle.value = displayAdventureTitle(data.title) || data.title || "";
       refreshPreviews();
       render(data.emails || []);
       fillAdventureSelect(data);
-      setSetupMode(setupMode, { silent: true });
+      setSetupMode(data.setupSource === "manual" ? "write" : setupMode, { silent: true });
     }
 
     function render(nextPeople) {
@@ -1045,6 +1049,29 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
     setLinksEditing(false);
     refreshPreviews();
 
+    async function saveManualWrite() {
+      sessionLinksNote.textContent = "Saving…";
+      const response = await fetch("/api/admin/session", {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({
+          mode: "write",
+          setupSource: "manual",
+          title: manualTitle?.value || "",
+          playerHookText: manualHook?.value || ""
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const why = data.detail || data.error || response.statusText || String(response.status);
+        throw new Error(`Could not save (${why}).`);
+      }
+      adventureTitle = displayAdventureTitle(data.session?.title) || data.session?.title || adventureTitle;
+      if (manualTitle) manualTitle.value = adventureTitle;
+      if (manualHook) manualHook.value = data.session?.playerHookText || manualHook.value;
+      sessionLinksNote.textContent = "Saved. Signup shows this markdown as the hook and summary.";
+    }
+
     async function saveSessionLinks() {
       sessionLinksNote.textContent = "Saving…";
       const response = await fetch("/api/admin/session", {
@@ -1094,6 +1121,14 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
 
     q("#connectAmba")?.addEventListener("click", () => connectToAmba());
     q("#manualAmba")?.addEventListener("click", () => setSetupMode("manual"));
+    q("#writeManual")?.addEventListener("click", () => setSetupMode("write"));
+    q("#saveManualWrite")?.addEventListener("click", async () => {
+      try {
+        await saveManualWrite();
+      } catch (error) {
+        sessionLinksNote.textContent = error.message;
+      }
+    });
 
     sessionLinksToggle.addEventListener("click", async () => {
       if (!linksEditing) {
@@ -1111,6 +1146,14 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
 
     q("#sessionLinksForm").addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (setupMode === "write") {
+        try {
+          await saveManualWrite();
+        } catch (error) {
+          sessionLinksNote.textContent = error.message;
+        }
+        return;
+      }
       if (!linksEditing) return;
       try {
         await saveSessionLinks();
@@ -1295,7 +1338,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
 
     const titles = {
       yes: ["Emails that said yes", "Open a draft with yes players on BCC so they cannot see each other. You are on CC."],
-      setup: ["Setup", "Connect to AMBA and pick a published adventure, or use Manual AMBA and paste the two syndication links."],
+      setup: ["Setup", "Connect to AMBA, paste syndication links, or write a manual markdown hook for signup."],
       promote: ["Promote", "Push looking-for-players posts. Every template sends people back here to sign up."],
       questionnaire: ["Questionnaire", "Build player questions, preview the form, and review submitted answers."],
       backup: ["Backup", "Save a timestamped JSON snapshot of this site. Restore replaces live data after you confirm."]

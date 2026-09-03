@@ -463,6 +463,16 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "POST" && url.pathname === "/api/admin/session/refresh") {
+    if (!requireAdmin(req, res)) return;
+    try {
+      sendJson(res, 200, { session: await refreshLiveSessionFromApi() });
+    } catch (error) {
+      sendJson(res, 400, { error: error.message || "refresh_failed" });
+    }
+    return;
+  }
+
   if (req.method === "POST" && url.pathname === "/api/desired-players") {
     const body = await readBody(req);
     sendJson(res, 200, await saveDesiredPlayers(body));
@@ -1153,6 +1163,17 @@ async function sessionLinks() {
     playerHookText: session.playerHookText || "",
     setupSource: session.setupSource === "manual" ? "manual" : "connect"
   };
+}
+
+async function refreshLiveSessionFromApi() {
+  const session = await liveAdventure();
+  if (!sanitizeHttpUrl(session.syndicationUrl) && !sanitizeHttpUrl(session.playerHookUrl)) {
+    throw new Error("No adventure summary or player-hook URL to refresh.");
+  }
+  await refreshSessionFromLinks(session);
+  session.updatedAt = new Date().toISOString();
+  await writeAdventure(session);
+  return sessionLinks();
 }
 
 async function saveSession(data) {
