@@ -94,11 +94,17 @@ function isPhoneLayout() {
   return typeof document !== "undefined" && document.documentElement.dataset.layout === "phone";
 }
 
+function avatarTitle(person) {
+  const handle = person.handle || "";
+  const note = String(person.note || "").trim();
+  return note ? `${handle} — ${note}` : handle;
+}
+
 function VoteCell({ people }) {
   return (
     <span className="vote-cell">
       {(people || []).map((person) => (
-        <span className={`grid-avatar${person.mine ? " mine" : ""}`} key={person.handle} title={person.handle}>
+        <span className={`grid-avatar${person.mine ? " mine" : ""}`} key={person.handle} title={avatarTitle(person)}>
           {initials(person.handle)}
         </span>
       ))}
@@ -106,22 +112,75 @@ function VoteCell({ people }) {
   );
 }
 
-function GlanceVoteCell({ people, status, row, editing, onVote }) {
+function GlanceVoteCell({ people, status, row, onHold }) {
   const mine = row.mine === status;
-  const inner = <VoteCell people={people} />;
-  if (!editing) {
-    return <td>{inner}</td>;
+  const timer = useRef(null);
+  const origin = useRef(null);
+  const fired = useRef(false);
+
+  function clearTimer() {
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = null;
   }
+
+  function pointOf(event) {
+    if (event.touches && event.touches[0]) return event.touches[0];
+    if (event.changedTouches && event.changedTouches[0]) return event.changedTouches[0];
+    return event;
+  }
+
+  function startHold(event) {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    if (event.cancelable) event.preventDefault();
+    fired.current = false;
+    clearTimer();
+    const point = pointOf(event);
+    origin.current = { x: point.clientX, y: point.clientY };
+    try {
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    } catch {
+      /* ignore */
+    }
+    timer.current = window.setTimeout(() => {
+      fired.current = true;
+      timer.current = null;
+      try {
+        navigator.vibrate?.(15);
+      } catch {
+        /* ignore */
+      }
+      onHold(row, status);
+    }, 400);
+  }
+
+  function moveHold(event) {
+    if (!origin.current || fired.current) return;
+    const point = pointOf(event);
+    const dx = point.clientX - origin.current.x;
+    const dy = point.clientY - origin.current.y;
+    if (dx * dx + dy * dy > 144) clearTimer();
+  }
+
+  function endHold(event) {
+    if (fired.current && event.cancelable) event.preventDefault();
+    clearTimer();
+    origin.current = null;
+  }
+
   return (
     <td className={mine ? "glance-vote-cell is-mine" : "glance-vote-cell"}>
       <button
         type="button"
-        className={`glance-vote${mine ? " is-mine" : ""}`}
+        className="glance-vote"
         aria-pressed={mine}
-        aria-label={`Mark ${status}`}
-        onClick={() => onVote(row.id, status, row.mine)}
+        aria-label={`Press and hold to mark ${status}`}
+        onPointerDown={startHold}
+        onPointerMove={moveHold}
+        onPointerUp={endHold}
+        onPointerCancel={endHold}
+        onContextMenu={(event) => event.preventDefault()}
       >
-        {inner}
+        <VoteCell people={people} />
       </button>
     </td>
   );
@@ -213,9 +272,9 @@ function TimeGrid() {
   const [summaryUrl, setSummaryUrl] = useState("");
   const [hookUrl, setHookUrl] = useState("");
   const [edit, setEdit] = useState(null);
+  const [voteNote, setVoteNote] = useState(null);
   const [toast, setToast] = useState("");
   const phoneLayout = isPhoneLayout();
-  const [glanceEditing, setGlanceEditing] = useState(false);
   const [narrowHook, setNarrowHook] = useState(() =>
     phoneLayout
     || (typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches)
@@ -264,6 +323,7 @@ function TimeGrid() {
         maybe: people.filter((person) => person.status === "maybe"),
         no: people.filter((person) => person.status === "no"),
         mine: people.find((person) => person.mine)?.status || "",
+        mineNote: people.find((person) => person.mine)?.note || "",
         createdByMe: Boolean(time.createdByMe)
       };
     }).sort((a, b) => (a.startIso || "").localeCompare(b.startIso || "")));
@@ -276,7 +336,6 @@ function TimeGrid() {
       const nextZone = event.detail?.timezone || "";
       setEmail(nextEmail);
       setUserZone(nextZone);
-      if (!nextEmail) setGlanceEditing(false);
       load(nextEmail, nextZone);
     };
     window.addEventListener("amba-auth", onAuth);
@@ -284,6 +343,7 @@ function TimeGrid() {
       if (event.key === "Escape") {
         setMenu(null);
         setEdit(null);
+        setVoteNote(null);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -342,11 +402,40 @@ function TimeGrid() {
     return true;
   }
 
-  async function vote(timeId, status, current) {
+  async function vote(timeId, status, current, note) {
     if (!requireReady()) return;
     const next = current === status ? "leave" : status;
-    await api("/api/slot", { method: "POST", body: { email, timeId, status: next } });
+    const body = { email, timeId, status: next };
+    if (next === "maybe" || next === "no") body.voteNote = String(note || "").trim();
+    await api("/api/slot", { method: "POST", body });
     await load(email, userZone);
+  }
+
+  function holdVote(row, status) {
+    if (!requireReady()) return;
+    if (row.mine === status) {
+      vote(row.id, status, row.mine);
+      return;
+    }
+    if (status === "maybe" || status === "no") {
+      const keepNote = row.mine === "maybe" || row.mine === "no";
+      setVoteNote({
+        timeId: row.id,
+        status,
+        current: row.mine,
+        note: keepNote ? row.mineNote : ""
+      });
+      return;
+    }
+    vote(row.id, status, row.mine);
+  }
+
+  async function saveVoteNote(event) {
+    event.preventDefault();
+    if (!voteNote) return;
+    const pending = voteNote;
+    setVoteNote(null);
+    await vote(pending.timeId, pending.status, pending.current, pending.note);
   }
 
   async function deleteRow(timeId, createdByMe) {
@@ -452,7 +541,6 @@ function TimeGrid() {
   ], []);
 
   const statusMount = typeof document !== "undefined" ? document.querySelector("#schedule-status") : null;
-  const editMount = typeof document !== "undefined" ? document.querySelector("#schedule-edit-mount") : null;
   const hookMount = typeof document !== "undefined" ? document.querySelector("#player-hook") : null;
   const hookBand = typeof document !== "undefined" ? document.querySelector("#player-hook-band") : null;
 
@@ -468,7 +556,7 @@ function TimeGrid() {
       : "";
 
   const statusGrid = (
-    <div className={`status-table-wrap${phoneLayout && glanceEditing ? " is-editing" : ""}`}>
+    <div className="status-table-wrap">
       <table className="status-table">
         <thead>
           <tr>
@@ -476,7 +564,6 @@ function TimeGrid() {
             <th>Yes</th>
             <th>Maybe</th>
             <th>No</th>
-            {phoneLayout && glanceEditing ? <th className="glance-manage-head">Row</th> : null}
           </tr>
         </thead>
         <tbody>
@@ -485,26 +572,9 @@ function TimeGrid() {
               <th scope="row">{row.slot}</th>
               {phoneLayout ? (
                 <>
-                  <GlanceVoteCell people={row.yes} status="yes" row={row} editing={glanceEditing} onVote={vote} />
-                  <GlanceVoteCell people={row.maybe} status="maybe" row={row} editing={glanceEditing} onVote={vote} />
-                  <GlanceVoteCell people={row.no} status="no" row={row} editing={glanceEditing} onVote={vote} />
-                  {glanceEditing ? (
-                    <td className="glance-manage-cell">
-                      {row.createdByMe ? (
-                        <details className="glance-manage">
-                          <summary>Manage</summary>
-                          <div className="glance-manage-menu">
-                            <button type="button" disabled={!row.startIso} onClick={() => openGoogleCalendar(row)}>Google Calendar</button>
-                            <button type="button" disabled={!row.startIso} onClick={() => downloadIcal(row)}>iCal</button>
-                            <button type="button" onClick={() => openEdit(row)}>Edit time</button>
-                            <button type="button" onClick={() => deleteRow(row.id, row.createdByMe)}>Delete</button>
-                          </div>
-                        </details>
-                      ) : (
-                        <span className="glance-manage-na">—</span>
-                      )}
-                    </td>
-                  ) : null}
+                  <GlanceVoteCell people={row.yes} status="yes" row={row} onHold={holdVote} />
+                  <GlanceVoteCell people={row.maybe} status="maybe" row={row} onHold={holdVote} />
+                  <GlanceVoteCell people={row.no} status="no" row={row} onHold={holdVote} />
                 </>
               ) : (
                 <>
@@ -516,24 +586,13 @@ function TimeGrid() {
             </tr>
           )) : (
             <tr>
-              <td colSpan={phoneLayout && glanceEditing ? 5 : 4} className="status-table-empty">No session rows yet.</td>
+              <td colSpan={4} className="status-table-empty">No session rows yet.</td>
             </tr>
           )}
         </tbody>
       </table>
     </div>
   );
-
-  const glanceEditControl = phoneLayout && email ? (
-    <button
-      className="button secondary glance-edit-toggle"
-      type="button"
-      aria-pressed={glanceEditing}
-      onClick={() => setGlanceEditing((open) => !open)}
-    >
-      {glanceEditing ? "Done" : "Edit"}
-    </button>
-  ) : null;
 
   const hookBlock = hookUrl ? (
       <div className={`player-hook-wrap${narrowHook && !hookExpanded ? "" : " is-expanded"}`}>
@@ -561,7 +620,6 @@ function TimeGrid() {
     <section className="scheduler">
       {zoneNote ? <p className="form-note">{zoneNote}</p> : null}
       {statusMount ? createPortal(statusGrid, statusMount) : statusGrid}
-      {editMount && glanceEditControl ? createPortal(glanceEditControl, editMount) : null}
       {hookMount && hookBlock ? createPortal(hookBlock, hookMount) : hookBlock}
       {summaryUrl ? (
         <div className="adventure-summary">
@@ -697,6 +755,33 @@ function TimeGrid() {
                 </select>
               </label>
               <button className="button primary" type="button" onClick={saveEdit}>Save</button>
+            </form>
+          </div>
+        </div>,
+        document.body
+      ) : null}
+      {voteNote ? createPortal(
+        <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setVoteNote(null); }}>
+          <div className="modal small-modal" role="dialog" aria-labelledby="voteNoteTitle" onMouseDown={(event) => event.stopPropagation()}>
+            <button className="modal-close" type="button" aria-label="Close" onClick={() => setVoteNote(null)}>x</button>
+            <h2 id="voteNoteTitle">Leave a note?</h2>
+            <form className="vote-note-form" onSubmit={saveVoteNote}>
+              <label>
+                <textarea
+                  rows="3"
+                  maxLength="240"
+                  value={voteNote.note}
+                  onChange={(event) => setVoteNote({ ...voteNote, note: event.target.value })}
+                />
+              </label>
+              <p className="form-actions">
+                <button className="button" type="button" onClick={() => {
+                  const pending = { ...voteNote, note: "" };
+                  setVoteNote(null);
+                  vote(pending.timeId, pending.status, pending.current, "");
+                }}>Skip</button>
+                <button className="button primary" type="submit">Save</button>
+              </p>
             </form>
           </div>
         </div>,

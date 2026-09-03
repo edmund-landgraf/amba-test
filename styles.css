@@ -90,7 +90,8 @@ a {
   display: none;
 }
 
-.phone-signup-copy {
+.phone-signup-copy,
+.phone-glance-hint {
   display: none;
 }
 
@@ -1327,6 +1328,73 @@ pre {
   justify-self: end;
 }
 
+.settings-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 16px 0 8px;
+  padding: 0;
+}
+
+.settings-tab {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--sky);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.settings-tab.is-active {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+
+.settings-tab-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-tab-panel[hidden] {
+  display: none !important;
+}
+
+.comm-choice {
+  margin: 8px 0 0;
+  padding: 12px;
+}
+
+.comm-choice legend {
+  padding: 0 4px;
+}
+
+.comm-choice label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.comm-choice input[type="radio"] {
+  width: auto;
+  margin: 0;
+  padding: 0;
+  box-shadow: none;
+  accent-color: var(--accent-strong);
+}
+
+input:disabled,
+input:read-only {
+  color: var(--muted);
+  background: var(--sky);
+  cursor: default;
+}
+
 .admin-tabs {
   display: flex;
   gap: 8px;
@@ -1575,6 +1643,12 @@ main:has(.doc) .page-hero {
   margin: 0 auto 52px;
 }
 
+.doc[hidden],
+.admin-tab-panel[hidden],
+.settings-tab-panel[hidden] {
+  display: none !important;
+}
+
 .doc > p:first-child,
 .doc > p:first-child + p {
   color: var(--muted);
@@ -1761,6 +1835,45 @@ dialog.modal::backdrop {
   width: min(520px, 100%);
 }
 
+dialog.modal.admin-shell {
+  width: min(1100px, 96vw);
+  max-width: min(1100px, 96vw);
+  height: min(88vh, 88dvh);
+  max-height: min(88vh, 88dvh);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 22px 24px;
+}
+
+#adminAppHost {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.admin-shell .admin-tabs {
+  width: 100%;
+}
+
+.admin-shell .page-hero {
+  margin-bottom: 8px;
+}
+
+.backup-grid {
+  min-height: 180px;
+  width: 100%;
+}
+
+#confirmDialog {
+  z-index: 80;
+}
+
+label.button.secondary {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
 .modal-copy {
   color: var(--muted);
 }
@@ -1923,10 +2036,16 @@ dialog.modal::backdrop {
   border-color: rgba(255, 255, 255, 0.08);
 }
 
-[data-theme="dark"] .admin-tab.is-active {
+[data-theme="dark"] .admin-tab.is-active,
+[data-theme="dark"] .settings-tab.is-active {
   background: #f3f0ea;
   color: #121418;
   border-color: #f3f0ea;
+}
+
+[data-theme="dark"] .settings-tab {
+  background: var(--panel-soft);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 [data-theme="dark"] .status-table th,
@@ -2154,8 +2273,15 @@ dialog.modal::backdrop {
   font-size: 0.7rem;
 }
 
-[data-layout="phone"] .glance-edit-toggle {
-  min-height: 44px;
+[data-layout="phone"] .phone-glance-hint {
+  display: block;
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+[data-layout="phone"] .glance-vote-cell {
+  padding: 2px;
 }
 
 [data-layout="phone"] .glance-vote {
@@ -2164,63 +2290,23 @@ dialog.modal::backdrop {
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 48px;
+  min-height: 52px;
   margin: 0;
-  padding: 4px;
-  border: 2px solid transparent;
+  padding: 6px 4px;
+  border: 0;
   border-radius: 8px;
   background: transparent;
-  cursor: pointer;
-}
-
-[data-layout="phone"] .glance-vote.is-mine {
-  border-color: var(--accent-strong);
-  background: rgba(47, 111, 94, 0.12);
-}
-
-[data-layout="phone"] .status-table-wrap.is-editing .status-table tbody td {
-  cursor: pointer;
-}
-
-[data-layout="phone"] .glance-manage-head {
-  width: 4.5rem;
-  font-size: 0.72rem;
-}
-
-[data-layout="phone"] .glance-manage-cell {
-  text-align: center;
-}
-
-[data-layout="phone"] .glance-manage summary {
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  cursor: pointer;
-  list-style: none;
-}
-
-[data-layout="phone"] .glance-manage summary::-webkit-details-marker {
-  display: none;
-}
-
-[data-layout="phone"] .glance-manage-menu {
-  display: grid;
-  gap: 6px;
-  padding: 8px 0;
-}
-
-[data-layout="phone"] .glance-manage-menu button {
-  appearance: none;
-  min-height: 44px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel);
-  color: var(--ink);
+  color: inherit;
   font: inherit;
-  font-weight: 700;
   cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+}
+
+[data-layout="phone"] .glance-vote-cell.is-mine .glance-vote {
+  box-shadow: inset 0 0 0 2px var(--accent-strong);
 }
 
 [data-layout="phone"] .email-list {
