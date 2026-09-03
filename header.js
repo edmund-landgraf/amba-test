@@ -26,8 +26,9 @@
   header.innerHTML = `
     <div class="site-header-inner">
     <a class="brand" href="index.html">AMBA Adventure</a>
-    <nav aria-label="Main navigation">${nav}</nav>
+    <nav id="siteNav" aria-label="Main navigation">${nav}</nav>
     <div class="header-actions">
+      <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="siteNav">Menu</button>
       <button class="admin-gate" id="openAdmin" type="button">+a</button>
       <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch to dark mode">
         <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true">
@@ -57,6 +58,26 @@
     </div>
   `;
   document.body.prepend(header);
+
+  const navToggle = header.querySelector("#navToggle");
+  const siteNav = header.querySelector("#siteNav");
+  function setNavOpen(open) {
+    header.classList.toggle("nav-open", open);
+    navToggle?.setAttribute("aria-expanded", String(open));
+    document.body.classList.toggle("nav-drawer-open", open);
+  }
+  navToggle?.addEventListener("click", () => {
+    setNavOpen(!header.classList.contains("nav-open"));
+  });
+  siteNav?.querySelectorAll("a").forEach((link) => {
+    link.addEventListener("click", () => setNavOpen(false));
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") setNavOpen(false);
+  });
+  header.addEventListener("click", (event) => {
+    if (event.target === header && header.classList.contains("nav-open")) setNavOpen(false);
+  });
 
   const themeToggle = header.querySelector("#themeToggle");
   function syncThemeToggle() {

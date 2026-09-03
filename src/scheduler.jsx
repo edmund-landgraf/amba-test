@@ -90,6 +90,10 @@ function initials(handle) {
   return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
 }
 
+function isPhoneLayout() {
+  return typeof document !== "undefined" && document.documentElement.dataset.layout === "phone";
+}
+
 function VoteCell({ people }) {
   return (
     <span className="vote-cell">
@@ -99,6 +103,27 @@ function VoteCell({ people }) {
         </span>
       ))}
     </span>
+  );
+}
+
+function GlanceVoteCell({ people, status, row, editing, onVote }) {
+  const mine = row.mine === status;
+  const inner = <VoteCell people={people} />;
+  if (!editing) {
+    return <td>{inner}</td>;
+  }
+  return (
+    <td className={mine ? "glance-vote-cell is-mine" : "glance-vote-cell"}>
+      <button
+        type="button"
+        className={`glance-vote${mine ? " is-mine" : ""}`}
+        aria-pressed={mine}
+        aria-label={`Mark ${status}`}
+        onClick={() => onVote(row.id, status, row.mine)}
+      >
+        {inner}
+      </button>
+    </td>
   );
 }
 
@@ -189,11 +214,14 @@ function TimeGrid() {
   const [hookUrl, setHookUrl] = useState("");
   const [edit, setEdit] = useState(null);
   const [toast, setToast] = useState("");
+  const phoneLayout = isPhoneLayout();
+  const [glanceEditing, setGlanceEditing] = useState(false);
   const [narrowHook, setNarrowHook] = useState(() =>
-    typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches
+    phoneLayout
+    || (typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches)
   );
   const [hookExpanded, setHookExpanded] = useState(() =>
-    typeof window === "undefined" || !window.matchMedia("(max-width: 860px)").matches
+    !phoneLayout && (typeof window === "undefined" || !window.matchMedia("(max-width: 860px)").matches)
   );
   const toastTimer = useRef(null);
 
@@ -248,6 +276,7 @@ function TimeGrid() {
       const nextZone = event.detail?.timezone || "";
       setEmail(nextEmail);
       setUserZone(nextZone);
+      if (!nextEmail) setGlanceEditing(false);
       load(nextEmail, nextZone);
     };
     window.addEventListener("amba-auth", onAuth);
@@ -266,6 +295,10 @@ function TimeGrid() {
   }, [load]);
 
   useEffect(() => {
+    if (phoneLayout) {
+      setNarrowHook(true);
+      return undefined;
+    }
     const media = window.matchMedia("(max-width: 860px)");
     function sync(event) {
       const matches = event.matches;
@@ -274,7 +307,7 @@ function TimeGrid() {
     }
     media.addEventListener("change", sync);
     return () => media.removeEventListener("change", sync);
-  }, []);
+  }, [phoneLayout]);
 
   useEffect(() => {
     if (!menu) return undefined;
@@ -419,6 +452,7 @@ function TimeGrid() {
   ], []);
 
   const statusMount = typeof document !== "undefined" ? document.querySelector("#schedule-status") : null;
+  const editMount = typeof document !== "undefined" ? document.querySelector("#schedule-edit-mount") : null;
   const hookMount = typeof document !== "undefined" ? document.querySelector("#player-hook") : null;
   const hookBand = typeof document !== "undefined" ? document.querySelector("#player-hook-band") : null;
 
@@ -428,13 +462,13 @@ function TimeGrid() {
   }, [hookUrl, hookBand]);
 
   const zoneNote = email && !userZone
-    ? "Set your time zone in Settings before you can use the grid. Times will show in your zone."
+    ? "Set your time zone in Settings before you can mark times. Times will show in your zone."
     : userZone
       ? `Showing times in ${userZone}.`
       : "";
 
   const statusGrid = (
-    <div className="status-table-wrap">
+    <div className={`status-table-wrap${phoneLayout && glanceEditing ? " is-editing" : ""}`}>
       <table className="status-table">
         <thead>
           <tr>
@@ -442,25 +476,64 @@ function TimeGrid() {
             <th>Yes</th>
             <th>Maybe</th>
             <th>No</th>
+            {phoneLayout && glanceEditing ? <th className="glance-manage-head">Row</th> : null}
           </tr>
         </thead>
         <tbody>
           {rows.length ? rows.map((row) => (
             <tr key={row.id}>
               <th scope="row">{row.slot}</th>
-              <td><VoteCell people={row.yes} /></td>
-              <td><VoteCell people={row.maybe} /></td>
-              <td><VoteCell people={row.no} /></td>
+              {phoneLayout ? (
+                <>
+                  <GlanceVoteCell people={row.yes} status="yes" row={row} editing={glanceEditing} onVote={vote} />
+                  <GlanceVoteCell people={row.maybe} status="maybe" row={row} editing={glanceEditing} onVote={vote} />
+                  <GlanceVoteCell people={row.no} status="no" row={row} editing={glanceEditing} onVote={vote} />
+                  {glanceEditing ? (
+                    <td className="glance-manage-cell">
+                      {row.createdByMe ? (
+                        <details className="glance-manage">
+                          <summary>Manage</summary>
+                          <div className="glance-manage-menu">
+                            <button type="button" disabled={!row.startIso} onClick={() => openGoogleCalendar(row)}>Google Calendar</button>
+                            <button type="button" disabled={!row.startIso} onClick={() => downloadIcal(row)}>iCal</button>
+                            <button type="button" onClick={() => openEdit(row)}>Edit time</button>
+                            <button type="button" onClick={() => deleteRow(row.id, row.createdByMe)}>Delete</button>
+                          </div>
+                        </details>
+                      ) : (
+                        <span className="glance-manage-na">—</span>
+                      )}
+                    </td>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <td><VoteCell people={row.yes} /></td>
+                  <td><VoteCell people={row.maybe} /></td>
+                  <td><VoteCell people={row.no} /></td>
+                </>
+              )}
             </tr>
           )) : (
             <tr>
-              <td colSpan={4} className="status-table-empty">No session rows yet.</td>
+              <td colSpan={phoneLayout && glanceEditing ? 5 : 4} className="status-table-empty">No session rows yet.</td>
             </tr>
           )}
         </tbody>
       </table>
     </div>
   );
+
+  const glanceEditControl = phoneLayout && email ? (
+    <button
+      className="button secondary glance-edit-toggle"
+      type="button"
+      aria-pressed={glanceEditing}
+      onClick={() => setGlanceEditing((open) => !open)}
+    >
+      {glanceEditing ? "Done" : "Edit"}
+    </button>
+  ) : null;
 
   const hookBlock = hookUrl ? (
       <div className={`player-hook-wrap${narrowHook && !hookExpanded ? "" : " is-expanded"}`}>
@@ -488,6 +561,7 @@ function TimeGrid() {
     <section className="scheduler">
       {zoneNote ? <p className="form-note">{zoneNote}</p> : null}
       {statusMount ? createPortal(statusGrid, statusMount) : statusGrid}
+      {editMount && glanceEditControl ? createPortal(glanceEditControl, editMount) : null}
       {hookMount && hookBlock ? createPortal(hookBlock, hookMount) : hookBlock}
       {summaryUrl ? (
         <div className="adventure-summary">
@@ -515,6 +589,7 @@ function TimeGrid() {
         </label>
         <button className="button primary" type="submit">Add row</button>
       </form>
+      {phoneLayout ? null : (
       <div className="ag-theme-quartz scheduler-grid" onContextMenu={(event) => event.preventDefault()}>
         <AgGridReact
           theme="legacy"
@@ -552,6 +627,7 @@ function TimeGrid() {
           }}
         />
       </div>
+      )}
       {menu ? (
         <div className="grid-context-backdrop" onClick={() => setMenu(null)}>
           <menu
