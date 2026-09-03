@@ -6,3 +6,5 @@ data/wg-exports/
 data/wg-exports-index.json
 grid/scheduler.js
 grid/scheduler.css
+grid/backup-grid.js
+grid/backup-grid.css

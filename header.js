@@ -144,12 +144,44 @@
       <button class="modal-close" id="closeSettings" type="button" aria-label="Close settings">x</button>
       <p class="eyebrow">Account</p>
       <h2 id="settingsTitle">Settings</h2>
-      <p class="modal-copy">Optional IDs so we can find you on Discord and Reddit. Time zone stays under Set time zone.</p>
+      <nav class="settings-tabs" aria-label="Settings sections">
+        <button type="button" class="settings-tab is-active" data-settings-tab="comms" aria-current="page">Comms</button>
+        <button type="button" class="settings-tab" data-settings-tab="export">Export</button>
+      </nav>
       <form id="settingsForm">
-        <label>Discord user ID <input name="discordUserId" inputmode="numeric" autocomplete="off" placeholder="17–19 digit ID"></label>
-        <label>Reddit user ID <input name="redditUserId" autocomplete="off" placeholder="u/username or t2_…"></label>
-        <button class="button primary" type="submit">Save settings</button>
+        <section class="settings-tab-panel" id="settingsPanelComms" data-settings-panel="comms">
+          <p class="modal-copy">Email is from login and cannot be changed here. Optional Discord and Reddit IDs help us find you. Pick how you prefer to be reached.</p>
+          <label>Email <input name="email" type="email" value="" readonly disabled autocomplete="off"></label>
+          <label>Discord user ID <input name="discordUserId" inputmode="numeric" autocomplete="off" placeholder="17–19 digit ID"></label>
+          <label>Reddit user ID <input name="redditUserId" autocomplete="off" placeholder="u/username or t2_…"></label>
+          <fieldset class="comm-choice">
+            <legend>Preferred contact</legend>
+            <label><input type="radio" name="preferredComm" value="email"> Email</label>
+            <label><input type="radio" name="preferredComm" value="discord"> Discord</label>
+            <label><input type="radio" name="preferredComm" value="reddit"> Reddit</label>
+          </fieldset>
+          <button class="button primary" type="submit">Save settings</button>
+        </section>
       </form>
+      <section class="settings-tab-panel" id="settingsPanelExport" data-settings-panel="export" hidden>
+        <p class="modal-copy">Download your AMBA Test node (profile, slots you added, and your yes/maybe/no choices). Import overwrites only your current choices, not other people.</p>
+        <p class="form-actions">
+          <button class="button primary" id="settingsDownloadExport" type="button">Download my JSON</button>
+          <label class="button secondary">Import JSON
+            <input id="settingsRestoreFile" type="file" accept="application/json,.json" hidden>
+          </label>
+        </p>
+        <p class="form-note" id="settingsBackupNote"></p>
+      </section>
+    </dialog>
+    <dialog class="modal small-modal" id="confirmDialog" aria-labelledby="confirmTitle">
+      <p class="eyebrow">Confirm</p>
+      <h2 id="confirmTitle">Overwrite?</h2>
+      <p class="modal-copy" id="confirmCopy"></p>
+      <p class="form-actions">
+        <button class="button secondary" id="confirmCancel" type="button">Cancel</button>
+        <button class="button primary" id="confirmOk" type="button">Overwrite</button>
+      </p>
     </dialog>
     <dialog class="modal small-modal" id="timezoneModal" aria-labelledby="timezoneTitle">
       <button class="modal-close" id="closeTimezone" type="button" aria-label="Close time zone">x</button>
@@ -165,15 +197,18 @@
         <button class="button primary" type="submit">Save time zone</button>
       </form>
     </dialog>
-    <dialog class="modal small-modal" id="adminModal" aria-labelledby="adminTitle">
+    <dialog class="modal small-modal" id="adminModal" aria-labelledby="adminGateTitle">
       <button class="modal-close" id="closeAdmin" type="button" aria-label="Close admin">x</button>
+      <div id="adminGate">
       <p class="eyebrow">Admin</p>
-      <h2 id="adminTitle">Admin password</h2>
+      <h2 id="adminGateTitle">Admin password</h2>
       <form id="adminForm">
         <label>Password <input required type="password" name="password" autocomplete="off"></label>
-        <button class="button primary" type="submit">Open yes list</button>
+        <button class="button primary" type="submit">Open admin</button>
         <p class="form-note" id="adminNote"></p>
       </form>
+      </div>
+      <div id="adminAppHost" hidden></div>
     </dialog>
   `;
   document.body.append(dialogs);

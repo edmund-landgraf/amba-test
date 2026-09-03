@@ -79,6 +79,40 @@ function clearStored(key) {
   sessionStorage.removeItem(key);
 }
 
+function askConfirm(message, { title = "Overwrite?", ok = "Overwrite" } = {}) {
+  const dialog = document.querySelector("#confirmDialog");
+  const copy = document.querySelector("#confirmCopy");
+  const heading = document.querySelector("#confirmTitle");
+  const okBtn = document.querySelector("#confirmOk");
+  const cancelBtn = document.querySelector("#confirmCancel");
+  if (!dialog || !copy || !okBtn || !cancelBtn) {
+    return Promise.resolve(window.confirm(message));
+  }
+  if (heading) heading.textContent = title;
+  copy.textContent = message;
+  okBtn.textContent = ok;
+  return new Promise((resolve) => {
+    function finish(value) {
+      okBtn.removeEventListener("click", onOk);
+      cancelBtn.removeEventListener("click", onCancel);
+      dialog.removeEventListener("cancel", onCancel);
+      if (dialog.open) dialog.close();
+      resolve(value);
+    }
+    function onOk() { finish(true); }
+    function onCancel(event) {
+      event?.preventDefault?.();
+      finish(false);
+    }
+    okBtn.addEventListener("click", onOk);
+    cancelBtn.addEventListener("click", onCancel);
+    dialog.addEventListener("cancel", onCancel);
+    dialog.showModal();
+  });
+}
+
+window.askAmbaConfirm = askConfirm;
+
 async function start() {
   fillTimezoneSelect();
   await loadState();
@@ -127,14 +161,80 @@ function wireEvents() {
   feedbackForm?.addEventListener("submit", saveFeedback);
   identityForm?.addEventListener("submit", saveIdentity);
   settingsForm?.addEventListener("submit", saveSettings);
+  document.querySelector("#settingsDownloadExport")?.addEventListener("click", async () => {
+    const note = document.querySelector("#settingsBackupNote");
+    if (!appState.user?.email) {
+      openLoginModal();
+      return;
+    }
+    try {
+      const response = await fetch(`/api/export/me?email=${encodeURIComponent(appState.user.email)}`, {
+        cache: "no-store"
+      });
+      const node = await response.json().catch(() => null);
+      if (!response.ok || !node || node.error) {
+        throw new Error(
+          response.status === 404
+            ? "Could not export (404). Restart the Node server so /api/export/me is loaded."
+            : (node?.detail || node?.error || `Could not export your data (${response.status}).`)
+        );
+      }
+      const blob = new Blob([`${JSON.stringify(node, null, 2)}\n`], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `amba-user-${appState.user.handle || "user"}.json`;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      if (note) note.textContent = "Downloaded your JSON node.";
+    } catch (error) {
+      if (note) note.textContent = error.message;
+    }
+  });
+  document.querySelector("#settingsRestoreFile")?.addEventListener("change", async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !appState.user?.email) return;
+    const ok = await askConfirm(
+      "Overwrite your current AMBA Test choices, the slots you added, and your profile with this backup JSON? Other people are not changed."
+    );
+    if (!ok) return;
+    const note = document.querySelector("#settingsBackupNote");
+    try {
+      const text = await file.text();
+      let payload = {};
+      try { payload = JSON.parse(text); } catch { payload = {}; }
+      if (!payload || typeof payload !== "object" || Array.isArray(payload)) payload = {};
+      payload.email = appState.user.email;
+      const response = await fetch("/api/import/me", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || data.error || "Could not restore.");
+      if (note) note.textContent = `Restored your choices from ${file.name}`;
+      await loadState();
+    } catch (error) {
+      if (note) note.textContent = error.message;
+    }
+  });
+  settingsModal?.querySelectorAll(".settings-tab").forEach((button) => {
+    button.addEventListener("click", () => showSettingsTab(button.dataset.settingsTab));
+  });
   loginForm?.addEventListener("submit", login);
   joinTest?.addEventListener("click", joinTheTest);
   openAdmin?.addEventListener("click", openAdminModal);
-  closeAdmin?.addEventListener("click", () => adminModal?.open && adminModal.close());
+  closeAdmin?.addEventListener("click", () => {
+    adminModal?.close();
+    resetAdminModal();
+  });
   adminForm?.addEventListener("submit", adminLogin);
   adminForm?.querySelector('input[name="password"]')?.addEventListener("input", () => {
     if (adminNote) adminNote.textContent = "";
   });
+  adminModal?.addEventListener("close", resetAdminModal);
   adminModal?.addEventListener("click", (event) => {
     if (event.target === adminModal) adminModal.close();
   });
@@ -152,7 +252,11 @@ function wireEvents() {
     openTimezoneModal();
   });
   closeTimezone?.addEventListener("click", () => timezoneModal?.open && timezoneModal.close());
-  closeSettings?.addEventListener("click", () => settingsModal?.open && settingsModal.close());
+  closeSettings?.addEventListener("click", () => {
+    settingsModal?.close();
+    settingsModal?.classList.remove("admin-shell");
+  });
+  settingsModal?.addEventListener("close", () => settingsModal.classList.remove("admin-shell"));
   timezoneForm?.addEventListener("submit", saveTimezone);
   timezoneModal?.addEventListener("click", (event) => {
     if (event.target === timezoneModal) timezoneModal.close();
@@ -208,13 +312,66 @@ function wireEvents() {
   wireWgSheets();
 }
 
+function loadScriptOnce(src) {
+  return new Promise((resolve, reject) => {
+    if ([...document.scripts].some((script) => script.src.includes(src))) {
+      resolve();
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = src;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(`Could not load ${src}`));
+    document.head.append(script);
+  });
+}
+
+function resetAdminModal() {
+  if (!adminModal) return;
+  adminModal.classList.remove("admin-shell");
+  adminModal.classList.add("small-modal");
+  document.querySelector("#adminGate")?.removeAttribute("hidden");
+  const host = document.querySelector("#adminAppHost");
+  if (host) host.hidden = true;
+}
+
 function openAdminModal() {
   if (!adminModal) return;
+  resetAdminModal();
   const input = adminForm?.querySelector('input[name="password"]');
   if (adminNote) adminNote.textContent = "";
   if (input) input.value = "";
   adminModal.showModal();
   input?.focus();
+}
+
+async function openAdminShell() {
+  const host = document.querySelector("#adminAppHost");
+  const gate = document.querySelector("#adminGate");
+  if (!host || !adminModal) return;
+  adminModal.classList.remove("small-modal");
+  adminModal.classList.add("admin-shell");
+  gate?.setAttribute("hidden", "");
+  host.hidden = false;
+  if (!host.dataset.filled) {
+    const html = await fetch("admin.html").then((response) => response.text());
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const main = doc.querySelector("main");
+    host.replaceChildren(document.importNode(main, true));
+    const css = document.createElement("link");
+    css.rel = "stylesheet";
+    css.href = "grid/backup-grid.css";
+    host.prepend(css);
+    host.dataset.filled = "1";
+  }
+  await loadScriptOnce("admin.js");
+  await loadScriptOnce("grid/backup-grid.js");
+  window.mountAmbaAdmin(host.querySelector("main") || host, {
+    onUnauthorized: () => {
+      resetAdminModal();
+      if (adminNote) adminNote.textContent = "Admin session expired. Enter the password again.";
+    }
+  });
 }
 
 async function adminLogin(event) {
@@ -226,7 +383,11 @@ async function adminLogin(event) {
   try {
     const result = await api("/api/admin/login", { method: "POST", body: { password } });
     writeStored("ambaAdminToken", result.token);
-    window.location.href = "admin.html";
+    if (document.documentElement.dataset.layout === "phone") {
+      window.location.href = "admin.html";
+      return;
+    }
+    await openAdminShell();
   } catch {
     if (adminNote) adminNote.textContent = "Wrong password.";
     input?.select();
@@ -375,18 +536,38 @@ function openTimezoneModal() {
   timezoneModal.showModal();
 }
 
+function showSettingsTab(name) {
+  const tab = name || "comms";
+  settingsModal?.querySelectorAll(".settings-tab").forEach((button) => {
+    const on = button.dataset.settingsTab === tab;
+    button.classList.toggle("is-active", on);
+    if (on) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  });
+  settingsModal?.querySelectorAll(".settings-tab-panel").forEach((panel) => {
+    panel.hidden = panel.dataset.settingsPanel !== tab;
+  });
+}
+
 function openSettingsModal() {
   if (!settingsModal) return;
   if (!appState.user?.email) {
     openLoginModal();
     return;
   }
+  showSettingsTab("comms");
   if (settingsForm) {
+    const emailField = settingsForm.querySelector('input[name="email"]');
+    if (emailField) emailField.value = appState.user.email || "";
     settingsForm.discordUserId.value = appState.user.discordUserId || "";
     settingsForm.redditUserId.value = appState.user.redditUserId || "";
+    const preferred = appState.user.preferredComm || "email";
+    const radio = settingsForm.querySelector(`input[name="preferredComm"][value="${preferred}"]`)
+      || settingsForm.querySelector('input[name="preferredComm"][value="email"]');
+    if (radio) radio.checked = true;
   }
   settingsModal.showModal();
-  settingsForm?.querySelector("input")?.focus({ preventScroll: true });
+  settingsForm?.querySelector('input[name="discordUserId"]')?.focus({ preventScroll: true });
 }
 
 async function saveSettings(event) {
@@ -405,7 +586,8 @@ async function saveSettings(event) {
       discord: appState.user.discord,
       characterStatus: appState.user.characterStatus,
       discordUserId: data.discordUserId,
-      redditUserId: data.redditUserId
+      redditUserId: data.redditUserId,
+      preferredComm: data.preferredComm
     }
   });
   appState.user = result.user;

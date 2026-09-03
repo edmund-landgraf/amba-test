@@ -15,7 +15,14 @@ const siteFile = path.join(runtimeDir, "site.json");
 const port = Number(process.env.PORT || 3000);
 const adminPassword = String(process.env.ADMIN_PASSWORD || "").trim();
 const adminTokens = new Set();
-const FALLBACK_ADVENTURE_ID = "amba-workflow-test-1";
+const {
+  FALLBACK_ADVENTURE_ID,
+  emptyAdventure,
+  safeAdventureId,
+  mergePromote
+} = require("./lib/adventure-defaults");
+const backup = require("./lib/runtime-backup");
+const { provisionNewAdventure } = require("./lib/module-switch");
 const discordGuildId = "1534196054944121074";
 
 const jsonFiles = {
@@ -27,50 +34,6 @@ const jsonDefaults = {
   users: [],
   feedback: []
 };
-
-const defaultPromote = {
-  templates: {
-    reddit: {
-      title: "[Online] [PF2e] looking for {{players}} players — {{adventureTitle}}",
-      body: "We're looking for players for **{{adventureTitle}}** ({{scope}}, {{playFormat}} Pathfinder 2e). Sheets in Wanderer's Guide, map in Owlbear, prep in AMBA, voice on Discord.\n\n**{{hookTitle}}**\n{{hook}}\n\n{{when}}\n\nSign up on the test site (email login, no AMBA account):\n{{signupUrl}}\n\nDiscord: {{discordInvite}}"
-    },
-    discord: {
-      body: "Looking for players for **{{adventureTitle}}** — {{hookTitle}}.\n{{hookShort}}\n\nSign up on the test site (join list, not an AMBA login):\n{{signupUrl}}\n\n{{when}}"
-    },
-    facebook: {
-      body: "Looking for a few players for {{adventureTitle}} ({{playFormat}} Pathfinder 2e, {{scope}}). {{hookTitle}}: {{hook}}\n\nSign up on our test site (not AMBA itself): {{signupUrl}}\n\n{{when}}"
-    }
-  },
-  settings: {
-    redditSubreddit: "lfg",
-    discordWebhookUrl: ""
-  },
-  posts: []
-};
-
-function emptyAdventure(id) {
-  return {
-    id,
-    title: "An AMBA Adventure",
-    targetPlayers: 4,
-    format: "Remote",
-    scope: "Short adventure",
-    times: [],
-    syndicationUrl: "",
-    playerHookUrl: "",
-    playerHookText: "",
-    ambaModuleId: id,
-    adminPasswordHash: null,
-    signups: [],
-    wgSheets: [],
-    promote: structuredClone(defaultPromote)
-  };
-}
-
-function safeAdventureId(id) {
-  const safe = String(id || "").replace(/[^A-Za-z0-9._-]/g, "_");
-  return safe || FALLBACK_ADVENTURE_ID;
-}
 
 function adventureFile(id) {
   return path.join(adventuresDir, `${safeAdventureId(id)}.json`);
@@ -96,6 +59,7 @@ function writeRuntimeFile(filePath, value) {
 function ensureDataStore() {
   fsSync.mkdirSync(runtimeDir, { recursive: true });
   fsSync.mkdirSync(adventuresDir, { recursive: true });
+  fsSync.mkdirSync(path.join(runtimeDir, "backups"), { recursive: true });
   for (const name of Object.keys(jsonFiles)) {
     const dest = jsonFiles[name];
     if (fsSync.existsSync(dest)) continue;
@@ -156,6 +120,7 @@ ensureDataStore();
 const discordInviteUrl = `https://discord.com/channels/${discordGuildId}/`;
 
 const JSON_BODY_MAX = 1024 * 1024;
+const IMPORT_BODY_MAX = 8 * 1024 * 1024;
 const WG_EXPORT_MAX_TOTAL = 50 * 1024 * 1024;
 const WG_EXPORT_DIR = path.join(dataDir, "wg-exports");
 const WG_EXPORT_INDEX = path.join(dataDir, "wg-exports-index.json");
@@ -327,6 +292,42 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (
+    req.method === "GET"
+    && (url.pathname === "/api/export/me.json" || url.pathname === "/api/export/me")
+  ) {
+    const email = normalizeEmail(url.searchParams.get("email"));
+    try {
+      const node = backup.buildUserNode(await backup.loadRuntime(dataDir), email);
+      const name = backup.userExportFileName(node.user?.handle || "user");
+      res.writeHead(200, {
+        "content-type": "application/json; charset=utf-8",
+        "content-disposition": `attachment; filename="${name}"`,
+        "cache-control": "no-store"
+      });
+      res.end(`${JSON.stringify(node, null, 2)}\n`);
+    } catch (error) {
+      sendJson(res, 200, backup.buildUserNode({
+        site: {},
+        users: [],
+        adventures: [],
+        feedback: [],
+        wgExportIndex: {}
+      }, email));
+    }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/import/me") {
+    const body = await readImportBody(req);
+    const email = normalizeEmail(body?.email);
+    const state = await backup.loadRuntime(dataDir);
+    const merged = backup.mergeUserNode(state, body, email);
+    await backup.applyImport(dataDir, merged);
+    sendJson(res, 200, { ok: true, kind: "user-node", email });
+    return;
+  }
+
   if (req.method === "POST" && url.pathname === "/api/delete-account") {
     const body = await readBody(req);
     await deleteAccount(body.email);
@@ -415,6 +416,20 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "POST" && url.pathname === "/api/admin/modules/select") {
+    if (!requireAdmin(req, res)) return;
+    const body = await readBody(req);
+    sendJson(res, 200, await selectLiveAdventure(body.id));
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/admin/modules/switch") {
+    if (!requireAdmin(req, res)) return;
+    const body = await readBody(req);
+    sendJson(res, 200, { ok: true, ...(await switchModule(body)), ...(await adminYesMail()) });
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/api/admin/promote") {
     if (!requireAdmin(req, res)) return;
     sendJson(res, 200, await publicPromote(req));
@@ -474,6 +489,89 @@ async function handleApi(req, res) {
     }
     await deleteAccount(email);
     sendJson(res, 200, { ok: true, ...(await adminYesMail()) });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/admin/export.json") {
+    if (!requireAdmin(req, res)) return;
+    const snapshot = await currentSnapshot();
+    const name = backup.backupFileName();
+    res.writeHead(200, {
+      "content-type": "application/json; charset=utf-8",
+      "content-disposition": `attachment; filename="${name}"`
+    });
+    res.end(`${JSON.stringify(snapshot, null, 2)}\n`);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/admin/backups") {
+    if (!requireAdmin(req, res)) return;
+    sendJson(res, 200, { backups: await backup.listBackups(dataDir) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/admin/backups") {
+    if (!requireAdmin(req, res)) return;
+    const snapshot = await currentSnapshot();
+    sendJson(res, 200, await backup.writeBackupFile(dataDir, snapshot));
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/admin/backups/file") {
+    if (!requireAdmin(req, res)) return;
+    const filePath = backup.backupPath(dataDir, url.searchParams.get("name"));
+    if (!filePath) {
+      sendJson(res, 200, { ok: true, error: "unknown_backup" });
+      return;
+    }
+    try {
+      const file = await fs.readFile(filePath);
+      res.writeHead(200, {
+        "content-type": "application/json; charset=utf-8",
+        "content-disposition": `attachment; filename="${path.basename(filePath)}"`
+      });
+      res.end(file);
+    } catch {
+      sendJson(res, 200, { ok: true, error: "unknown_backup" });
+    }
+    return;
+  }
+
+  if (req.method === "DELETE" && url.pathname === "/api/admin/backups/file") {
+    if (!requireAdmin(req, res)) return;
+    const filePath = backup.backupPath(dataDir, url.searchParams.get("name"));
+    if (filePath) {
+      try {
+        await fs.unlink(filePath);
+      } catch {
+        /* missing file is fine */
+      }
+    }
+    sendJson(res, 200, { ok: true, backups: await backup.listBackups(dataDir) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/admin/import") {
+    if (!requireAdmin(req, res)) return;
+    sendJson(res, 200, await restoreFromPayload(await readImportBody(req)));
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/admin/backups/restore") {
+    if (!requireAdmin(req, res)) return;
+    const body = await readImportBody(req);
+    if (body && typeof body === "object" && backup.isBackupFileName(body.name)) {
+      const filePath = backup.backupPath(dataDir, body.name);
+      let raw = {};
+      try {
+        raw = JSON.parse(await fs.readFile(filePath, "utf8"));
+      } catch {
+        raw = {};
+      }
+      sendJson(res, 200, await restoreFromPayload(raw));
+      return;
+    }
+    sendJson(res, 200, await restoreFromPayload(body));
     return;
   }
 
@@ -537,11 +635,18 @@ async function getState(email) {
       createdByMe: Boolean(user && createdBy && createdBy === user.email),
       participants: signups
         .filter((signup) => signup.votes?.[time.id])
-        .map((signup) => ({
-          handle: signup.handle,
-          status: signup.votes[time.id] === "in" ? "" : signup.votes[time.id],
-          mine: Boolean(user && signup.email === user.email)
-        }))
+        .map((signup) => {
+          const status = signup.votes[time.id] === "in" ? "" : signup.votes[time.id];
+          const note = (status === "maybe" || status === "no")
+            ? String(signup.voteNotes?.[time.id] || "").trim()
+            : "";
+          return {
+            handle: signup.handle,
+            status,
+            note,
+            mine: Boolean(user && signup.email === user.email)
+          };
+        })
     };
   });
 
@@ -567,6 +672,9 @@ async function upsertUser(data) {
     existing.discord = String(data.discord || existing.discord || "").trim();
     existing.discordUserId = normalizeDiscordUserId(data.discordUserId !== undefined ? data.discordUserId : existing.discordUserId);
     existing.redditUserId = normalizeRedditUserId(data.redditUserId !== undefined ? data.redditUserId : existing.redditUserId);
+    existing.preferredComm = normalizePreferredComm(
+      data.preferredComm !== undefined ? data.preferredComm : existing.preferredComm
+    );
     existing.timezone = String(data.timezone || existing.timezone || "").trim();
     existing.characterStatus = String(data.characterStatus || existing.characterStatus || "").trim();
     existing.role = "admin";
@@ -585,6 +693,7 @@ async function upsertUser(data) {
     discord: String(data.discord || "").trim(),
     discordUserId: normalizeDiscordUserId(data.discordUserId),
     redditUserId: normalizeRedditUserId(data.redditUserId),
+    preferredComm: normalizePreferredComm(data.preferredComm),
     timezone: String(data.timezone || "").trim(),
     characterStatus: String(data.characterStatus || "").trim(),
     role: "admin",
@@ -931,15 +1040,24 @@ async function upsertAdventureSignup(user, extra = {}) {
     ? extra.characterStatus
     : (record.characterStatus || user.characterStatus || "");
   record.votes = { ...(record.votes || {}), ...(extra.votes || {}) };
+  record.voteNotes = { ...(record.voteNotes || {}) };
   if (extra.suggestedTime !== undefined) record.suggestedTime = extra.suggestedTime;
   if (extra.notes !== undefined) record.notes = extra.notes;
   record.updatedAt = new Date().toISOString();
   if (extra.status === "leave" && extra.timeId) {
     delete record.votes[extra.timeId];
+    delete record.voteNotes[extra.timeId];
   } else if (extra.timeId && extra.status === "in") {
     record.votes[extra.timeId] = record.votes[extra.timeId] || "in";
   } else if (extra.timeId && extra.status) {
     record.votes[extra.timeId] = extra.status;
+    if (extra.status === "maybe" || extra.status === "no") {
+      const note = String(extra.voteNote || "").trim();
+      if (note) record.voteNotes[extra.timeId] = note;
+      else delete record.voteNotes[extra.timeId];
+    } else {
+      delete record.voteNotes[extra.timeId];
+    }
   }
   if (!existing) adventure.signups.push(record);
   await writeAdventure(adventure);
@@ -954,7 +1072,11 @@ async function saveSlot(data) {
   const status = data.status === "leave" || data.status === "yes" || data.status === "maybe" || data.status === "no"
     ? data.status
     : "in";
-  return upsertAdventureSignup(user, { timeId, status });
+  return upsertAdventureSignup(user, {
+    timeId,
+    status,
+    voteNote: String(data.voteNote || "").trim()
+  });
 }
 
 async function saveAvailability(data) {
@@ -999,6 +1121,7 @@ function publicUser(user, adventure) {
     discord: user.discord,
     discordUserId: user.discordUserId || "",
     redditUserId: user.redditUserId || "",
+    preferredComm: user.preferredComm || "email",
     timezone: user.timezone,
     characterStatus: signup?.characterStatus || user.characterStatus || "",
     wgSheets: (pack?.sheets || []).map((sheet) => publicSheet(sheet, user.handle)),
@@ -1238,7 +1361,7 @@ function sendJson(res, status, value) {
   res.end(JSON.stringify(value));
 }
 
-async function readBody(req, maxBytes = JSON_BODY_MAX) {
+async function readRawBody(req, maxBytes = JSON_BODY_MAX) {
   const chunks = [];
   let size = 0;
   for await (const chunk of req) {
@@ -1249,8 +1372,50 @@ async function readBody(req, maxBytes = JSON_BODY_MAX) {
     }
     chunks.push(chunk);
   }
-  const raw = Buffer.concat(chunks).toString("utf8");
-  return raw ? JSON.parse(raw) : {};
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+async function readBody(req, maxBytes = JSON_BODY_MAX) {
+  const raw = await readRawBody(req, maxBytes);
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+async function readImportBody(req) {
+  const raw = await readRawBody(req, IMPORT_BODY_MAX);
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
+}
+
+async function currentSnapshot() {
+  return backup.buildExportSnapshot(await backup.loadRuntime(dataDir));
+}
+
+async function restoreFromPayload(raw) {
+  const parsed = backup.parseSnapshot(raw);
+  if (parsed.kind === "user-node") {
+    const state = await backup.loadRuntime(dataDir);
+    const merged = backup.mergeUserNode(state, parsed, parsed.user?.email);
+    await backup.applyImport(dataDir, merged);
+    return { ok: true, kind: "user-node", email: parsed.user?.email || "" };
+  }
+  const coerced = backup.coerceImport(raw);
+  await backup.applyImport(dataDir, coerced);
+  return {
+    ok: true,
+    kind: "full",
+    users: coerced.users.length,
+    adventures: coerced.adventures.length,
+    feedback: coerced.feedback.length
+  };
 }
 
 function safeJsonExportName(name) {
@@ -1539,40 +1704,47 @@ function publicSession(adventure) {
   };
 }
 
-function mergePromote(data) {
-  return {
-    templates: {
-      reddit: {
-        title: data?.templates?.reddit?.title || defaultPromote.templates.reddit.title,
-        body: data?.templates?.reddit?.body || defaultPromote.templates.reddit.body
-      },
-      discord: {
-        body: data?.templates?.discord?.body || defaultPromote.templates.discord.body
-      },
-      facebook: {
-        body: data?.templates?.facebook?.body || defaultPromote.templates.facebook.body
-      }
-    },
-    settings: {
-      redditSubreddit: data?.settings?.redditSubreddit || "lfg",
-      discordWebhookUrl: data?.settings?.discordWebhookUrl || ""
-    },
-    posts: Array.isArray(data?.posts) ? data.posts : []
-  };
+async function writeSite(id) {
+  await fs.mkdir(runtimeDir, { recursive: true });
+  await fs.writeFile(siteFile, `${JSON.stringify({ defaultSessionId: safeAdventureId(id) }, null, 2)}\n`);
 }
 
 async function listAmbaModules() {
   const selectedId = await defaultAdventureId();
-  const adventure = await liveAdventure();
-  // Later: fetch AMBA list-modules and provision a new adventure JSON when admin selects one.
+  const loaded = await backup.loadRuntime(dataDir);
   return {
-    locked: true,
+    locked: false,
     selectedId,
-    modules: [{
+    modules: loaded.adventures.map((adventure) => ({
       id: adventure.id,
       title: adventure.title || "An AMBA Adventure",
-      source: "provision"
-    }]
+      live: adventure.id === selectedId,
+      source: adventure.id === selectedId ? "live" : "archive"
+    }))
+  };
+}
+
+async function selectLiveAdventure(id) {
+  const loaded = await backup.loadRuntime(dataDir);
+  const found = loaded.adventures.find((adventure) => adventure.id === safeAdventureId(id));
+  if (found) await writeSite(found.id);
+  return listAmbaModules();
+}
+
+async function switchModule(body) {
+  const loaded = await backup.loadRuntime(dataDir);
+  const liveId = await defaultAdventureId();
+  const previous = loaded.adventures.find((adventure) => adventure.id === liveId)
+    || loaded.adventures[0]
+    || emptyAdventure(liveId);
+  const existingIds = new Set(loaded.adventures.map((adventure) => adventure.id));
+  const next = provisionNewAdventure(previous, body || {}, existingIds);
+  await writeAdventure(next);
+  await writeSite(next.id);
+  return {
+    previousId: previous.id,
+    adventure: publicSession(next),
+    modules: await listAmbaModules()
   };
 }
 
@@ -2121,6 +2293,12 @@ function normalizeDiscordUserId(value) {
 
 function normalizeRedditUserId(value) {
   return String(value || "").trim().replace(/^u\//i, "");
+}
+
+function normalizePreferredComm(value) {
+  const allowed = new Set(["email", "discord", "reddit"]);
+  const next = String(value || "").trim().toLowerCase();
+  return allowed.has(next) ? next : "email";
 }
 
 function normalizeHandle(value) {

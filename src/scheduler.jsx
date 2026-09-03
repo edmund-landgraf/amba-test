@@ -1,6 +1,6 @@
 import { ModuleRegistry, AllCommunityModule } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from "react";
 import { createRoot } from "react-dom/client";
 import { createPortal } from "react-dom";
 import "ag-grid-community/styles/ag-grid.css";
@@ -112,77 +112,126 @@ function VoteCell({ people }) {
   );
 }
 
+/* Press-and-hold vote cells — replaced by ChoiceSlider.
 function GlanceVoteCell({ people, status, row, onHold }) {
-  const mine = row.mine === status;
-  const timer = useRef(null);
-  const origin = useRef(null);
-  const fired = useRef(false);
+  ...
+}
+*/
 
-  function clearTimer() {
-    if (timer.current) window.clearTimeout(timer.current);
-    timer.current = null;
+const SLIDER_CHOICES = ["yes", "maybe", "no"];
+
+function sliderIndex(status) {
+  const index = SLIDER_CHOICES.indexOf(status);
+  return index < 0 ? 1 : index;
+}
+
+function ChoiceSlider({ value, onCommit }) {
+  const trackRef = useRef(null);
+  const dragging = useRef(false);
+  const startX = useRef(0);
+  const moved = useRef(false);
+  const lastTap = useRef({ time: 0, index: -1 });
+  const [index, setIndex] = useState(() => sliderIndex(value));
+
+  useEffect(() => {
+    if (!dragging.current) setIndex(sliderIndex(value));
+  }, [value]);
+
+  function indexFromEvent(event) {
+    const box = trackRef.current?.getBoundingClientRect();
+    if (!box || !box.width) return index;
+    const t = (event.clientX - box.left) / box.width;
+    if (t < 1 / 3) return 0;
+    if (t < 2 / 3) return 1;
+    return 2;
   }
 
-  function pointOf(event) {
-    if (event.touches && event.touches[0]) return event.touches[0];
-    if (event.changedTouches && event.changedTouches[0]) return event.changedTouches[0];
-    return event;
+  function commit(next) {
+    setIndex(next);
+    lastTap.current = { time: 0, index: -1 };
+    onCommit(SLIDER_CHOICES[next]);
   }
 
-  function startHold(event) {
+  function tapChoice(next) {
+    setIndex(next);
+    const now = Date.now();
+    if (now - lastTap.current.time < 450 && lastTap.current.index === next) {
+      commit(next);
+      return;
+    }
+    lastTap.current = { time: now, index: next };
+  }
+
+  function startDrag(event) {
     if (event.pointerType === "mouse" && event.button !== 0) return;
-    if (event.cancelable) event.preventDefault();
-    fired.current = false;
-    clearTimer();
-    const point = pointOf(event);
-    origin.current = { x: point.clientX, y: point.clientY };
+    dragging.current = true;
+    moved.current = false;
+    startX.current = event.clientX;
     try {
-      event.currentTarget.setPointerCapture?.(event.pointerId);
+      event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
       /* ignore */
     }
-    timer.current = window.setTimeout(() => {
-      fired.current = true;
-      timer.current = null;
-      try {
-        navigator.vibrate?.(15);
-      } catch {
-        /* ignore */
-      }
-      onHold(row, status);
-    }, 400);
+    setIndex(indexFromEvent(event));
   }
 
-  function moveHold(event) {
-    if (!origin.current || fired.current) return;
-    const point = pointOf(event);
-    const dx = point.clientX - origin.current.x;
-    const dy = point.clientY - origin.current.y;
-    if (dx * dx + dy * dy > 144) clearTimer();
+  function moveDrag(event) {
+    if (!dragging.current) return;
+    if (Math.abs(event.clientX - startX.current) > 12) moved.current = true;
+    setIndex(indexFromEvent(event));
   }
 
-  function endHold(event) {
-    if (fired.current && event.cancelable) event.preventDefault();
-    clearTimer();
-    origin.current = null;
+  function endDrag(event) {
+    if (!dragging.current) return;
+    dragging.current = false;
+    const next = indexFromEvent(event);
+    if (moved.current) {
+      commit(next);
+      return;
+    }
+    tapChoice(next);
   }
+
+  const unset = !value;
+  const choice = SLIDER_CHOICES[index];
 
   return (
-    <td className={mine ? "glance-vote-cell is-mine" : "glance-vote-cell"}>
-      <button
-        type="button"
-        className="glance-vote"
-        aria-pressed={mine}
-        aria-label={`Press and hold to mark ${status}`}
-        onPointerDown={startHold}
-        onPointerMove={moveHold}
-        onPointerUp={endHold}
-        onPointerCancel={endHold}
-        onContextMenu={(event) => event.preventDefault()}
+    <div className={`choice-slider${unset ? " is-unset" : ""}`}>
+      <div className="choice-slider-labels">
+        {["Yes", "Maybe", "No"].map((label, choiceIndex) => (
+          <button
+            key={label}
+            type="button"
+            onClick={() => tapChoice(choiceIndex)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div
+        ref={trackRef}
+        className={`choice-slider-track choice-slider-${choice}`}
+        role="slider"
+        tabIndex={0}
+        aria-valuemin={0}
+        aria-valuemax={2}
+        aria-valuenow={index}
+        aria-valuetext={unset ? "not set" : choice}
+        aria-label="Your choice: Yes, Maybe, or No. Double-tap to set."
+        onPointerDown={startDrag}
+        onPointerMove={moveDrag}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+          event.preventDefault();
+          const next = event.key === "ArrowLeft" ? Math.max(0, index - 1) : Math.min(2, index + 1);
+          commit(next);
+        }}
       >
-        <VoteCell people={people} />
-      </button>
-    </td>
+        <span className="choice-slider-thumb" style={{ left: `${(index / 2) * 100}%` }} />
+      </div>
+    </div>
   );
 }
 
@@ -272,7 +321,6 @@ function TimeGrid() {
   const [summaryUrl, setSummaryUrl] = useState("");
   const [hookUrl, setHookUrl] = useState("");
   const [edit, setEdit] = useState(null);
-  const [voteNote, setVoteNote] = useState(null);
   const [toast, setToast] = useState("");
   const phoneLayout = isPhoneLayout();
   const [narrowHook, setNarrowHook] = useState(() =>
@@ -343,7 +391,6 @@ function TimeGrid() {
       if (event.key === "Escape") {
         setMenu(null);
         setEdit(null);
-        setVoteNote(null);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -402,40 +449,37 @@ function TimeGrid() {
     return true;
   }
 
-  async function vote(timeId, status, current, note) {
+  async function vote(timeId, status, current) {
     if (!requireReady()) return;
     const next = current === status ? "leave" : status;
-    const body = { email, timeId, status: next };
-    if (next === "maybe" || next === "no") body.voteNote = String(note || "").trim();
-    await api("/api/slot", { method: "POST", body });
+    await api("/api/slot", { method: "POST", body: { email, timeId, status: next } });
     await load(email, userZone);
   }
 
-  function holdVote(row, status) {
-    if (!requireReady()) return;
-    if (row.mine === status) {
-      vote(row.id, status, row.mine);
-      return;
-    }
-    if (status === "maybe" || status === "no") {
-      const keepNote = row.mine === "maybe" || row.mine === "no";
-      setVoteNote({
-        timeId: row.id,
-        status,
-        current: row.mine,
-        note: keepNote ? row.mineNote : ""
-      });
-      return;
-    }
-    vote(row.id, status, row.mine);
+  function applyMine(row, status) {
+    const minePerson = [...row.yes, ...row.maybe, ...row.no].find((person) => person.mine)
+      || { handle: "You", mine: true, note: "" };
+    const strip = (list) => list.filter((person) => !person.mine);
+    return {
+      ...row,
+      mine: status,
+      yes: status === "yes" ? [...strip(row.yes), minePerson] : strip(row.yes),
+      maybe: status === "maybe" ? [...strip(row.maybe), minePerson] : strip(row.maybe),
+      no: status === "no" ? [...strip(row.no), minePerson] : strip(row.no)
+    };
   }
 
-  async function saveVoteNote(event) {
-    event.preventDefault();
-    if (!voteNote) return;
-    const pending = voteNote;
-    setVoteNote(null);
-    await vote(pending.timeId, pending.status, pending.current, pending.note);
+  async function setSlot(timeId, status) {
+    if (!requireReady()) return;
+    await api("/api/slot", { method: "POST", body: { email, timeId, status } });
+    await load(email, userZone);
+  }
+
+  function slideVote(row, status) {
+    if (!requireReady()) return;
+    if (row.mine === status) return;
+    setRows((current) => current.map((item) => (item.id === row.id ? applyMine(item, status) : item)));
+    setSlot(row.id, status);
   }
 
   async function deleteRow(timeId, createdByMe) {
@@ -568,22 +612,21 @@ function TimeGrid() {
         </thead>
         <tbody>
           {rows.length ? rows.map((row) => (
-            <tr key={row.id}>
+            <Fragment key={row.id}>
+            <tr>
               <th scope="row">{row.slot}</th>
-              {phoneLayout ? (
-                <>
-                  <GlanceVoteCell people={row.yes} status="yes" row={row} onHold={holdVote} />
-                  <GlanceVoteCell people={row.maybe} status="maybe" row={row} onHold={holdVote} />
-                  <GlanceVoteCell people={row.no} status="no" row={row} onHold={holdVote} />
-                </>
-              ) : (
-                <>
-                  <td><VoteCell people={row.yes} /></td>
-                  <td><VoteCell people={row.maybe} /></td>
-                  <td><VoteCell people={row.no} /></td>
-                </>
-              )}
+              <td className={phoneLayout && row.mine === "yes" ? "is-mine-col" : undefined}><VoteCell people={row.yes} /></td>
+              <td className={phoneLayout && row.mine === "maybe" ? "is-mine-col" : undefined}><VoteCell people={row.maybe} /></td>
+              <td className={phoneLayout && row.mine === "no" ? "is-mine-col" : undefined}><VoteCell people={row.no} /></td>
             </tr>
+            {phoneLayout ? (
+              <tr className="choice-slider-row">
+                <td colSpan={4}>
+                  <ChoiceSlider value={row.mine} onCommit={(status) => slideVote(row, status)} />
+                </td>
+              </tr>
+            ) : null}
+            </Fragment>
           )) : (
             <tr>
               <td colSpan={4} className="status-table-empty">No session rows yet.</td>
@@ -755,33 +798,6 @@ function TimeGrid() {
                 </select>
               </label>
               <button className="button primary" type="button" onClick={saveEdit}>Save</button>
-            </form>
-          </div>
-        </div>,
-        document.body
-      ) : null}
-      {voteNote ? createPortal(
-        <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setVoteNote(null); }}>
-          <div className="modal small-modal" role="dialog" aria-labelledby="voteNoteTitle" onMouseDown={(event) => event.stopPropagation()}>
-            <button className="modal-close" type="button" aria-label="Close" onClick={() => setVoteNote(null)}>x</button>
-            <h2 id="voteNoteTitle">Leave a note?</h2>
-            <form className="vote-note-form" onSubmit={saveVoteNote}>
-              <label>
-                <textarea
-                  rows="3"
-                  maxLength="240"
-                  value={voteNote.note}
-                  onChange={(event) => setVoteNote({ ...voteNote, note: event.target.value })}
-                />
-              </label>
-              <p className="form-actions">
-                <button className="button" type="button" onClick={() => {
-                  const pending = { ...voteNote, note: "" };
-                  setVoteNote(null);
-                  vote(pending.timeId, pending.status, pending.current, "");
-                }}>Skip</button>
-                <button className="button primary" type="submit">Save</button>
-              </p>
             </form>
           </div>
         </div>,
