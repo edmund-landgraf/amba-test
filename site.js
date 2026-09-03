@@ -9,6 +9,7 @@ let appState = {
 };
 
 let currentEmail = readStored("ambaEmail");
+const isQuestionnairePage = location.pathname.endsWith("/questionnaire.html");
 
 const feedbackForm = document.querySelector("#feedbackForm");
 const feedbackNote = document.querySelector("#feedbackNote");
@@ -488,6 +489,7 @@ async function login(event) {
   writeStored("ambaEmail", currentEmail);
   closeLoginModal();
   await loadState();
+  if (isQuestionnairePage) return;
   if (!appState.user?.timezone) {
     pendingTimesScroll = true;
     openTimezoneModal();

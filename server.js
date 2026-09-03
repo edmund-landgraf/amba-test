@@ -1126,20 +1126,50 @@ async function refreshSessionFromLinks(session) {
   return session;
 }
 
+function displayAdventureTitle(value) {
+  return String(value || "").replace(/\s*\([^)]*\)\s*$/g, "").replace(/\s+/g, " ").trim();
+}
+
 async function sessionLinks() {
   const session = await liveAdventure();
+  const syndicationUrl = sanitizeHttpUrl(session.syndicationUrl);
+  if (syndicationUrl) {
+    try {
+      const title = moduleTitleFromSyndication(await fetchPageHtml(syndicationUrl));
+      if (title && title !== session.title) {
+        session.title = title;
+        session.updatedAt = new Date().toISOString();
+        await writeAdventure(session);
+      }
+    } catch {
+      // Keep the last saved title if the syndication page cannot be read.
+    }
+  }
   return {
-    title: session.title || "",
+    title: displayAdventureTitle(session.title) || session.title || "",
     ambaModuleId: session.ambaModuleId || session.id || "",
     syndicationUrl: session.syndicationUrl || "",
-    playerHookUrl: session.playerHookUrl || ""
+    playerHookUrl: session.playerHookUrl || "",
+    playerHookText: session.playerHookText || "",
+    setupSource: session.setupSource === "manual" ? "manual" : "connect"
   };
 }
 
 async function saveSession(data) {
   const session = await liveAdventure();
+  if (data.mode === "write" || data.setupSource === "manual") {
+    session.setupSource = "manual";
+    session.syndicationUrl = "";
+    session.playerHookUrl = "";
+    session.title = String(data.title || "").trim() || session.title;
+    session.playerHookText = String(data.playerHookText || "");
+    session.updatedAt = new Date().toISOString();
+    await writeAdventure(session);
+    return sessionLinks();
+  }
   const playerHookUrl = sanitizeHttpUrl(data.playerHookUrl);
   const syndicationUrl = sanitizeHttpUrl(data.syndicationUrl) || syndicationFromHook(playerHookUrl);
+  session.setupSource = "connect";
   session.syndicationUrl = syndicationUrl;
   session.playerHookUrl = playerHookUrl;
   if (data.ambaModuleId) session.ambaModuleId = String(data.ambaModuleId).trim();
@@ -1999,6 +2029,7 @@ function publicSession(adventure) {
     syndicationUrl: adventure.syndicationUrl || "",
     playerHookUrl: adventure.playerHookUrl || "",
     playerHookText: adventure.playerHookText || "",
+    setupSource: adventure.setupSource === "manual" ? "manual" : "connect",
     ambaModuleId: adventure.ambaModuleId || adventure.id,
     discordHost: coerceDiscordHost(adventure.discordHost)
   };
@@ -2580,7 +2611,9 @@ async function adminYesMail() {
     title: links.title,
     ambaModuleId: links.ambaModuleId,
     syndicationUrl: links.syndicationUrl,
-    playerHookUrl: links.playerHookUrl
+    playerHookUrl: links.playerHookUrl,
+    playerHookText: links.playerHookText,
+    setupSource: links.setupSource
   };
 }
 

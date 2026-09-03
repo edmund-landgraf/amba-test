@@ -34,9 +34,17 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
     const summaryPreview = q("#summaryPreview");
     const playerHookPreview = q("#playerHookPreview");
     const adventureSelect = q("#adventureSelect");
+    const adventureName = q("#adventureName");
+    const adventurePickerNote = q("#adventurePickerNote");
     const sessionLinksToggle = q("#sessionLinksToggle");
     const sessionLinksNote = q("#sessionLinksNote");
     const ambaConnectNote = q("#ambaConnectNote");
+    const ambaLinkedFields = q("#ambaLinkedFields");
+    const manualWritePanel = q("#manualWritePanel");
+    const manualTitle = q("#manualTitle");
+    const manualHook = q("#manualHook");
+    const manualHookToolbar = q("#manualHookToolbar");
+    if (window.attachMarkdownToolbar) window.attachMarkdownToolbar(manualHookToolbar, manualHook);
     function ambaApiOrigins() {
       const host = String(location.hostname || "");
       if (host === "localhost" || host === "127.0.0.1") {
@@ -112,67 +120,93 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       sessionLinksToggle.type = "button";
     }
 
+    function setAmbaConnectionStatus(connected) {
+      const el = q("#ambaStatus");
+      if (!el) return;
+      el.textContent = connected ? "Connected" : "Not connected";
+      el.classList.toggle("status-pill--on", connected);
+      el.classList.toggle("status-pill--off", !connected);
+    }
+
+    function setAmbaConnectNote(message) {
+      if (ambaConnectNote) ambaConnectNote.textContent = message;
+    }
+
     function setSetupMode(mode, options = {}) {
-      setupMode = mode === "manual" ? "manual" : "connect";
-      const wrap = q("#ambaPublishedWrap");
+      setupMode = mode === "manual" || mode === "write" ? mode : "connect";
       const connectBtn = q("#connectAmba");
       const manualBtn = q("#manualAmba");
+      const writeBtn = q("#writeManual");
       const isManual = setupMode === "manual";
-      if (wrap) wrap.hidden = isManual;
+      const isWrite = setupMode === "write";
+      const isConnect = setupMode === "connect";
       if (sessionLinksToggle) sessionLinksToggle.hidden = !isManual;
+      if (ambaLinkedFields) ambaLinkedFields.hidden = isWrite;
+      if (manualWritePanel) manualWritePanel.hidden = !isWrite;
       if (connectBtn) {
-        connectBtn.classList.toggle("primary", !isManual);
-        connectBtn.classList.toggle("secondary", isManual);
-        connectBtn.classList.toggle("is-active", !isManual);
+        connectBtn.classList.toggle("primary", isConnect);
+        connectBtn.classList.toggle("secondary", !isConnect);
+        connectBtn.classList.toggle("is-active", isConnect);
       }
       if (manualBtn) {
         manualBtn.classList.toggle("primary", isManual);
         manualBtn.classList.toggle("secondary", !isManual);
         manualBtn.classList.toggle("is-active", isManual);
       }
+      if (writeBtn) {
+        writeBtn.classList.toggle("primary", isWrite);
+        writeBtn.classList.toggle("secondary", !isWrite);
+        writeBtn.classList.toggle("is-active", isWrite);
+      }
+      if (isWrite) {
+        ambaModules = null;
+        setAmbaConnectionStatus(false);
+        setLinksEditing(false);
+        syncAdventurePicker();
+        if (manualTitle) manualTitle.value = displayAdventureTitle(adventureTitle) || adventureTitle || "";
+        setAmbaConnectNote("Manual. The markdown below is the player hook and adventure summary on signup.");
+        return;
+      }
       if (isManual) {
         ambaModules = null;
+        setAmbaConnectionStatus(false);
         if (adventureSelect) adventureSelect.dataset.source = "manual";
         setLinksEditing(true);
-        const message = "Manual AMBA. Paste the adventure summary and player-hook syndication links, then Save.";
-        if (ambaConnectNote) ambaConnectNote.textContent = message;
-        if (!options.silent) sessionLinksNote.textContent = message;
+        syncAdventurePicker();
+        setAmbaConnectNote("Manual AMBA. Paste the adventure summary and player-hook syndication links, then Save.");
         return;
       }
       setLinksEditing(false);
       if (lastAdventureData) fillAdventureSelect(lastAdventureData);
+      syncAdventurePicker();
       if (!options.silent && !ambaModules) {
-        const message = ambaConnectCopy();
-        if (ambaConnectNote) ambaConnectNote.textContent = message;
+        setAmbaConnectNote(ambaConnectCopy());
       }
+    }
+
+    function displayAdventureTitle(value) {
+      return String(value || "").replace(/\s*\([^)]*\)\s*$/g, "").replace(/\s+/g, " ").trim();
+    }
+
+    function syncAdventurePicker() {
+      const connected = Boolean(ambaModules);
+      if (adventureSelect) adventureSelect.hidden = !connected;
+      if (adventureName) {
+        adventureName.hidden = connected;
+        adventureName.disabled = true;
+        adventureName.readOnly = true;
+        if (!connected) adventureName.value = displayAdventureTitle(adventureTitle) || adventureTitle || "";
+      }
+      if (adventurePickerNote) adventurePickerNote.hidden = !connected;
     }
 
     function fillAdventureSelect(data) {
       lastAdventureData = data;
-      if (setupMode === "manual") return;
-      if (ambaModules) {
-        fillAmbaModuleSelect(ambaModules, preferredAmbaModule(ambaModules)?.id || "");
-        return;
-      }
-      adventureSelect.replaceChildren();
-      const modules = data.modules?.modules || [];
-      const selectedId = data.modules?.selectedId || "";
-      const fallback = [{
-        id: selectedId || "current",
-        title: data.title || "An AMBA Adventure",
-        live: true
-      }];
-      for (const module of modules.length ? modules : fallback) {
-        const option = document.createElement("option");
-        option.value = module.id;
-        const mark = module.live || module.id === selectedId ? "" : " (archive)";
-        option.textContent = `${module.title || module.id}${mark}`;
-        option.selected = module.id === selectedId || (modules.length ? modules.length === 1 : true);
-        adventureSelect.append(option);
-      }
-      adventureSelect.dataset.source = "local";
-      adventureSelect.dataset.liveId = selectedId;
-      adventureSelect.disabled = !adventureSelect.options.length;
+      adventureTitle = displayAdventureTitle(data.title) || String(data.title || "").trim();
+      if (adventureName) adventureName.value = adventureTitle;
+      syncAdventurePicker();
+      if (!ambaModules) return;
+      fillAmbaModuleSelect(ambaModules, preferredAmbaModule(ambaModules)?.id || "");
     }
 
     function parseAmbaModules(payload) {
@@ -200,13 +234,14 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       for (const module of modules) {
         const option = document.createElement("option");
         option.value = module.id;
-        option.textContent = module.title || module.id;
+        option.textContent = displayAdventureTitle(module.title) || module.title || module.id;
         option.selected = module.id === selectedId;
         adventureSelect.append(option);
       }
       adventureSelect.dataset.source = "amba";
       adventureSelect.dataset.liveId = selectedId || "";
       adventureSelect.disabled = !modules.length;
+      syncAdventurePicker();
     }
 
     function ambaConnectCopy() {
@@ -218,9 +253,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
     }
 
     function ambaLoginHint(detail) {
-      const message = detail || ambaConnectCopy();
-      if (ambaConnectNote) ambaConnectNote.textContent = message;
-      sessionLinksNote.textContent = message;
+      setAmbaConnectNote(detail || ambaConnectCopy());
     }
 
     async function fetchPublishedModules(origin) {
@@ -234,8 +267,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
 
     async function connectToAmba() {
       const origins = ambaApiOrigins();
-      if (ambaConnectNote) ambaConnectNote.textContent = `Connecting to AMBA (${origins.join(", ")})…`;
-      sessionLinksNote.textContent = `Connecting to AMBA (${origins.join(", ")})…`;
+      setAmbaConnectNote(`Connecting to AMBA (${origins.join(", ")})…`);
       let lastOrigin = origins[0];
       let lastStatus = 0;
       let lastKind = "network";
@@ -263,6 +295,8 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         }
         if (!matched) {
           ambaModules = null;
+          setAmbaConnectionStatus(false);
+          syncAdventurePicker();
           if (lastKind === "auth") {
             ambaLoginHint(`AMBA did not see a logged-in session (${lastOrigin}). Log in at ${origins[0]}/app, then try again.`);
             return;
@@ -270,18 +304,24 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
           ambaLoginHint(`Could not reach AMBA API at /api/modules (not /app) via ${origins.join(" or ")}. Restart Adventure Maker so CORS allows ${location.origin}.`);
           return;
         }
-        setSetupMode("connect", { silent: true });
         ambaModules = matched.modules;
+        setAmbaConnectionStatus(true);
+        setSetupMode("connect", { silent: true });
         const selected = preferredAmbaModule(matched.modules);
         fillAmbaModuleSelect(matched.modules, selected?.id || "");
-        if (selected) applyAmbaModule(selected);
-        const message = matched.modules.length
-          ? `Connected to ${matched.origin}. ${matched.modules.length} published module${matched.modules.length === 1 ? "" : "s"}.`
-          : `Connected to ${matched.origin}, but there are no published modules yet.`;
-        if (ambaConnectNote) ambaConnectNote.textContent = message;
-        sessionLinksNote.textContent = message;
+        if (selected) {
+          applyAmbaModule(selected);
+          adventureTitle = displayAdventureTitle(selected.title) || selected.title || adventureTitle;
+        }
+        setAmbaConnectNote(
+          matched.modules.length
+            ? `Connected to ${matched.origin}. ${matched.modules.length} published module${matched.modules.length === 1 ? "" : "s"}.`
+            : `Connected to ${matched.origin}, but there are no published modules yet.`
+        );
       } catch {
         ambaModules = null;
+        setAmbaConnectionStatus(false);
+        syncAdventurePicker();
         ambaLoginHint(`Could not reach AMBA API at /api/modules via ${lastOrigin}${lastStatus ? ` (${lastStatus})` : ""}.`);
       }
     }
@@ -613,6 +653,294 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       return data;
     }
 
+    async function loadQuestionnaire() {
+      const note = q("#questionnaireBuilderNote");
+      try {
+        questionnaireState = await promoteFetch("/api/admin/questionnaire", {
+          headers: { authorization: `Bearer ${token}` }
+        });
+        renderQuestionnaireBuilder();
+        renderQuestionnairePreview();
+        renderQuestionnaireResponses();
+        if (note) note.textContent = "";
+      } catch (error) {
+        if (note) note.textContent = error.message;
+      }
+    }
+
+    function blankQuestion(type = "text") {
+      const id = `question-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+      return {
+        id,
+        type,
+        label: "",
+        required: false,
+        options: type === "text" ? [] : ["Option 1", "Option 2"],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+    }
+
+    function renderQuestionnaireBuilder() {
+      const list = q("#questionnaireBuilderList");
+      if (!list) return;
+      list.replaceChildren();
+      const questions = questionnaireState.questions || [];
+      if (!questions.length) {
+        const empty = document.createElement("p");
+        empty.className = "form-note";
+        empty.textContent = "No questions yet. Add one to start.";
+        list.append(empty);
+        return;
+      }
+      questions.forEach((question, index) => {
+        list.append(questionEditor(question, index));
+      });
+    }
+
+    function questionEditor(question, index) {
+      const card = document.createElement("section");
+      card.className = "question-editor";
+      card.dataset.index = String(index);
+
+      const top = document.createElement("div");
+      top.className = "question-editor-top";
+      const title = document.createElement("strong");
+      title.textContent = `Question ${index + 1}`;
+      const actions = document.createElement("p");
+      actions.className = "question-editor-actions";
+      const up = smallButton("Up", () => moveQuestion(index, -1));
+      const down = smallButton("Down", () => moveQuestion(index, 1));
+      const remove = smallButton("Remove", () => removeQuestion(index));
+      up.disabled = index === 0;
+      down.disabled = index === (questionnaireState.questions || []).length - 1;
+      actions.append(up, down, remove);
+      top.append(title, actions);
+
+      const label = document.createElement("label");
+      label.textContent = "Prompt";
+      const prompt = document.createElement("input");
+      prompt.value = question.label || "";
+      prompt.placeholder = "Ask the player something useful";
+      prompt.addEventListener("input", () => updateQuestion(index, { label: prompt.value }));
+      label.append(prompt);
+
+      const controls = document.createElement("div");
+      controls.className = "question-editor-controls";
+      const typeLabel = document.createElement("label");
+      typeLabel.textContent = "Type";
+      const type = document.createElement("select");
+      for (const [value, text] of [
+        ["text", "Free form"],
+        ["select", "Dropdown"],
+        ["checkbox", "Checkboxes"],
+        ["radio", "Radio buttons"]
+      ]) {
+        type.append(new Option(text, value));
+      }
+      type.value = question.type || "text";
+      type.addEventListener("change", () => {
+        const next = { type: type.value };
+        if (type.value === "text") next.options = [];
+        else if (!question.options?.length) next.options = ["Option 1", "Option 2"];
+        updateQuestion(index, next);
+        renderQuestionnaireBuilder();
+        renderQuestionnairePreview();
+      });
+      typeLabel.append(type);
+
+      const required = document.createElement("label");
+      required.className = "questionnaire-preview-toggle";
+      const requiredInput = document.createElement("input");
+      requiredInput.type = "checkbox";
+      requiredInput.checked = Boolean(question.required);
+      requiredInput.addEventListener("change", () => updateQuestion(index, { required: requiredInput.checked }));
+      required.append(requiredInput, document.createTextNode("Required"));
+      controls.append(typeLabel, required);
+
+      card.append(top, label, controls);
+      if (question.type !== "text") card.append(optionEditor(question, index));
+      return card;
+    }
+
+    function optionEditor(question, index) {
+      const wrap = document.createElement("div");
+      wrap.className = "question-options-editor";
+      const label = document.createElement("label");
+      label.textContent = "Options";
+      const textarea = document.createElement("textarea");
+      textarea.rows = 4;
+      textarea.value = (question.options || []).join("\n");
+      textarea.placeholder = "One option per line";
+      textarea.addEventListener("input", () => {
+        updateQuestion(index, {
+          options: textarea.value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+        });
+      });
+      label.append(textarea);
+      wrap.append(label);
+      return wrap;
+    }
+
+    function smallButton(text, onClick) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "button secondary";
+      button.textContent = text;
+      button.addEventListener("click", onClick);
+      return button;
+    }
+
+    function updateQuestion(index, patch) {
+      const questions = [...(questionnaireState.questions || [])];
+      questions[index] = {
+        ...questions[index],
+        ...patch,
+        updatedAt: new Date().toISOString()
+      };
+      questionnaireState = { ...questionnaireState, questions };
+      renderQuestionnairePreview();
+    }
+
+    function moveQuestion(index, delta) {
+      const questions = [...(questionnaireState.questions || [])];
+      const next = index + delta;
+      if (next < 0 || next >= questions.length) return;
+      [questions[index], questions[next]] = [questions[next], questions[index]];
+      questionnaireState = { ...questionnaireState, questions };
+      renderQuestionnaireBuilder();
+      renderQuestionnairePreview();
+    }
+
+    function removeQuestion(index) {
+      const questions = [...(questionnaireState.questions || [])];
+      questions.splice(index, 1);
+      questionnaireState = { ...questionnaireState, questions };
+      renderQuestionnaireBuilder();
+      renderQuestionnairePreview();
+    }
+
+    function addQuestion() {
+      questionnaireState = {
+        ...questionnaireState,
+        questions: [...(questionnaireState.questions || []), blankQuestion()]
+      };
+      renderQuestionnaireBuilder();
+      renderQuestionnairePreview();
+    }
+
+    function draftQuestions() {
+      return (questionnaireState.questions || [])
+        .map((question) => ({
+          ...question,
+          label: String(question.label || "").trim(),
+          options: question.type === "text" ? [] : [...new Set((question.options || []).map((option) => String(option || "").trim()).filter(Boolean))]
+        }))
+        .filter((question) => question.label && (question.type === "text" || question.options.length));
+    }
+
+    function renderQuestionnairePreview() {
+      const card = q("#questionnairePreviewCard");
+      const preview = q("#questionnairePreview");
+      const toggle = q("#questionnairePreviewToggle");
+      if (!card || !preview || !toggle) return;
+      card.hidden = !toggle.checked;
+      preview.replaceChildren();
+      if (!toggle.checked) return;
+      const questions = draftQuestions();
+      if (!questions.length) {
+        const empty = document.createElement("p");
+        empty.className = "form-note";
+        empty.textContent = "No valid questions to preview yet.";
+        preview.append(empty);
+        return;
+      }
+      for (const question of questions) preview.append(renderQuestionnaireField(question));
+      const save = document.createElement("button");
+      save.type = "button";
+      save.className = "button primary";
+      save.disabled = true;
+      save.textContent = "Save answers";
+      preview.append(save);
+    }
+
+    function renderQuestionnaireField(question) {
+      const wrap = document.createElement("fieldset");
+      wrap.className = "questionnaire-question";
+      const legend = document.createElement("legend");
+      legend.textContent = question.required ? `${question.label} *` : question.label;
+      wrap.append(legend);
+      if (question.type === "text") {
+        const textarea = document.createElement("textarea");
+        textarea.rows = 4;
+        wrap.append(textarea);
+        return wrap;
+      }
+      if (question.type === "select") {
+        const select = document.createElement("select");
+        select.append(new Option("Choose one", ""));
+        for (const option of question.options || []) select.append(new Option(option, option));
+        wrap.append(select);
+        return wrap;
+      }
+      const group = document.createElement("div");
+      group.className = "questionnaire-options";
+      for (const option of question.options || []) {
+        const label = document.createElement("label");
+        const input = document.createElement("input");
+        input.type = question.type;
+        input.name = `preview-${question.id}`;
+        input.value = option;
+        label.append(input, document.createTextNode(option));
+        group.append(label);
+      }
+      wrap.append(group);
+      return wrap;
+    }
+
+    function renderQuestionnaireResponses() {
+      const list = q("#questionnaireResponses");
+      const note = q("#questionnaireResponsesNote");
+      if (!list) return;
+      list.replaceChildren();
+      const questions = questionnaireState.questions || [];
+      const byId = new Map(questions.map((question) => [question.id, question]));
+      const responses = questionnaireState.responses || [];
+      if (note) note.textContent = responses.length
+        ? `${responses.length} response${responses.length === 1 ? "" : "s"} saved.`
+        : "No responses yet.";
+      if (!responses.length) {
+        const empty = document.createElement("p");
+        empty.className = "empty-row";
+        empty.textContent = "No responses yet.";
+        list.append(empty);
+        return;
+      }
+      for (const response of responses) {
+        const row = document.createElement("article");
+        row.className = "questionnaire-response-row";
+        const title = document.createElement("h3");
+        title.textContent = response.handle || response.email || "Unknown";
+        const meta = document.createElement("p");
+        meta.className = "form-note";
+        meta.textContent = response.updatedAt ? `Updated ${new Date(response.updatedAt).toLocaleString()}` : "";
+        row.append(title, meta);
+        for (const [id, value] of Object.entries(response.answers || {})) {
+          const item = document.createElement("p");
+          const label = document.createElement("strong");
+          label.textContent = byId.get(id)?.label || `Removed question: ${id}`;
+          item.append(label, document.createTextNode(` ${formatAnswer(value)}`));
+          row.append(item);
+        }
+        list.append(row);
+      }
+    }
+
+    function formatAnswer(value) {
+      if (Array.isArray(value)) return value.join(", ");
+      return String(value || "");
+    }
+
     async function copyAndOpen(text, url, note) {
       await navigator.clipboard.writeText(text);
       window.open(url, "_blank", "noopener,noreferrer");
@@ -678,6 +1006,39 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
     root.querySelectorAll(".admin-tab").forEach((button) => {
       button.addEventListener("click", () => showTab(button.dataset.tab));
     });
+    q("#addQuestionnaireQuestion")?.addEventListener("click", addQuestion);
+    q("#questionnairePreviewToggle")?.addEventListener("change", renderQuestionnairePreview);
+    q("#questionnaireBuilderForm")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const note = q("#questionnaireBuilderNote");
+      if (note) note.textContent = "Saving...";
+      try {
+        questionnaireState = await promoteFetch("/api/admin/questionnaire", {
+          method: "PUT",
+          headers: headers(),
+          body: JSON.stringify({ questions: draftQuestions() })
+        });
+        renderQuestionnaireBuilder();
+        renderQuestionnairePreview();
+        renderQuestionnaireResponses();
+        if (note) note.textContent = "Questionnaire saved.";
+      } catch (error) {
+        if (note) note.textContent = error.message;
+      }
+    });
+    q("#questionnaireExport")?.addEventListener("click", async () => {
+      const response = await fetch("/api/admin/questionnaire/export.json", {
+        headers: { authorization: `Bearer ${token}` }
+      });
+      const blob = await response.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "amba-questionnaire.json";
+      document.body.append(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    });
 
     syndicationUrl.addEventListener("input", refreshPreviews);
     playerHookUrl.addEventListener("input", refreshPreviews);
@@ -695,7 +1056,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
           ...(adventureSelect.dataset.source === "amba" && adventureSelect.value
             ? {
                 ambaModuleId: adventureSelect.value,
-                title: ambaModules?.find((module) => module.id === adventureSelect.value)?.title || undefined
+                title: displayAdventureTitle(ambaModules?.find((module) => module.id === adventureSelect.value)?.title) || undefined
               }
             : {})
         })
@@ -707,73 +1068,32 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       }
       syndicationUrl.value = data.session?.syndicationUrl || "";
       playerHookUrl.value = data.session?.playerHookUrl || "";
+      adventureTitle = displayAdventureTitle(data.session?.title) || data.session?.title || adventureTitle;
+      if (adventureName) adventureName.value = adventureTitle;
       setLinksEditing(setupMode === "manual");
       refreshPreviews();
+      syncAdventurePicker();
       sessionLinksNote.textContent = "Links saved. They show as hyperlinks on the signup page.";
     }
 
     adventureSelect.addEventListener("change", async () => {
       const previous = adventureSelect.dataset.liveId || "";
       const id = adventureSelect.value;
-      if (!id || id === previous) return;
-      if (adventureSelect.dataset.source === "amba") {
-        const module = ambaModules?.find((item) => item.id === id);
-        applyAmbaModule(module);
-        liveAmbaModuleId = id;
-        adventureSelect.dataset.liveId = id;
-        try {
-          await saveSessionLinks();
-          sessionLinksNote.textContent = `Bound syndication links from ${module?.title || "the selected AMBA module"}.`;
-        } catch (error) {
-          sessionLinksNote.textContent = error.message;
-        }
-        return;
-      }
-      const ok = await (window.askAmbaConfirm
-        ? window.askAmbaConfirm("Make this the live adventure people see? Archives keep their own session rows and votes.", { title: "Switch live adventure?", ok: "Switch" })
-        : Promise.resolve(confirm("Make this the live adventure people see?")));
-      if (!ok) {
-        await load();
-        return;
-      }
+      if (!id || id === previous || adventureSelect.dataset.source !== "amba") return;
+      const module = ambaModules?.find((item) => item.id === id);
+      applyAmbaModule(module);
+      liveAmbaModuleId = id;
+      adventureSelect.dataset.liveId = id;
       try {
-        await promoteFetch("/api/admin/modules/select", {
-          method: "POST",
-          headers: headers(),
-          body: JSON.stringify({ id })
-        });
-        await load();
-        sessionLinksNote.textContent = "Live adventure updated.";
+        await saveSessionLinks();
+        sessionLinksNote.textContent = `Bound syndication links from ${displayAdventureTitle(module?.title) || "the selected AMBA module"}.`;
       } catch (error) {
         sessionLinksNote.textContent = error.message;
-        await load();
       }
     });
 
     q("#connectAmba")?.addEventListener("click", () => connectToAmba());
     q("#manualAmba")?.addEventListener("click", () => setSetupMode("manual"));
-
-    q("#startNewRun")?.addEventListener("click", async () => {
-      const title = String(q("#newRunTitle")?.value || "").trim();
-      const ok = await (window.askAmbaConfirm
-        ? window.askAmbaConfirm("Start a new adventure file. The current roster is copied. Session rows and votes are not. The current adventure stays on disk as an archive.", { title: "Start new run?", ok: "Start new run" })
-        : Promise.resolve(confirm("Start a new run? Roster is copied; votes and session rows are not.")));
-      if (!ok) return;
-      sessionLinksNote.textContent = "Starting new run…";
-      try {
-        const data = await promoteFetch("/api/admin/modules/switch", {
-          method: "POST",
-          headers: headers(),
-          body: JSON.stringify({ title })
-        });
-        fillAdmin(data);
-        await loadPromote();
-        if (q("#newRunTitle")) q("#newRunTitle").value = "";
-        sessionLinksNote.textContent = `Live adventure is now ${data.adventure?.title || "the new run"}. Previous file kept as archive.`;
-      } catch (error) {
-        sessionLinksNote.textContent = error.message;
-      }
-    });
 
     sessionLinksToggle.addEventListener("click", async () => {
       if (!linksEditing) {
@@ -977,6 +1297,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       yes: ["Emails that said yes", "Open a draft with yes players on BCC so they cannot see each other. You are on CC."],
       setup: ["Setup", "Connect to AMBA and pick a published adventure, or use Manual AMBA and paste the two syndication links."],
       promote: ["Promote", "Push looking-for-players posts. Every template sends people back here to sign up."],
+      questionnaire: ["Questionnaire", "Build player questions, preview the form, and review submitted answers."],
       backup: ["Backup", "Save a timestamped JSON snapshot of this site. Restore replaces live data after you confirm."]
     };
     function showTab(name) {
@@ -985,6 +1306,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         yes: q("#panelYes"),
         setup: q("#panelSetup"),
         promote: q("#panelPromote"),
+        questionnaire: q("#panelQuestionnaire"),
         backup: q("#panelBackup")
       };
       Object.entries(panels).forEach(([key, panel]) => {
@@ -1003,6 +1325,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       if (lede) lede.textContent = titles[tab][1];
       history.replaceState(null, "", "#" + tab);
       if (tab === "backup") refreshBackups();
+      if (tab === "questionnaire") loadQuestionnaire();
     }
     function formatBackupBytes(bytes) {
       const n = Number(bytes) || 0;

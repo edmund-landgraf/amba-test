@@ -14,13 +14,13 @@
   let response = null;
 
   loginButton?.addEventListener("click", () => {
-    window.dispatchEvent(new CustomEvent("amba-need-login"));
+    document.querySelector("#loginModal")?.showModal();
   });
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!email) {
-      window.dispatchEvent(new CustomEvent("amba-need-login"));
+      document.querySelector("#loginModal")?.showModal();
       return;
     }
     const answers = collectAnswers();

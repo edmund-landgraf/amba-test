@@ -63,7 +63,8 @@ function sampleState() {
             lengthMinutes: 120,
             note: "",
             createdBy: "edmund.landgraf@gmail.com",
-            createdAt: "2026-08-31T16:45:30.344Z"
+            createdAt: "2026-08-31T16:45:30.344Z",
+            signupsDisabled: false
           }
         ],
         syndicationUrl: "https://example.test/syndicate/x",
@@ -128,7 +129,8 @@ function sampleState() {
             lengthMinutes: 120,
             note: "",
             createdBy: "",
-            createdAt: "2026-09-01T00:00:00.000Z"
+            createdAt: "2026-09-01T00:00:00.000Z",
+            signupsDisabled: false
           }
         ],
         syndicationUrl: "",
@@ -159,6 +161,28 @@ function sampleState() {
         createdAt: "2026-08-29T22:47:48.656Z"
       }
     ],
+    questionnaire: {
+      questions: [
+        {
+          id: "notes",
+          type: "text",
+          label: "Notes",
+          required: false,
+          options: [],
+          createdAt: "2026-09-03T00:00:00.000Z",
+          updatedAt: "2026-09-03T00:00:00.000Z"
+        }
+      ],
+      responses: [
+        {
+          email: "edmund.landgraf@gmail.com",
+          handle: "Slippery-Signal",
+          answers: { notes: "Ready to test." },
+          submittedAt: "2026-09-03T01:00:00.000Z",
+          updatedAt: "2026-09-03T01:00:00.000Z"
+        }
+      ]
+    },
     wgExportIndex: { "pack.zip": { email: "edmund.landgraf@gmail.com", name: "pack.zip" } }
   };
 }
@@ -179,6 +203,7 @@ describe("runtime backup round-trip", () => {
     assert.equal(occupied.people[0].status, "yes");
     const emptySlot = snapshot.occupancy.find((row) => row.adventureTitle === "Empty table");
     assert.deepEqual(emptySlot.people, []);
+    assert.equal(snapshot.questionnaire.responses[0].answers.notes, "Ready to test.");
 
     await applyImport(root, {
       site: { defaultSessionId: "gone" },
@@ -201,6 +226,7 @@ describe("runtime backup round-trip", () => {
     const loaded = await loadRuntime(root);
     const node = buildUserNode(loaded, "edmund.landgraf@gmail.com", "2026-09-02T18:00:00.000Z");
     assert.equal(node.kind, "user-node");
+    assert.equal(node.questionnaireResponse.answers.notes, "Ready to test.");
     assert.equal(node.slotsAdded[0].adventureTitle, "The Palakar Convergence");
     assert.equal(node.adventures[0].title, "The Palakar Convergence");
     assert.equal(node.slotsAdded.length, 1);
@@ -210,6 +236,7 @@ describe("runtime backup round-trip", () => {
 
     node.occupancy[0].status = "no";
     node.adventures[0].signup.votes[node.slotsAdded[0].id] = "no";
+    node.questionnaireResponse.answers.notes = "Changed response.";
     const merged = mergeUserNode(await loadRuntime(root), node, "edmund.landgraf@gmail.com");
     await applyImport(root, merged);
     const after = await loadRuntime(root);
@@ -217,6 +244,7 @@ describe("runtime backup round-trip", () => {
     const joe = after.adventures[0].signups.find((s) => s.email === "joe@joe.com");
     assert.equal(edmund.votes[node.slotsAdded[0].id], "no");
     assert.deepEqual(joe.votes, {});
+    assert.equal(after.questionnaire.responses.find((row) => row.email.startsWith("edmund")).answers.notes, "Changed response.");
     assert.equal(after.users.length, 2);
   });
 

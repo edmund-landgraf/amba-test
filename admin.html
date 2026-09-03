@@ -30,21 +30,19 @@
         <p class="form-actions setup-amba-mode" role="group" aria-label="AMBA source">
           <button class="button primary" id="connectAmba" type="button">Connect to AMBA</button>
           <button class="button secondary" id="manualAmba" type="button">Manual AMBA</button>
+          <button class="button secondary" id="writeManual" type="button">Manual</button>
+          <span class="status-pill status-pill--off" id="ambaStatus" aria-live="polite">Not connected</span>
         </p>
-        <p class="form-note" id="ambaConnectNote">Connect calls AMBA GET /api/modules (the editor SPA is /app; the API is not under /app). Localhost uses :5190 then :3101. amba-play and amba-test use amba.unwhelm.online. Manual AMBA skips that and lets you paste the two links.</p>
-        <div id="ambaPublishedWrap">
+        <p class="form-note" id="ambaConnectNote">Connect calls AMBA GET /api/modules (the editor SPA is /app; the API is not under /app). Localhost uses :5190 then :3101. amba-play and amba-test use amba.unwhelm.online. Manual AMBA pastes the two links. Manual writes a title and markdown shown on signup.</p>
+        <div id="ambaLinkedFields">
+        <div id="adventurePicker">
           <label>
             Adventure
-            <select id="adventureSelect"></select>
+            <input id="adventureName" type="text" readonly disabled>
+            <select id="adventureSelect" hidden></select>
           </label>
-          <p class="form-note">After you connect, published AMBA modules fill this list. Pick one and the summary and player-hook links are added for you.</p>
+          <p class="form-note" id="adventurePickerNote" hidden>Published AMBA modules. Pick one and the summary and player-hook links are added for you.</p>
         </div>
-        <p class="form-actions">
-          <label>New run title
-            <input id="newRunTitle" type="text" autocomplete="off" placeholder="Adventure title">
-          </label>
-          <button class="button secondary" id="startNewRun" type="button">Start new run</button>
-        </p>
         <div class="adventure-summary-form">
           <a class="adventure-summary-link is-empty" id="summaryPreview" href="#" target="_blank" rel="noopener noreferrer">Adventure Summary</a>
           <a class="adventure-summary-link is-empty" id="playerHookPreview" href="#" target="_blank" rel="noopener noreferrer">Player Hook</a>
@@ -58,6 +56,23 @@
             <input id="playerHookUrl" type="text" inputmode="url" autocomplete="off" placeholder="https://amba.unwhelm.online/syndicate/…/p/…" readonly>
           </label>
           <button class="button secondary" id="sessionLinksToggle" type="button">Edit</button>
+        </div>
+        </div>
+        <div id="manualWritePanel" hidden>
+          <label>
+            Adventure title
+            <input id="manualTitle" type="text" autocomplete="off">
+          </label>
+          <label>
+            Player hook / adventure summary
+            <div class="md-editor">
+              <div class="md-toolbar" id="manualHookToolbar"></div>
+              <textarea id="manualHook" rows="16" spellcheck="true" placeholder="Write the pitch in markdown. This is what players see on signup."></textarea>
+            </div>
+          </label>
+          <p class="form-actions">
+            <button class="button primary" id="saveManualWrite" type="button">Save</button>
+          </p>
         </div>
         <p class="form-note" id="sessionLinksNote"></p>
       </form>
@@ -212,6 +227,7 @@ Sign up on our test site (not AMBA itself): {{signupUrl}}
   </main>
   <footer><p><a href="index.html">Back to signup</a></p></footer>
   <script src="header.js"></script>
+  <script src="markdown-toolbar.js"></script>
   <script src="admin.js"></script>
   <script type="module" src="site.js"></script>
   <script>
