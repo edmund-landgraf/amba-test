@@ -1,6 +1,6 @@
 import { ModuleRegistry, AllCommunityModule } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
-import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { createPortal } from "react-dom";
 import "ag-grid-community/styles/ag-grid.css";
@@ -112,126 +112,110 @@ function VoteCell({ people }) {
   );
 }
 
-/* Press-and-hold vote cells — replaced by ChoiceSlider.
-function GlanceVoteCell({ people, status, row, onHold }) {
-  ...
+const VOTE_COLS = ["yes", "maybe", "no"];
+
+function statusFromPoint(event, fallback) {
+  const row = event.currentTarget.closest("tr");
+  const cells = row ? [...row.querySelectorAll("td[data-vote]")] : [];
+  if (!cells.length) return fallback;
+  for (const cell of cells) {
+    const box = cell.getBoundingClientRect();
+    if (event.clientX >= box.left && event.clientX < box.right) return cell.dataset.vote;
+  }
+  const first = cells[0].getBoundingClientRect();
+  const last = cells[cells.length - 1].getBoundingClientRect();
+  if (event.clientX < first.left) return cells[0].dataset.vote;
+  if (event.clientX >= last.right) return cells[cells.length - 1].dataset.vote;
+  return fallback;
 }
-*/
 
-const SLIDER_CHOICES = ["yes", "maybe", "no"];
-
-function sliderIndex(status) {
-  const index = SLIDER_CHOICES.indexOf(status);
-  return index < 0 ? 1 : index;
-}
-
-function ChoiceSlider({ value, onCommit }) {
-  const trackRef = useRef(null);
-  const dragging = useRef(false);
-  const startX = useRef(0);
+function GlanceVoteCell({ people, status, row, onActivate }) {
+  const holdTimer = useRef(null);
+  const lastTap = useRef(0);
+  const armed = useRef(false);
   const moved = useRef(false);
-  const lastTap = useRef({ time: 0, index: -1 });
-  const [index, setIndex] = useState(() => sliderIndex(value));
+  const startX = useRef(0);
+  const mine = (people || []).find((person) => person.mine);
+  const ghost = !row.mine && status === "maybe";
 
-  useEffect(() => {
-    if (!dragging.current) setIndex(sliderIndex(value));
-  }, [value]);
-
-  function indexFromEvent(event) {
-    const box = trackRef.current?.getBoundingClientRect();
-    if (!box || !box.width) return index;
-    const t = (event.clientX - box.left) / box.width;
-    if (t < 1 / 3) return 0;
-    if (t < 2 / 3) return 1;
-    return 2;
-  }
-
-  function commit(next) {
-    setIndex(next);
-    lastTap.current = { time: 0, index: -1 };
-    onCommit(SLIDER_CHOICES[next]);
-  }
-
-  function tapChoice(next) {
-    setIndex(next);
-    const now = Date.now();
-    if (now - lastTap.current.time < 450 && lastTap.current.index === next) {
-      commit(next);
-      return;
+  function clearHold() {
+    if (holdTimer.current) {
+      clearTimeout(holdTimer.current);
+      holdTimer.current = null;
     }
-    lastTap.current = { time: now, index: next };
   }
 
-  function startDrag(event) {
+  function startPress(event) {
     if (event.pointerType === "mouse" && event.button !== 0) return;
-    dragging.current = true;
     moved.current = false;
+    armed.current = false;
     startX.current = event.clientX;
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
       /* ignore */
     }
-    setIndex(indexFromEvent(event));
+    clearHold();
+    holdTimer.current = setTimeout(() => {
+      armed.current = true;
+      holdTimer.current = null;
+    }, 400);
   }
 
-  function moveDrag(event) {
-    if (!dragging.current) return;
+  function movePress(event) {
     if (Math.abs(event.clientX - startX.current) > 12) moved.current = true;
-    setIndex(indexFromEvent(event));
   }
 
-  function endDrag(event) {
-    if (!dragging.current) return;
-    dragging.current = false;
-    const next = indexFromEvent(event);
-    if (moved.current) {
-      commit(next);
+  function endPress(event) {
+    const held = armed.current;
+    armed.current = false;
+    clearHold();
+    if (held) {
+      lastTap.current = 0;
+      onActivate(moved.current ? statusFromPoint(event, status) : status);
       return;
     }
-    tapChoice(next);
+    if (moved.current) return;
+    const now = Date.now();
+    if (now - lastTap.current < 450) {
+      lastTap.current = 0;
+      onActivate(status);
+      return;
+    }
+    lastTap.current = now;
   }
 
-  const unset = !value;
-  const choice = SLIDER_CHOICES[index];
-
   return (
-    <div className={`choice-slider${unset ? " is-unset" : ""}`}>
-      <div className="choice-slider-labels">
-        {["Yes", "Maybe", "No"].map((label, choiceIndex) => (
-          <button
-            key={label}
-            type="button"
-            onClick={() => tapChoice(choiceIndex)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      <div
-        ref={trackRef}
-        className={`choice-slider-track choice-slider-${choice}`}
-        role="slider"
-        tabIndex={0}
-        aria-valuemin={0}
-        aria-valuemax={2}
-        aria-valuenow={index}
-        aria-valuetext={unset ? "not set" : choice}
-        aria-label="Your choice: Yes, Maybe, or No. Double-tap to set."
-        onPointerDown={startDrag}
-        onPointerMove={moveDrag}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
-        onKeyDown={(event) => {
-          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-          event.preventDefault();
-          const next = event.key === "ArrowLeft" ? Math.max(0, index - 1) : Math.min(2, index + 1);
-          commit(next);
+    <td
+      data-vote={status}
+      className={`glance-vote-cell${row.mine === status ? " is-mine" : ""}`}
+    >
+      <button
+        type="button"
+        className="glance-vote"
+        aria-label={`${status}. Press and hold or double-tap to set. Drag left or right while holding.`}
+        onPointerDown={startPress}
+        onPointerMove={movePress}
+        onPointerUp={endPress}
+        onPointerCancel={() => {
+          armed.current = false;
+          clearHold();
         }}
       >
-        <span className="choice-slider-thumb" style={{ left: `${(index / 2) * 100}%` }} />
-      </div>
-    </div>
+        {(people || []).filter((person) => !person.mine).map((person) => (
+          <span className="grid-avatar" key={person.handle} title={avatarTitle(person)}>
+            {initials(person.handle)}
+          </span>
+        ))}
+        {mine ? (
+          <span className="grid-avatar mine" title={avatarTitle(mine)}>
+            {initials(mine.handle)}
+          </span>
+        ) : ghost ? (
+          <span className="grid-avatar mine is-ghost" title="Your vote">You</span>
+        ) : null}
+      </button>
+    </td>
   );
 }
 
@@ -612,21 +596,24 @@ function TimeGrid() {
         </thead>
         <tbody>
           {rows.length ? rows.map((row) => (
-            <Fragment key={row.id}>
-            <tr>
+            <tr key={row.id}>
               <th scope="row">{row.slot}</th>
-              <td className={phoneLayout && row.mine === "yes" ? "is-mine-col" : undefined}><VoteCell people={row.yes} /></td>
-              <td className={phoneLayout && row.mine === "maybe" ? "is-mine-col" : undefined}><VoteCell people={row.maybe} /></td>
-              <td className={phoneLayout && row.mine === "no" ? "is-mine-col" : undefined}><VoteCell people={row.no} /></td>
+              {phoneLayout ? VOTE_COLS.map((status) => (
+                <GlanceVoteCell
+                  key={status}
+                  people={row[status]}
+                  status={status}
+                  row={row}
+                  onActivate={(next) => slideVote(row, next)}
+                />
+              )) : (
+                <>
+                  <td><VoteCell people={row.yes} /></td>
+                  <td><VoteCell people={row.maybe} /></td>
+                  <td><VoteCell people={row.no} /></td>
+                </>
+              )}
             </tr>
-            {phoneLayout ? (
-              <tr className="choice-slider-row">
-                <td colSpan={4}>
-                  <ChoiceSlider value={row.mine} onCommit={(status) => slideVote(row, status)} />
-                </td>
-              </tr>
-            ) : null}
-            </Fragment>
           )) : (
             <tr>
               <td colSpan={4} className="status-table-empty">No session rows yet.</td>
