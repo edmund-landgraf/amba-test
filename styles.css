@@ -1217,6 +1217,27 @@ fieldset {
   opacity: 0.72;
 }
 
+.session-cell-hit,
+.session-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  height: 100%;
+  min-height: 100%;
+  user-select: none;
+  cursor: context-menu;
+}
+
+.session-status {
+  font-weight: 700;
+  font-size: 0.92em;
+}
+
+.status-table tbody th .session-cell {
+  height: auto;
+}
+
 .scheduler-grid .scheduler-row-live .ag-cell {
   background: rgba(31, 79, 67, 0.08);
 }

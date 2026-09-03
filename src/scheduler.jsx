@@ -112,6 +112,31 @@ function VoteCell({ people }) {
   );
 }
 
+function SessionLabel({ slot, statusLabel }) {
+  return (
+    <span className="session-cell">
+      <span className="session-when">{slot}</span>
+      {statusLabel ? <span className="session-status">{statusLabel}</span> : null}
+    </span>
+  );
+}
+
+function rowMenuFromEvent(event, row) {
+  const x = Math.min(event.clientX, window.innerWidth - 220);
+  const y = Math.min(event.clientY, window.innerHeight - 220);
+  return {
+    x,
+    y,
+    row,
+    timeId: row.id,
+    createdByMe: row.createdByMe,
+    signupsDisabled: row.signupsDisabled,
+    date: row.date,
+    time: row.time,
+    lengthMinutes: row.lengthMinutes
+  };
+}
+
 const VOTE_COLS = ["yes", "maybe", "no"];
 
 function statusFromPoint(event, fallback) {
@@ -350,10 +375,10 @@ function TimeGrid() {
         : time.scheduledToPlay
           ? "Live, scheduled to play"
           : "";
-      const label = statusLabel ? `${slot} · ${statusLabel}` : slot;
       return {
         id: time.id,
-        slot: label,
+        slot,
+        statusLabel,
         sessionTitle,
         playerHookText,
         syndicationUrl: nextSummary,
@@ -540,15 +565,21 @@ function TimeGrid() {
   function markRowClosed(timeId) {
     setRows((current) => current.map((item) => {
       if (item.id !== timeId) return item;
-      const base = String(item.slot || "").replace(/ · (Not enough players|Live, scheduled to play)$/, "");
       return {
         ...item,
         signupsDisabled: true,
         scheduledToPlay: false,
-        slot: `${base} · Not enough players`
+        statusLabel: "Not enough players"
       };
     }));
   }
+
+  const openRowMenu = useCallback((event, row) => {
+    if (!row) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setMenu(rowMenuFromEvent(event, row));
+  }, []);
 
   async function closeSignups(row) {
     if (!requireReady()) return;
@@ -634,6 +665,17 @@ function TimeGrid() {
       flex: 1.4,
       sortable: true,
       filter: true,
+      wrapText: true,
+      autoHeight: true,
+      valueGetter: (params) => [params.data?.slot, params.data?.statusLabel].filter(Boolean).join(" · "),
+      cellRenderer: (params) => (
+        <span
+          className="session-cell-hit"
+          onContextMenu={(event) => openRowMenu(event, params.data)}
+        >
+          <SessionLabel slot={params.data?.slot} statusLabel={params.data?.statusLabel} />
+        </span>
+      ),
       comparator: (_a, _b, nodeA, nodeB) => {
         const a = nodeA?.data?.startIso || "";
         const b = nodeB?.data?.startIso || "";
@@ -670,7 +712,7 @@ function TimeGrid() {
       comparator: (a, b) => (a?.length || 0) - (b?.length || 0),
       cellRenderer: (params) => <VoteCell people={params.data?.no} />
     }
-  ], []);
+  ], [openRowMenu]);
 
   const statusMount = typeof document !== "undefined" ? document.querySelector("#schedule-status") : null;
   const hookMount = typeof document !== "undefined" ? document.querySelector("#player-hook") : null;
@@ -700,8 +742,14 @@ function TimeGrid() {
         </thead>
         <tbody>
           {rows.length ? rows.map((row) => (
-            <tr key={row.id} className={row.signupsDisabled ? "is-signups-disabled" : row.scheduledToPlay ? "is-scheduled-live" : ""}>
-              <th scope="row">{row.slot}</th>
+            <tr
+              key={row.id}
+              className={row.signupsDisabled ? "is-signups-disabled" : row.scheduledToPlay ? "is-scheduled-live" : ""}
+              onContextMenu={(event) => openRowMenu(event, row)}
+            >
+              <th scope="row">
+                <SessionLabel slot={row.slot} statusLabel={row.statusLabel} />
+              </th>
               {phoneLayout ? VOTE_COLS.map((status) => (
                 <GlanceVoteCell
                   key={status}
@@ -810,22 +858,8 @@ function TimeGrid() {
             vote(event.data.id, status, event.data.mine);
           }}
           onCellContextMenu={(event) => {
-            event.event?.preventDefault();
-            event.event?.stopPropagation();
             if (!event.data) return;
-            const x = Math.min(event.event.clientX, window.innerWidth - 220);
-            const y = Math.min(event.event.clientY, window.innerHeight - 220);
-            setMenu({
-              x,
-              y,
-              row: event.data,
-              timeId: event.data.id,
-              createdByMe: event.data.createdByMe,
-              signupsDisabled: event.data.signupsDisabled,
-              date: event.data.date,
-              time: event.data.time,
-              lengthMinutes: event.data.lengthMinutes
-            });
+            openRowMenu(event.event || event, event.data);
           }}
         />
       </div>
