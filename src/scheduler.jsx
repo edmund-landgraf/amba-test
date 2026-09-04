@@ -964,8 +964,10 @@ function TimeGrid() {
   useEffect(() => {
     if (!readingBand) return;
     const showPack = setupSource !== "manual" && Boolean(summaryUrl);
-    readingBand.hidden = !(showPack || readingLinks.length);
-  }, [summaryUrl, readingLinks, setupSource, readingBand]);
+    const showReading = showPack || readingLinks.length;
+    readingBand.hidden = !showReading;
+    if (readingMount) readingMount.hidden = !showReading;
+  }, [summaryUrl, readingLinks, setupSource, readingBand, readingMount]);
 
   const zoneNote = email && !userZone
     ? "Set your time zone in Settings before you can mark times. Times will show in your zone."
@@ -1078,39 +1080,43 @@ function TimeGrid() {
     }
   }
 
+  function readingArtifactType(link) {
+    if (link.artifactType === "pdf" || link.artifactType === "handout") return link.artifactType;
+    const hay = `${link.url || ""} ${link.title || ""} ${link.description || ""}`.toLowerCase();
+    if (/\.pdf(\?|#|$)/.test(hay) || /\bopen pdf\b/.test(hay)) return "pdf";
+    const desc = String(link.description || "").trim();
+    if (/^[A-Za-z0-9._-]+$/.test(desc) && desc.includes("_")) return "pdf";
+    return "handout";
+  }
+
+  function readingName(link) {
+    return link.title || readingHost(link.url);
+  }
+
   const showPack = setupSource !== "manual" && Boolean(summaryUrl);
-  const readingBlock = (showPack || readingLinks.length) ? (
+  const readingItems = [
+    showPack ? { key: "player-pack", type: "pack", name: "Player Pack", url: summaryUrl } : null,
+    ...readingLinks.map((link) => ({
+      key: link.id || link.url,
+      type: readingArtifactType(link),
+      name: readingName(link),
+      url: link.url
+    }))
+  ].filter(Boolean);
+  const readingBlock = readingItems.length ? (
     <>
-      {showPack ? (
-        <a className="reading-card is-syndication is-pack" href={summaryUrl} target="_blank" rel="noopener noreferrer">
-          <span className="reading-card-cover is-empty" aria-hidden="true" />
-          <span className="reading-card-body">
-            <span className="reading-card-kicker">AMBA</span>
-            <strong className="reading-card-title">Player Pack</strong>
-            <span className="reading-card-excerpt">The living player syndication for this adventure.</span>
-            <span className="reading-card-host">{readingHost(summaryUrl)}</span>
-          </span>
-        </a>
-      ) : null}
-      {readingLinks.map((link) => (
+      {readingItems.map((item) => (
         <a
-          key={link.id || link.url}
-          className={`reading-card${link.kind === "syndication" ? " is-syndication" : ""}`}
-          href={link.url}
+          key={item.key}
+          className={`reading-item${item.type === "pack" ? " is-pack" : ""}`}
+          href={item.url}
           target="_blank"
           rel="noopener noreferrer"
         >
-          {link.image ? (
-            <img className="reading-card-cover" src={link.image} alt="" />
-          ) : (
-            <span className="reading-card-cover is-empty" aria-hidden="true" />
-          )}
-          <span className="reading-card-body">
-            <span className="reading-card-kicker">{link.kind === "syndication" ? "AMBA" : (link.siteName || readingHost(link.url) || "Web")}</span>
-            <strong className="reading-card-title">{link.title || readingHost(link.url)}</strong>
-            {link.description ? <span className="reading-card-excerpt">{link.description}</span> : null}
-            <span className="reading-card-host">{readingHost(link.url)}</span>
+          <span className={`reading-type-icon is-${item.type}`} aria-hidden="true">
+            {item.type === "pack" ? "pack" : item.type}
           </span>
+          <strong className="reading-item-name">{item.name}</strong>
         </a>
       ))}
     </>

@@ -33,9 +33,10 @@ describe("link preview", () => {
     const preview = fromHtml(SYND_URL, html, "2026-09-04T00:00:00.000Z");
     assert.equal(preview.kind, "syndication");
     assert.equal(preview.siteName, "AMBA");
-    assert.equal(preview.title, "The Fivefold Horizon");
+    assert.equal(preview.title, "Gazetteer");
+    assert.equal(preview.artifactType, "handout");
     assert.match(preview.description, /Palakar Forest/);
-    assert.equal(preview.image, "https://amba.example.test/maps/cover.png");
+    assert.equal(preview.image, "");
     assert.equal(preview.fetchError, "");
     assert.doesNotMatch(preview.description, /Click here to add a comment/);
   });
@@ -51,8 +52,33 @@ describe("link preview", () => {
     assert.equal(preview.kind, "web");
     assert.equal(preview.title, "A Field Guide");
     assert.equal(preview.description, "Short notes for players.");
-    assert.equal(preview.image, "https://www.example.com/img/og.jpg");
+    assert.equal(preview.image, "");
     assert.equal(preview.siteName, "Archives");
+  });
+
+  it("uses PDF metadata title, not the upload filename", () => {
+    const { titleFromPdfBytes, pdfUrlFromHtml, fromHtml, pdfNeedsRescrape } = require("../lib/link-preview");
+    const pdf = Buffer.from("%PDF-1.4\n1 0 obj\n<< /Title (ignored) >>\nendobj\n<dc:title><rdf:li xml:lang=\"x-default\">Druma &amp;amp; the Northern Shining Kingdoms - Player Reference</rdf:li></dc:title>\n", "latin1");
+    assert.equal(titleFromPdfBytes(pdf), "Druma & the Northern Shining Kingdoms - Player Reference");
+    const html = `<html><body>
+      <h1 class="page-title">Druma_and_Northern_Shining_Kingdoms_Player_Reference</h1>
+      <section class="syndication-artifact syndication-artifact--pdf">
+        <iframe class="artifact-pdf-iframe" src="http://[::1]:3101/uploads/1788539146720-552497084.pdf#pagemode=none&amp;navpanes=0"></iframe>
+      </section>
+    </body></html>`;
+    assert.equal(pdfUrlFromHtml(html, "http://[::1]:3101/syndicate/x/n/9642441d-a3b9-4014-be2a-1c8af8d7e449"), "http://[::1]:3101/uploads/1788539146720-552497084.pdf");
+    const preview = fromHtml("http://[::1]:3101/syndicate/x/n/9642441d-a3b9-4014-be2a-1c8af8d7e449", html, "2026-09-04T00:00:00.000Z", {
+      pdfTitle: "Druma & the Northern Shining Kingdoms - Player Reference"
+    });
+    assert.equal(preview.artifactType, "pdf");
+    assert.equal(preview.title, "Druma & the Northern Shining Kingdoms - Player Reference");
+    assert.equal(preview.image, "");
+    assert.equal(pdfNeedsRescrape({
+      url: "http://[::1]:3101/syndicate/x/n/9642441d-a3b9-4014-be2a-1c8af8d7e449",
+      title: "The Palakar Convergence",
+      image: "http://[::1]:3101/images/rulesetImages/pf2e/pathfinder-second-edition.png",
+      artifactType: "pdf"
+    }, "The Palakar Convergence"), true);
   });
 
   it("uses title tag when Open Graph is missing", () => {
@@ -82,7 +108,8 @@ describe("link preview", () => {
       title: "T",
       description: "D",
       image: "",
-      siteName: "S"
+      siteName: "S",
+      artifactType: "handout"
     });
   });
 });

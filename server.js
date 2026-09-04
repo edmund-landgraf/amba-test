@@ -956,6 +956,7 @@ async function discordWidgetStatus(guildId) {
 
 async function getState(email) {
   let adventure = await applyPastSessionLocks(await liveAdventure());
+  adventure = await refreshStaleReadingLinks(adventure);
   const scraped = adoptScrapedTitle(adventure.title, await scrapeModuleTitle(adventure));
   if (scraped) {
     adventure.title = scraped;
@@ -1376,9 +1377,21 @@ function readingList(adventure) {
     description: item.description || "",
     image: item.image || "",
     siteName: item.siteName || "",
+    artifactType: linkPreview.artifactType(item.url, `${item.title || ""}\n${item.description || ""}`, item.artifactType),
     fetchedAt: item.fetchedAt || "",
     fetchError: item.fetchError || ""
   }));
+}
+
+async function fetchPdfBytes(url) {
+  const response = await fetch(url, {
+    redirect: "follow",
+    headers: { accept: "application/pdf,*/*", "user-agent": "amba-test-hook-preview" },
+    signal: AbortSignal.timeout(20000)
+  });
+  if (!response.ok) throw new Error(`Could not load PDF (${response.status})`);
+  const buffer = Buffer.from(await response.arrayBuffer());
+  return buffer.length > 12_000_000 ? buffer.subarray(buffer.length - 12_000_000) : buffer;
 }
 
 async function scrapeReadingLink(url, id) {
@@ -1386,10 +1399,41 @@ async function scrapeReadingLink(url, id) {
   if (!safe) throw new Error("A valid http(s) URL is required.");
   try {
     const html = await fetchPageHtml(safe);
-    return { id, ...linkPreview.fromHtml(safe, html) };
+    let pdfTitle = "";
+    if (linkPreview.artifactType(safe, html) === "pdf") {
+      const pdfUrl = linkPreview.pdfUrlFromHtml(html, safe);
+      if (pdfUrl) {
+        try {
+          pdfTitle = linkPreview.titleFromPdfBytes(await fetchPdfBytes(pdfUrl));
+        } catch {
+          pdfTitle = "";
+        }
+      }
+    }
+    return { id, ...linkPreview.fromHtml(safe, html, new Date().toISOString(), { pdfTitle }) };
   } catch (error) {
     return { id, ...linkPreview.failedPreview(safe, error.message) };
   }
+}
+
+async function refreshStaleReadingLinks(adventure) {
+  const links = Array.isArray(adventure.readingLinks) ? adventure.readingLinks : [];
+  if (!links.length) return adventure;
+  let changed = false;
+  const next = [];
+  for (const item of links) {
+    if (linkPreview.pdfNeedsRescrape(item, adventure.title)) {
+      next.push(await scrapeReadingLink(item.url, item.id));
+      changed = true;
+    } else {
+      next.push(item);
+    }
+  }
+  if (!changed) return adventure;
+  adventure.readingLinks = next;
+  adventure.updatedAt = new Date().toISOString();
+  await writeAdventure(adventure);
+  return adventure;
 }
 
 async function getReadingLinks() {

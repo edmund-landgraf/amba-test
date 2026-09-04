@@ -83,6 +83,7 @@ function sampleState() {
             description: "A forest of palakar trees.",
             image: "https://example.test/cover.jpg",
             siteName: "AMBA",
+            artifactType: "handout",
             fetchedAt: "2026-09-04T00:00:00.000Z",
             fetchError: ""
           }
