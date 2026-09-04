@@ -39,7 +39,7 @@
   --page-gutter: 18px;
   --page-max: 72rem;
   --page-width: min(var(--page-max), calc(100% - (2 * var(--page-gutter))));
-  --admin-width: 800px;
+  --admin-width: 1040px;
   --modal-inset: 32px;
 }
 
@@ -2576,7 +2576,7 @@ dialog.modal.admin-shell {
 }
 
 .admin-shell .backup-grid {
-  overflow-x: hidden;
+  overflow-x: auto;
 }
 
 .admin-shell .backup-table {
@@ -2669,6 +2669,18 @@ dialog.modal.admin-shell {
   flex-wrap: wrap;
   gap: 6px;
   justify-content: flex-end;
+}
+
+.backup-table td:last-child {
+  white-space: nowrap;
+}
+
+.users-table td:last-child {
+  white-space: normal;
+}
+
+.users-table td {
+  word-break: break-word;
 }
 
 #confirmDialog {

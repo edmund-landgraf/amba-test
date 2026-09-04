@@ -296,7 +296,7 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 404, { error: code });
       return;
     }
-    if (code === "bad_filename" || code === "invalid_json" || code === "bad_sheet_url" || code === "sheet_limit" || code === "not_public" || code === "party_per_player_limit" || code === "discord_url_required" || code === "discord_host_unknown" || code === "questionnaire_invalid") {
+    if (code === "bad_filename" || code === "invalid_json" || code === "bad_sheet_url" || code === "sheet_limit" || code === "not_public" || code === "party_per_player_limit" || code === "discord_url_required" || code === "discord_host_unknown" || code === "questionnaire_invalid" || code === "slot_in_past") {
       sendJson(res, 400, { error: code, details: error.details || undefined });
       return;
     }
@@ -676,6 +676,12 @@ async function handleApi(req, res) {
   if (req.method === "GET" && url.pathname === "/api/admin/yes-emails") {
     if (!requireAdmin(req, res)) return;
     sendJson(res, 200, await adminYesMail());
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/admin/users") {
+    if (!requireAdmin(req, res)) return;
+    sendJson(res, 200, { users: await adminUsers() });
     return;
   }
 
@@ -1555,6 +1561,14 @@ async function updateTime(data) {
     time.time = clock;
     time.lengthMinutes = lengthMinutes;
     time.title = [date, clock, time.timezone, `${lengthMinutes} min`].filter(Boolean).join(" ");
+  }
+  const opening = (disableToggle && data.signupsDisabled === false) || Boolean(data.convertYesToMaybe);
+  if (opening) {
+    const zoneIana = await zoneIanaMap();
+    const start = wallTimeToUtc(time.date, time.time, time.timezone || "Pacific", zoneIana);
+    if (start && !Number.isNaN(start.getTime()) && start.getTime() <= Date.now()) {
+      throw new Error("slot_in_past");
+    }
   }
   if (disableToggle) time.signupsDisabled = Boolean(data.signupsDisabled);
   if (data.convertYesToMaybe) {
@@ -3023,6 +3037,19 @@ async function leadingYesSlot() {
     }
   }
   return best;
+}
+
+async function adminUsers() {
+  const users = await readJson("users");
+  return users
+    .map((user) => ({
+      username: String(user.handle || "").trim(),
+      handle: String(user.handle || "").trim(),
+      timezone: String(user.timezone || "").trim(),
+      email: String(user.email || "").trim(),
+      discord: String(user.discord || "").trim()
+    }))
+    .sort((a, b) => a.handle.localeCompare(b.handle) || a.email.localeCompare(b.email));
 }
 
 async function adminYesMail() {

@@ -151,7 +151,7 @@ function SessionLabel({ slot, statusLabel }) {
 function menuPoint(event) {
   return {
     x: Math.min(event.clientX, window.innerWidth - 220),
-    y: Math.min(event.clientY, window.innerHeight - 220)
+    y: Math.min(event.clientY, window.innerHeight - 280)
   };
 }
 
@@ -326,7 +326,11 @@ function eventWindow(row) {
   return { start, end };
 }
 
-const DISCORD_JOIN_URL = "https://discord.com/channels/1534196054944121074/";
+function slotIsPast(row) {
+  const start = eventWindow(row)?.start;
+  return Boolean(start && start.getTime() <= Date.now());
+}
+
 const WANDERERS_GUIDE_NEW_UI_URL = "https://wgui.wandersguide.site/";
 
 function eventTitle(row) {
@@ -344,7 +348,7 @@ function eventDetails(row) {
     row.playerHookText,
     row.syndicationUrl ? `Player packet: ${row.syndicationUrl}` : "",
     `Signup: ${signupSiteUrl()}`,
-    `Discord: ${DISCORD_JOIN_URL}`,
+    row.discordInvite ? `Discord: ${row.discordInvite}` : "",
     `Wanderer's Guide (new UI): ${WANDERERS_GUIDE_NEW_UI_URL}`
   ].filter(Boolean).join("\n\n");
 }
@@ -432,6 +436,7 @@ function TimeGrid() {
     const nextSummary = state.session?.syndicationUrl || "";
     const nextHook = state.session?.playerHookUrl || "";
     const playerHookText = state.session?.playerHookText || "";
+    const discordInvite = String(state.session?.discordHost?.inviteLink || "").trim();
     setSummaryUrl(nextSummary);
     setHookUrl(nextHook);
     setHookText(playerHookText);
@@ -476,11 +481,13 @@ function TimeGrid() {
         statusLabel,
         sessionTitle,
         playerHookText,
+        discordInvite,
         syndicationUrl: nextSummary,
         playerHookUrl: nextHook,
         startIso: instant ? instant.toISOString() : "",
         date: time.date || "",
         time: time.time || "19:00",
+        timezone: time.timezone || "Pacific",
         lengthMinutes: time.lengthMinutes || 120,
         yes: people.filter((person) => person.status === "yes"),
         maybe: people.filter((person) => person.status === "maybe"),
@@ -773,6 +780,11 @@ function TimeGrid() {
 
   async function openSignups(row) {
     if (!requireReady()) return;
+    if (slotIsPast(row)) {
+      setMenu(null);
+      showToast("Cannot reopen a slot in the past");
+      return;
+    }
     const timeId = row?.timeId || row?.id;
     if (!timeId) return;
     setMenu(null);
@@ -814,6 +826,12 @@ function TimeGrid() {
     event.stopPropagation();
     if (!reschedule) return;
     if (!requireReady()) return;
+    const row = rows.find((item) => item.id === reschedule.timeId);
+    const nextStart = wallTimeToUtc(reschedule.date, reschedule.time, row?.timezone || "Pacific");
+    if (nextStart && nextStart.getTime() <= Date.now()) {
+      showToast("Cannot reopen a slot in the past");
+      return;
+    }
     const payload = {
       email,
       timeId: reschedule.timeId,
@@ -1181,19 +1199,42 @@ function TimeGrid() {
             >
               Delete row
             </button>
-            {menu.signupsDisabled ? (
-              <button
-                type="button"
-                title="Pick a new time. Yes votes become Maybe."
-                onClick={() => openReschedule(menu.row)}
-              >
-                Reschedule
-              </button>
+            {(menu.row?.signupsDisabled || menu.signupsDisabled) ? (
+              <>
+                {!slotIsPast(menu.row) ? (
+                <button
+                  type="button"
+                  title="Undo: reopen this slot"
+                  onMouseDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    openSignups(menu.row);
+                  }}
+                >
+                  Open slot back up
+                </button>
+                ) : null}
+                <button
+                  type="button"
+                  title="Pick a new time. Yes votes become Maybe."
+                  onMouseDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    openReschedule(menu.row);
+                  }}
+                >
+                  Reschedule
+                </button>
+              </>
             ) : (
               <button
                 type="button"
                 title="Close signups for this row only"
-                onClick={() => closeSignups(menu.row)}
+                onMouseDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  closeSignups(menu.row);
+                }}
               >
                 Not Enough Players
               </button>

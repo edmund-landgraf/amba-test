@@ -359,7 +359,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         if (data.setupSource !== "manual") await connectToAmba({ restore: true });
         await loadPromote();
         const hash = location.hash.replace("#", "");
-        if (hash === "setup" || hash === "party" || hash === "discord" || hash === "promote" || hash === "backup" || hash === "questionnaire") showTab(hash);
+        if (hash === "setup" || hash === "party" || hash === "discord" || hash === "promote" || hash === "backup" || hash === "questionnaire" || hash === "users") showTab(hash);
       } catch (error) {
         yesStatus.textContent = error.message || "Could not load yes emails.";
       }
@@ -1524,6 +1524,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
 
     const titles = {
       yes: ["Emails that said yes", "Open a draft with yes players on BCC so they cannot see each other. You are on CC."],
+      users: ["Browse all users", "Everyone with a login on this site: generated handle, time zone, email, and Discord handle."],
       setup: ["Setup", "Connect to AMBA, paste syndication links, or write a manual markdown hook for signup."],
       party: ["Party", "Set max party PC slots, how many will play, and how many PCs each player can put forward."],
       discord: ["Discord", "Choose Chaos Goblins, AMBA, or paste a Discord URL. This updates the public Discord page widget."],
@@ -1697,6 +1698,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       const tab = titles[name] ? name : "yes";
       const panels = {
         yes: q("#panelYes"),
+        users: q("#panelUsers"),
         setup: q("#panelSetup"),
         party: q("#panelParty"),
         discord: q("#panelDiscord"),
@@ -1720,6 +1722,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       if (lede) lede.textContent = titles[tab][1];
       history.replaceState(null, "", "#" + tab);
       if (tab === "backup") refreshBackups();
+      if (tab === "users") refreshUsers();
       if (tab === "questionnaire") loadQuestionnaire();
       if (tab === "discord") loadAdminDiscord();
       if (tab === "party") loadAdminPartySlots();
@@ -1890,6 +1893,48 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       if (Number.isNaN(date.getTime())) return iso;
       return date.toLocaleString();
     }
+    function cellText(value) {
+      const text = String(value || "").trim();
+      return text || "—";
+    }
+    function fillUsersGrid(rows) {
+      const host = q("#usersGrid");
+      if (!host) return;
+      const list = Array.isArray(rows) ? rows : [];
+      const table = document.createElement("table");
+      table.className = "backup-table users-table";
+      table.innerHTML = "<thead><tr><th>Username</th><th>Handle</th><th>Timezone</th><th>Email</th><th>Discord</th></tr></thead>";
+      const tbody = document.createElement("tbody");
+      if (!list.length) {
+        const empty = document.createElement("tr");
+        empty.innerHTML = '<td colspan="5" class="backup-empty">No users yet.</td>';
+        tbody.append(empty);
+      } else {
+        for (const row of list) {
+          const tr = document.createElement("tr");
+          for (const key of ["username", "handle", "timezone", "email", "discord"]) {
+            const td = document.createElement("td");
+            td.textContent = cellText(row[key]);
+            tr.append(td);
+          }
+          tbody.append(tr);
+        }
+      }
+      table.append(tbody);
+      host.replaceChildren(table);
+    }
+    async function refreshUsers() {
+      const note = q("#usersNote");
+      if (!q("#usersGrid")?.querySelector("table")) fillUsersGrid([]);
+      try {
+        const data = await promoteFetch("/api/admin/users", { headers: { authorization: "Bearer " + token } });
+        const users = data.users || [];
+        fillUsersGrid(users);
+        if (note) note.textContent = users.length === 1 ? "1 user." : `${users.length} users.`;
+      } catch (error) {
+        if (note) note.textContent = error.message;
+      }
+    }
     function fillBackupGrid(rows) {
       const host = q("#backupGrid");
       if (!host) return;
@@ -1912,7 +1957,8 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
           const size = document.createElement("td");
           size.textContent = formatBackupBytes(row.bytes);
           const actions = document.createElement("td");
-          actions.className = "backup-actions";
+          const wrap = document.createElement("div");
+          wrap.className = "backup-actions";
           const restore = document.createElement("button");
           restore.type = "button";
           restore.className = "button secondary";
@@ -1969,7 +2015,8 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
               if (note) note.textContent = error.message;
             }
           });
-          actions.append(restore, download, remove);
+          wrap.append(restore, download, remove);
+          actions.append(wrap);
           tr.append(name, created, size, actions);
           tbody.append(tr);
         }

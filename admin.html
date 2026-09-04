@@ -20,6 +20,7 @@
     </section>
     <nav class="admin-tabs" aria-label="Admin sections">
       <button type="button" class="admin-tab is-active" data-tab="yes" aria-current="page">Yes emails</button>
+      <button type="button" class="admin-tab" data-tab="users">Users</button>
       <button type="button" class="admin-tab" data-tab="setup">Setup</button>
       <button type="button" class="admin-tab" data-tab="party">Party</button>
       <button type="button" class="admin-tab" data-tab="discord">Discord</button>
@@ -166,6 +167,10 @@
         <p class="form-note" id="adminDiscordHostNote" aria-live="polite"></p>
       </div>
     </section>
+    <section class="doc admin-tab-panel" id="panelUsers" hidden>
+      <p class="form-note" id="usersNote">Loading…</p>
+      <div id="usersGrid" class="backup-grid"></div>
+    </section>
     <section class="doc admin-tab-panel" id="panelYes">
       <p id="yesStatus">Loading…</p>
       <div class="email-list" id="yesList"></div>
@@ -307,7 +312,7 @@ Sign up on our test site (not AMBA itself): {{signupUrl}}
   <footer><p><a href="index.html">Back to signup</a></p></footer>
   <script src="header.js"></script>
   <script src="markdown-toolbar.js"></script>
-  <script src="admin.js?v=hosted-art-2"></script>
+  <script src="admin.js?v=users-tab-1"></script>
   <script type="module" src="site.js"></script>
   <script>
     window.mountAmbaAdmin(document.querySelector("main"), { page: true });
