@@ -659,7 +659,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       const response = await fetch(url, options);
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data.detail || data.error || response.statusText);
+        throw new Error(data.detail || data.error || response.statusText || `HTTP ${response.status}`);
       }
       return data;
     }
@@ -1070,6 +1070,24 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       return { displayHostedByBanner: Boolean(q("#displayHostedByBanner")?.checked) };
     }
 
+    async function saveHostedByBanner() {
+      const note = q("#adminDiscordHostNote");
+      if (note) note.textContent = "Saving…";
+      const data = await promoteFetch("/api/admin/session", {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ mode: "hostedBy", ...hostedByPayload() })
+      });
+      const hostedCheck = q("#displayHostedByBanner");
+      if (hostedCheck) hostedCheck.checked = data.session?.displayHostedByBanner !== false;
+      if (note) {
+        note.textContent = hostedCheck?.checked
+          ? "Saved. Signup will show the hosted-by banner when a Discord host has art."
+          : "Saved. Signup will use stylized Hosted by text only.";
+      }
+      return data;
+    }
+
     async function saveManualWrite() {
       sessionLinksNote.textContent = "Saving…";
       const response = await fetch("/api/admin/session", {
@@ -1080,7 +1098,6 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
           setupSource: "manual",
           title: manualTitle?.value || "",
           playerHookText: manualHook?.value || "",
-          ...hostedByPayload()
         })
       });
       const data = await response.json().catch(() => ({}));
@@ -1102,7 +1119,6 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         body: JSON.stringify({
           syndicationUrl: syndicationUrl.value,
           playerHookUrl: playerHookUrl.value,
-          ...hostedByPayload(),
           ...(adventureSelect.dataset.source === "amba" && adventureSelect.value
             ? {
                 ambaModuleId: adventureSelect.value,
@@ -1277,21 +1293,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         }
         return;
       }
-      sessionLinksNote.textContent = "Saving…";
-      try {
-        const data = await promoteFetch("/api/admin/session", {
-          method: "POST",
-          headers: headers(),
-          body: JSON.stringify({ mode: "hostedBy", ...hostedByPayload() })
-        });
-        const hostedCheck = q("#displayHostedByBanner");
-        if (hostedCheck) hostedCheck.checked = data.session?.displayHostedByBanner !== false;
-        sessionLinksNote.textContent = hostedCheck?.checked
-          ? "Saved. Signup will show the hosted-by banner when a Discord host has art."
-          : "Saved. Signup will use stylized Hosted by text only.";
-      } catch (error) {
-        sessionLinksNote.textContent = error.message;
-      }
+      sessionLinksNote.textContent = "No link changes to save. Use Edit, Connect, or Manual.";
     });
 
     q("#adminLogout")?.addEventListener("click", () => {
@@ -1482,12 +1484,14 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       {
         name: "Chaos Goblins",
         desc: "Chaos Goblins Discord. Enable Server Widget there to load the in-page bot.",
-        inviteLink: "https://discord.com/channels/1499020422358896660/1499022016148144208"
+        inviteLink: "https://discord.com/channels/1499020422358896660/1499022016148144208",
+        bannerUrl: "/images/hosted-by-chaos-goblins.jpg"
       },
       {
         name: "AMBA",
         desc: "AMBA Discord. Enable Server Widget there to load the in-page bot.",
-        inviteLink: "https://discord.com/channels/1534196054944121074/1534196055430795277"
+        inviteLink: "https://discord.com/channels/1534196054944121074/1534196055430795277",
+        bannerUrl: "/images/hosted-by-amba.jpg"
       }
     ];
     let adminDiscordChoices = DEFAULT_ADMIN_DISCORD_HOSTS;
@@ -1500,6 +1504,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       for (const choice of adminDiscordChoices) {
         const option = new Option(choice.name, choice.name);
         option.title = choice.desc || "";
+        if (choice.bannerUrl) option.dataset.banner = choice.bannerUrl;
         select.append(option);
       }
       select.append(new Option("Enter URL manually", ADMIN_DISCORD_MANUAL));
@@ -1514,8 +1519,12 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       const select = q("#adminDiscordHostSelect");
       const url = q("#adminDiscordHostUrl");
       const desc = q("#adminDiscordHostDesc");
+      const bannerInput = q("#adminDiscordHostBannerUrl");
+      const previewWrap = q("#adminDiscordHostBannerPreviewWrap");
+      const preview = q("#adminDiscordHostBannerPreview");
       const name = select?.value || "";
       const choice = adminDiscordChoices.find((item) => item.name === name);
+      const bannerUrl = choice?.bannerUrl || "";
       if (desc) {
         desc.textContent = choice?.desc
           || (name === ADMIN_DISCORD_MANUAL ? "Paste a Discord server, channel, or invite URL." : "");
@@ -1525,6 +1534,13 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         url.readOnly = Boolean(choice);
         if (choice) url.value = choice.inviteLink || "";
       }
+      if (bannerInput) bannerInput.value = bannerUrl || "";
+      if (preview) {
+        if (bannerUrl) preview.src = bannerUrl;
+        else preview.removeAttribute("src");
+      }
+      if (previewWrap) previewWrap.hidden = !bannerUrl;
+      window.paintDiscordHostPicker?.(select);
     }
     async function loadAdminDiscord() {
       const select = q("#adminDiscordHostSelect");
@@ -1655,7 +1671,8 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       if (note) note.textContent = "Saving…";
       const payload = {
         name: q("#adminDiscordHostSelect")?.value || "",
-        url: q("#adminDiscordHostUrl")?.value || ""
+        url: q("#adminDiscordHostUrl")?.value || "",
+        bannerUrl: q("#adminDiscordHostBannerUrl")?.value || null
       };
       try {
         const data = await promoteFetch("/api/admin/discord-host", {
@@ -1663,6 +1680,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
           headers: headers(),
           body: JSON.stringify(payload)
         });
+        adminDiscordChoices = Array.isArray(data.discordHostChoices) ? data.discordHostChoices : adminDiscordChoices;
         fillAdminDiscordFields(data.discordHost);
         if (note) {
           note.textContent = data.discordHost?.name
@@ -1678,41 +1696,91 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         }
       }
     });
+    function adminDiscordHostPayload() {
+      return {
+        name: q("#adminDiscordHostSelect")?.value || "",
+        url: q("#adminDiscordHostUrl")?.value || "",
+        bannerUrl: q("#adminDiscordHostBannerUrl")?.value || null
+      };
+    }
+    function bannerExtFromFile(file) {
+      const fromName = String(file?.name || "").toLowerCase().match(/\.(png|jpe?g|webp)$/);
+      if (fromName) return fromName[1] === "jpeg" ? "jpg" : fromName[1];
+      return ({ "image/png": "png", "image/jpeg": "jpg", "image/jpg": "jpg", "image/webp": "webp" })[String(file?.type || "").toLowerCase()] || "";
+    }
+    function fileToDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("Could not read that image."));
+        reader.readAsDataURL(file);
+      });
+    }
     async function postDiscordBanner(body) {
       const note = q("#adminDiscordHostNote");
-      if (note) note.textContent = "Saving banner…";
+      if (note) note.textContent = "Saving hosted-by art…";
       try {
-        const data = await promoteFetch("/api/admin/discord-banner", {
+        const data = await promoteFetch("/api/admin/hosted-art", {
           method: "POST",
           headers: headers(),
-          body: JSON.stringify(body)
+          credentials: "same-origin",
+          body: JSON.stringify({ ...adminDiscordHostPayload(), ...body })
         });
         adminDiscordChoices = Array.isArray(data.discordHostChoices) ? data.discordHostChoices : adminDiscordChoices;
         fillAdminDiscordFields(data.discordHost);
         if (note) {
           note.textContent = body.clear
-            ? "Banner removed. Signup uses stylized Hosted by text unless you upload again."
-            : "Banner uploaded. Turn on Display hosted by banner? in Setup to show it.";
+            ? "Hosted-by art removed. Signup uses stylized Hosted by text unless you choose a file again."
+            : "Hosted-by art saved. Turn on Display hosted by banner? below to show it on signup.";
         }
       } catch (error) {
-        if (note) note.textContent = error.message || "Could not update the banner.";
+        const code = String(error.message || "");
+        const messages = {
+          not_found: "Restart the Node process for amba-test, then try again.",
+          discord_host_unknown: "Pick Chaos Goblins or AMBA (or paste a URL), then choose the file.",
+          discord_url_required: "Paste a Discord URL, then choose the file.",
+          bad_filename: "Use a PNG, JPEG, or WebP image.",
+          payload_too_large: "Image must be under 2 MB.",
+          unauthorized: "Log in to Admin again, then try Remove."
+        };
+        const unreachable = /failed to fetch|networkerror|load failed/i.test(code);
+        if (note) {
+          note.textContent = unreachable
+            ? "The hosted-art request never reached Node. Hard-refresh this Admin tab (Ctrl+F5) and click Remove again."
+            : (messages[code] || code || "Could not update the hosted-by image.");
+        }
       }
     }
-    q("#adminDiscordBannerUpload")?.addEventListener("click", async () => {
-      const file = q("#adminDiscordBannerFile")?.files?.[0];
-      const note = q("#adminDiscordHostNote");
-      if (!file) {
-        if (note) note.textContent = "Choose a PNG, JPEG, or WebP first.";
+    q("#adminDiscordBannerFile")?.addEventListener("change", async (event) => {
+      const input = event.currentTarget;
+      const file = input?.files?.[0];
+      if (!file) return;
+      const ext = bannerExtFromFile(file);
+      if (!ext) {
+        const note = q("#adminDiscordHostNote");
+        if (note) note.textContent = "Use a PNG, JPEG, or WebP image.";
+        input.value = "";
         return;
       }
-      const ext = (file.name.split(".").pop() || "").toLowerCase();
-      const buf = await file.arrayBuffer();
-      const bytes = new Uint8Array(buf);
-      let binary = "";
-      for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
-      await postDiscordBanner({ ext, file: btoa(binary) });
+      try {
+        await postDiscordBanner({ ext, file: await fileToDataUrl(file) });
+      } finally {
+        input.value = "";
+      }
     });
-    q("#adminDiscordBannerRemove")?.addEventListener("click", () => postDiscordBanner({ clear: true }));
+    q("#adminDiscordBannerRemove")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      postDiscordBanner({ clear: true });
+    });
+    q("#displayHostedByBanner")?.addEventListener("change", async () => {
+      try {
+        await saveHostedByBanner();
+      } catch (error) {
+        const note = q("#adminDiscordHostNote");
+        if (note) note.textContent = error.message || "Could not save the banner display setting.";
+      }
+    });
     function formatBackupBytes(bytes) {
       const n = Number(bytes) || 0;
       if (n < 1024) return `${n} B`;

@@ -41,10 +41,14 @@ describe("discord hosts", () => {
     assert.equal(custom.guildId, "");
     assert.equal(sanitizeDiscordInviteUrl("discord.gg/table"), "https://discord.gg/table");
     assert.equal(
-      sanitizeBannerUrl("/images/hosted-by-chaos-goblins.png"),
-      "/images/hosted-by-chaos-goblins.png"
+      sanitizeBannerUrl("/images/hosted-by-chaos-goblins.jpg"),
+      "/images/hosted-by-chaos-goblins.jpg"
     );
     assert.equal(sanitizeBannerUrl("https://evil.example/x.png"), "");
+    const goblins = resolveDiscordHost({ name: "Chaos Goblins" });
+    assert.equal(goblins.bannerUrl, "/images/hosted-by-chaos-goblins.jpg");
+    const amba = resolveDiscordHost({ name: "AMBA" });
+    assert.equal(amba.bannerUrl, "/images/hosted-by-amba.jpg");
   });
 
   it("drops hosts with no invite", () => {

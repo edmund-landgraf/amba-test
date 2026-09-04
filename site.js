@@ -238,11 +238,6 @@ function renderHostedBy() {
   }
   if (img) {
     img.alt = "";
-    img.onload = () => {
-      if (frame && img.naturalWidth && img.naturalHeight) {
-        frame.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
-      }
-    };
     img.src = bannerUrl;
   }
 }
@@ -681,6 +676,7 @@ function fillDiscordHostFields() {
   for (const choice of choices) {
     const option = new Option(choice.name, choice.name);
     option.title = choice.desc || "";
+    if (choice.bannerUrl) option.dataset.banner = choice.bannerUrl;
     select.append(option);
   }
   select.append(new Option("Enter URL manually", DISCORD_HOST_MANUAL));
@@ -696,9 +692,13 @@ function syncDiscordHostFields() {
   const select = document.querySelector("#discordHostSelect");
   const url = document.querySelector("#discordHostUrl");
   const desc = document.querySelector("#discordHostDesc");
+  const bannerInput = document.querySelector("#discordHostBannerUrl");
+  const previewWrap = document.querySelector("#discordHostBannerPreviewWrap");
+  const preview = document.querySelector("#discordHostBannerPreview");
   const choices = appState.discordHostChoices || [];
   const name = select?.value || "";
   const choice = choices.find((item) => item.name === name);
+  const bannerUrl = choice?.bannerUrl || "";
   if (desc) {
     desc.textContent = choice?.desc
       || (name === DISCORD_HOST_MANUAL ? "Paste a Discord server, channel, or invite URL." : "");
@@ -708,6 +708,13 @@ function syncDiscordHostFields() {
     url.readOnly = Boolean(choice);
     if (choice) url.value = choice.inviteLink || "";
   }
+  if (bannerInput) bannerInput.value = bannerUrl || "";
+  if (preview) {
+    if (bannerUrl) preview.src = bannerUrl;
+    else preview.removeAttribute("src");
+  }
+  if (previewWrap) previewWrap.hidden = !bannerUrl;
+  window.paintDiscordHostPicker?.(select);
 }
 
 async function renderDiscordPanel() {
@@ -837,7 +844,8 @@ async function saveSettings(event) {
       body: {
         email: appState.user.email,
         name: data.discordHostName,
-        url: data.discordHostUrl
+        url: data.discordHostUrl,
+        bannerUrl: data.discordHostBannerUrl || null
       }
     });
     if (discordNote) discordNote.textContent = "";

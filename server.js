@@ -534,13 +534,31 @@ async function handleApi(req, res) {
     return;
   }
 
-  if (req.method === "POST" && url.pathname === "/api/admin/discord-banner") {
+  if (req.method === "POST" && url.pathname === "/api/admin/discord-host") {
+    if (!requireAdmin(req, res)) return;
+    const body = await readBody(req);
+    try {
+      const saved = await saveDiscordHost(body, { requireUser: false });
+      sendJson(res, 200, {
+        ...saved,
+        discordHostChoices: await discordHostChoices()
+      });
+    } catch (error) {
+      sendJson(res, 400, { error: error.message || "discord_host_failed" });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/admin/hosted-art") {
     if (!requireAdmin(req, res)) return;
     const body = await readBody(req, 3 * 1024 * 1024);
     try {
-      sendJson(res, 200, await saveDiscordBanner(body));
+      sendJson(res, 200, await saveDiscordBanner({
+        ...body,
+        clear: Boolean(body.clear || body.clearBanner)
+      }));
     } catch (error) {
-      sendJson(res, 400, { error: error.message || "discord_banner_failed" });
+      sendJson(res, 400, { error: error.message || "hosted_art_failed" });
     }
     return;
   }
@@ -1371,14 +1389,15 @@ async function saveDiscordHost(data, options = {}) {
   }
   const name = String(data.name || "").trim();
   const session = await liveAdventure();
-  const previousBanner = sanitizeBannerUrl(session.discordHost?.bannerUrl);
   if (!name) {
     session.discordHost = null;
   } else {
+    const choices = await discordHostChoices();
+    const selected = choices.find((item) => item.name === name);
     const host = resolveDiscordHost({
       ...data,
-      bannerUrl: data.clearBanner ? "" : (data.bannerUrl || previousBanner)
-    }, await discordHostChoices());
+      bannerUrl: data.clearBanner ? "" : (data.bannerUrl || selected?.bannerUrl || null)
+    }, choices);
     session.discordHost = host;
   }
   session.updatedAt = new Date().toISOString();
@@ -1390,22 +1409,33 @@ async function writeDiscordHostsFile(hosts) {
   await fs.writeFile(path.join(dataDir, "discord-hosts.json"), `${JSON.stringify(hosts, null, 2)}\n`);
 }
 
+async function writeHostedBannerFile(hostName, data) {
+  const ext = String(data.ext || "").replace(/^\./, "").toLowerCase().replace(/^jpeg$/, "jpg");
+  if (!["png", "jpg", "webp"].includes(ext)) throw new Error("bad_filename");
+  const raw = String(data.file || "").replace(/^data:[^;]+;base64,/, "");
+  const buf = Buffer.from(raw, "base64");
+  if (!buf.length || buf.length > 2 * 1024 * 1024) throw new Error("payload_too_large");
+  const slug = String(hostName || "custom").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "custom";
+  const fileName = `hosted-${slug}.${ext}`;
+  await fs.mkdir(path.join(root, "images"), { recursive: true });
+  await fs.writeFile(path.join(root, "images", fileName), buf);
+  return `/images/${fileName}`;
+}
+
 async function saveDiscordBanner(data) {
   const session = await liveAdventure();
-  const host = coerceDiscordHost(session.discordHost);
+  const name = String(data.name || "").trim();
+  let host = coerceDiscordHost(session.discordHost);
+  if (name) {
+    host = resolveDiscordHost({
+      ...data,
+      bannerUrl: data.clear ? "" : (host?.bannerUrl || "")
+    }, await discordHostChoices());
+  }
   if (!host) throw new Error("discord_host_unknown");
   let bannerUrl = "";
   if (!data.clear) {
-    const ext = String(data.ext || "").replace(/^\./, "").toLowerCase();
-    if (!["png", "jpg", "jpeg", "webp"].includes(ext)) throw new Error("bad_filename");
-    const raw = String(data.file || "").replace(/^data:[^;]+;base64,/, "");
-    const buf = Buffer.from(raw, "base64");
-    if (!buf.length || buf.length > 2 * 1024 * 1024) throw new Error("payload_too_large");
-    const slug = String(host.name || "custom").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "custom";
-    const fileName = `hosted-${slug}.${ext === "jpeg" ? "jpg" : ext}`;
-    await fs.mkdir(path.join(root, "images"), { recursive: true });
-    await fs.writeFile(path.join(root, "images", fileName), buf);
-    bannerUrl = `/images/${fileName}`;
+    bannerUrl = await writeHostedBannerFile(host.name, data);
   }
   host.bannerUrl = bannerUrl;
   session.discordHost = host;
@@ -1419,7 +1449,7 @@ async function saveDiscordBanner(data) {
       name: item.name,
       desc: item.desc,
       inviteLink: item.inviteLink,
-      ...(item.bannerUrl ? { bannerUrl: item.bannerUrl } : {})
+      bannerUrl: item.bannerUrl || null
     })));
   }
   return { discordHost: coerceDiscordHost(session.discordHost), discordHostChoices: await discordHostChoices() };

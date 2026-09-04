@@ -3,11 +3,12 @@
     "name": "Chaos Goblins",
     "desc": "Chaos Goblins Discord. Enable Server Widget there to load the in-page bot.",
     "inviteLink": "https://discord.com/channels/1499020422358896660/1499022016148144208",
-    "bannerUrl": "/images/hosted-by-chaos-goblins.png"
+    "bannerUrl": "/images/hosted-by-chaos-goblins.jpg"
   },
   {
     "name": "AMBA",
     "desc": "AMBA Discord. Enable Server Widget there to load the in-page bot.",
-    "inviteLink": "https://discord.com/channels/1534196054944121074/1534196055430795277"
+    "inviteLink": "https://discord.com/channels/1534196054944121074/1534196055430795277",
+    "bannerUrl": "/images/hosted-by-amba.jpg"
   }
 ]

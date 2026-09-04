@@ -171,14 +171,22 @@
         <section class="settings-tab-panel" id="settingsPanelDiscord" data-settings-panel="discord" hidden>
           <p class="modal-copy">Pick Chaos Goblins or AMBA, or paste a Discord URL. Admins can also set this under Admin → Discord. If Server Widget is off, the page shows a join link instead.</p>
           <label>Server
-            <select name="discordHostName" id="discordHostSelect" title="">
-              <option value="">Not set</option>
-            </select>
+            <div class="discord-host-picker">
+              <select name="discordHostName" id="discordHostSelect" title="">
+                <option value="">Not set</option>
+              </select>
+            </div>
           </label>
           <p class="form-note" id="discordHostDesc"></p>
           <label>Server URL
             <input name="discordHostUrl" id="discordHostUrl" autocomplete="off" placeholder="https://discord.com/channels/… or discord.gg/…">
           </label>
+          <label>Banner image
+            <input name="discordHostBannerUrl" id="discordHostBannerUrl" readonly placeholder="None">
+          </label>
+          <p class="discord-host-banner-preview" id="discordHostBannerPreviewWrap" hidden>
+            <img id="discordHostBannerPreview" alt="">
+          </p>
           <button class="button primary" type="submit">Save settings</button>
           <p class="form-note" id="settingsDiscordNote"></p>
         </section>
@@ -233,3 +241,90 @@
   `;
   document.body.append(dialogs);
 })();
+
+window.paintDiscordHostPicker = function paintDiscordHostPicker(select) {
+  if (!select) return;
+  let wrap = select.closest(".discord-host-picker");
+  if (!wrap) {
+    wrap = document.createElement("div");
+    wrap.className = "discord-host-picker";
+    select.before(wrap);
+    wrap.append(select);
+  }
+  let toggle = wrap.querySelector(".discord-host-picker-toggle");
+  let menu = wrap.querySelector(".discord-host-picker-menu");
+  function closePicker() {
+    if (!menu || !toggle) return;
+    menu.hidden = true;
+    toggle.setAttribute("aria-expanded", "false");
+    wrap.classList.remove("is-open");
+  }
+  function bannerOf(option) {
+    return String(option?.dataset?.banner || "").trim();
+  }
+  function fillFace(el, option) {
+    el.replaceChildren();
+    const banner = bannerOf(option);
+    if (banner) {
+      const img = document.createElement("img");
+      img.src = banner;
+      img.alt = "";
+      el.append(img);
+    }
+    const span = document.createElement("span");
+    span.textContent = option?.textContent || "Not set";
+    el.append(span);
+  }
+  if (!toggle) {
+    toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "discord-host-picker-toggle";
+    toggle.setAttribute("aria-haspopup", "listbox");
+    toggle.setAttribute("aria-expanded", "false");
+    wrap.append(toggle);
+    menu = document.createElement("ul");
+    menu.className = "discord-host-picker-menu";
+    menu.hidden = true;
+    menu.setAttribute("role", "listbox");
+    wrap.append(menu);
+    toggle.addEventListener("click", () => {
+      const open = menu.hidden;
+      menu.hidden = !open;
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      wrap.classList.toggle("is-open", open);
+    });
+    if (!window.__discordHostPickerDocBound) {
+      window.__discordHostPickerDocBound = true;
+      document.addEventListener("click", (event) => {
+        document.querySelectorAll(".discord-host-picker.is-open").forEach((openWrap) => {
+          if (!openWrap.contains(event.target)) {
+            openWrap.classList.remove("is-open");
+            const openMenu = openWrap.querySelector(".discord-host-picker-menu");
+            const openToggle = openWrap.querySelector(".discord-host-picker-toggle");
+            if (openMenu) openMenu.hidden = true;
+            if (openToggle) openToggle.setAttribute("aria-expanded", "false");
+          }
+        });
+      });
+    }
+    wrap.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closePicker();
+    });
+  }
+  const selected = select.selectedOptions[0] || select.options[0];
+  fillFace(toggle, selected);
+  toggle.setAttribute("aria-label", selected?.textContent || "Server");
+  menu.replaceChildren();
+  for (const option of select.options) {
+    const item = document.createElement("li");
+    item.setAttribute("role", "option");
+    if (option.value === select.value) item.setAttribute("aria-selected", "true");
+    fillFace(item, option);
+    item.addEventListener("click", () => {
+      select.value = option.value;
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+      closePicker();
+    });
+    menu.append(item);
+  }
+};
