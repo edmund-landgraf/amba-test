@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const {
   parseDiscordGuildId,
   sanitizeDiscordInviteUrl,
+  sanitizeBannerUrl,
   resolveDiscordHost,
   coerceDiscordHost,
   MANUAL_HOST_VALUE
@@ -39,6 +40,11 @@ describe("discord hosts", () => {
     assert.equal(custom.name, "Custom");
     assert.equal(custom.guildId, "");
     assert.equal(sanitizeDiscordInviteUrl("discord.gg/table"), "https://discord.gg/table");
+    assert.equal(
+      sanitizeBannerUrl("/images/hosted-by-chaos-goblins.png"),
+      "/images/hosted-by-chaos-goblins.png"
+    );
+    assert.equal(sanitizeBannerUrl("https://evil.example/x.png"), "");
   });
 
   it("drops hosts with no invite", () => {

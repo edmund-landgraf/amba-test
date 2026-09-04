@@ -35,6 +35,7 @@ const {
   DEFAULT_DISCORD_HOSTS,
   listDiscordHosts,
   parseDiscordGuildId,
+  sanitizeBannerUrl,
   resolveDiscordHost,
   coerceDiscordHost
 } = require("./lib/discord-hosts");
@@ -246,6 +247,7 @@ const mime = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
   ".zip": "application/zip"
 };
 
@@ -532,13 +534,13 @@ async function handleApi(req, res) {
     return;
   }
 
-  if (req.method === "POST" && url.pathname === "/api/admin/discord-host") {
+  if (req.method === "POST" && url.pathname === "/api/admin/discord-banner") {
     if (!requireAdmin(req, res)) return;
-    const body = await readBody(req);
+    const body = await readBody(req, 3 * 1024 * 1024);
     try {
-      sendJson(res, 200, await saveDiscordHost(body, { requireUser: false }));
+      sendJson(res, 200, await saveDiscordBanner(body));
     } catch (error) {
-      sendJson(res, 400, { error: error.message || "discord_host_failed" });
+      sendJson(res, 400, { error: error.message || "discord_banner_failed" });
     }
     return;
   }
@@ -848,7 +850,12 @@ async function serveStatic(req, res) {
 
   try {
     const file = await fs.readFile(filePath);
-    res.writeHead(200, { "content-type": mime[path.extname(filePath)] || "application/octet-stream" });
+    const ext = path.extname(filePath);
+    const headers = { "content-type": mime[ext] || "application/octet-stream" };
+    if (ext === ".html" || ext === ".js" || ext === ".css") {
+      headers["cache-control"] = "no-store";
+    }
+    res.writeHead(200, headers);
     res.end(file);
   } catch {
     res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
@@ -1266,7 +1273,8 @@ async function sessionLinks() {
     syndicationUrl: session.syndicationUrl || "",
     playerHookUrl: session.playerHookUrl || "",
     playerHookText: session.playerHookText || "",
-    setupSource: session.setupSource === "manual" ? "manual" : "connect"
+    setupSource: session.setupSource === "manual" ? "manual" : "connect",
+    displayHostedByBanner: session.displayHostedByBanner !== false
   };
 }
 
@@ -1283,6 +1291,14 @@ async function refreshLiveSessionFromApi() {
 
 async function saveSession(data) {
   const session = await liveAdventure();
+  if (Object.prototype.hasOwnProperty.call(data || {}, "displayHostedByBanner")) {
+    session.displayHostedByBanner = Boolean(data.displayHostedByBanner);
+  }
+  if (data.mode === "hostedBy") {
+    session.updatedAt = new Date().toISOString();
+    await writeAdventure(session);
+    return sessionLinks();
+  }
   if (data.mode === "write" || data.setupSource === "manual") {
     session.setupSource = "manual";
     session.syndicationUrl = "";
@@ -1355,14 +1371,58 @@ async function saveDiscordHost(data, options = {}) {
   }
   const name = String(data.name || "").trim();
   const session = await liveAdventure();
+  const previousBanner = sanitizeBannerUrl(session.discordHost?.bannerUrl);
   if (!name) {
     session.discordHost = null;
   } else {
-    session.discordHost = resolveDiscordHost(data, await discordHostChoices());
+    const host = resolveDiscordHost({
+      ...data,
+      bannerUrl: data.clearBanner ? "" : (data.bannerUrl || previousBanner)
+    }, await discordHostChoices());
+    session.discordHost = host;
   }
   session.updatedAt = new Date().toISOString();
   await writeAdventure(session);
   return { discordHost: coerceDiscordHost(session.discordHost) };
+}
+
+async function writeDiscordHostsFile(hosts) {
+  await fs.writeFile(path.join(dataDir, "discord-hosts.json"), `${JSON.stringify(hosts, null, 2)}\n`);
+}
+
+async function saveDiscordBanner(data) {
+  const session = await liveAdventure();
+  const host = coerceDiscordHost(session.discordHost);
+  if (!host) throw new Error("discord_host_unknown");
+  let bannerUrl = "";
+  if (!data.clear) {
+    const ext = String(data.ext || "").replace(/^\./, "").toLowerCase();
+    if (!["png", "jpg", "jpeg", "webp"].includes(ext)) throw new Error("bad_filename");
+    const raw = String(data.file || "").replace(/^data:[^;]+;base64,/, "");
+    const buf = Buffer.from(raw, "base64");
+    if (!buf.length || buf.length > 2 * 1024 * 1024) throw new Error("payload_too_large");
+    const slug = String(host.name || "custom").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "custom";
+    const fileName = `hosted-${slug}.${ext === "jpeg" ? "jpg" : ext}`;
+    await fs.mkdir(path.join(root, "images"), { recursive: true });
+    await fs.writeFile(path.join(root, "images", fileName), buf);
+    bannerUrl = `/images/${fileName}`;
+  }
+  host.bannerUrl = bannerUrl;
+  session.discordHost = host;
+  session.updatedAt = new Date().toISOString();
+  await writeAdventure(session);
+  const choices = await discordHostChoices();
+  const named = choices.find((item) => item.name === host.name);
+  if (named) {
+    named.bannerUrl = bannerUrl;
+    await writeDiscordHostsFile(choices.map((item) => ({
+      name: item.name,
+      desc: item.desc,
+      inviteLink: item.inviteLink,
+      ...(item.bannerUrl ? { bannerUrl: item.bannerUrl } : {})
+    })));
+  }
+  return { discordHost: coerceDiscordHost(session.discordHost), discordHostChoices: await discordHostChoices() };
 }
 
 async function addTime(data) {
@@ -2228,6 +2288,7 @@ function publicSession(adventure) {
     playerHookText: adventure.playerHookText || "",
     setupSource: adventure.setupSource === "manual" ? "manual" : "connect",
     ambaModuleId: adventure.ambaModuleId || adventure.id,
+    displayHostedByBanner: adventure.displayHostedByBanner !== false,
     discordHost: coerceDiscordHost(adventure.discordHost)
   };
 }
@@ -2810,7 +2871,8 @@ async function adminYesMail() {
     syndicationUrl: links.syndicationUrl,
     playerHookUrl: links.playerHookUrl,
     playerHookText: links.playerHookText,
-    setupSource: links.setupSource
+    setupSource: links.setupSource,
+    displayHostedByBanner: links.displayHostedByBanner !== false
   };
 }
 

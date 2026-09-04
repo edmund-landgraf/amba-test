@@ -78,6 +78,11 @@
         <p class="form-actions">
           <button class="button primary" id="saveSetup" type="submit">Save</button>
         </p>
+        <label class="hosted-by-setup">
+          <input id="displayHostedByBanner" type="checkbox" checked>
+          Display hosted by banner?
+        </label>
+        <p class="form-note">When checked, signup shows the Discord host art. Unchecked keeps stylized “Hosted by” text only.</p>
         <p class="form-note" id="sessionLinksNote" aria-live="polite"></p>
       </form>
     </section>
@@ -119,8 +124,13 @@
         <label>Server URL
           <input id="adminDiscordHostUrl" autocomplete="off" placeholder="https://discord.com/channels/… or discord.gg/…">
         </label>
+        <label>Hosted-by banner
+          <input id="adminDiscordBannerFile" type="file" accept="image/png,image/jpeg,image/webp">
+        </label>
         <p class="form-actions">
           <button class="button primary" type="submit">Save Discord server</button>
+          <button class="button secondary" type="button" id="adminDiscordBannerUpload">Upload banner</button>
+          <button class="button secondary" type="button" id="adminDiscordBannerRemove">Remove banner</button>
         </p>
         <p class="form-note" id="adminDiscordHostNote" aria-live="polite"></p>
       </form>
@@ -227,30 +237,20 @@ Sign up on our test site (not AMBA itself): {{signupUrl}}
       </div>
     </section>
     <section class="doc admin-tab-panel" id="panelQuestionnaire" hidden>
-      <div class="questionnaire-admin-layout">
-        <form class="promote-card questionnaire-builder" id="questionnaireBuilderForm">
-          <div class="questionnaire-admin-head">
-            <div>
-              <h2>Builder</h2>
-              <p class="form-note">Add questions, edit options, and preview the player form before saving.</p>
-            </div>
-            <label class="questionnaire-preview-toggle">
-              <input id="questionnairePreviewToggle" type="checkbox">
-              View as player
-            </label>
+      <form class="promote-card questionnaire-builder" id="questionnaireBuilderForm">
+        <div class="questionnaire-admin-head">
+          <div>
+            <h2>Builder</h2>
+            <p class="form-note">Add questions, edit options, then save the player form.</p>
           </div>
-          <div id="questionnaireBuilderList"></div>
-          <p class="form-actions">
-            <button class="button secondary" id="addQuestionnaireQuestion" type="button">Add question</button>
-            <button class="button primary" type="submit">Save questionnaire</button>
-          </p>
-          <p class="form-note" id="questionnaireBuilderNote"></p>
-        </form>
-        <section class="promote-card questionnaire-preview-card" id="questionnairePreviewCard" hidden>
-          <h2>Player preview</h2>
-          <div id="questionnairePreview"></div>
-        </section>
-      </div>
+        </div>
+        <div id="questionnaireBuilderList"></div>
+        <p class="form-actions">
+          <button class="button secondary" id="addQuestionnaireQuestion" type="button">Add question</button>
+          <button class="button primary" type="submit">Save questionnaire</button>
+        </p>
+        <p class="form-note" id="questionnaireBuilderNote"></p>
+      </form>
       <section class="promote-card">
         <div class="questionnaire-admin-head">
           <div>

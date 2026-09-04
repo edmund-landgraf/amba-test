@@ -191,6 +191,7 @@ function renderAdventureTitle() {
     : raw;
   const heading = document.querySelector("#adventureTitle");
   if (heading) heading.textContent = title;
+  renderHostedBy();
   const page = location.pathname.split("/").filter(Boolean).pop() || "index.html";
   const suffixes = {
     "index.html": "",
@@ -207,6 +208,43 @@ function renderAdventureTitle() {
   };
   const suffix = suffixes[page];
   document.title = suffix ? `${title} · ${suffix}` : title;
+}
+
+function renderHostedBy() {
+  const wrap = document.querySelector("#hostedBy");
+  if (!wrap) return;
+  const host = appState.session?.discordHost;
+  const nameEl = document.querySelector("#hostedByName");
+  const frame = document.querySelector("#hostedByFrame");
+  const img = document.querySelector("#hostedByImg");
+  if (!host?.name) {
+    wrap.hidden = true;
+    wrap.classList.remove("has-banner");
+    if (frame) frame.hidden = true;
+    if (img) img.removeAttribute("src");
+    return;
+  }
+  wrap.hidden = false;
+  if (nameEl) nameEl.textContent = host.name;
+  const fromHost = host.bannerUrl || "";
+  const fromChoice = (appState.discordHostChoices || []).find((item) => item.name === host.name)?.bannerUrl || "";
+  const bannerUrl = fromHost || fromChoice;
+  const showArt = Boolean(bannerUrl) && appState.session?.displayHostedByBanner !== false;
+  wrap.classList.toggle("has-banner", showArt);
+  if (frame) frame.hidden = !showArt;
+  if (!showArt) {
+    if (img) img.removeAttribute("src");
+    return;
+  }
+  if (img) {
+    img.alt = "";
+    img.onload = () => {
+      if (frame && img.naturalWidth && img.naturalHeight) {
+        frame.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
+      }
+    };
+    img.src = bannerUrl;
+  }
 }
 
 function wireEvents() {
@@ -431,13 +469,11 @@ async function openAdminShell() {
   adminModal.classList.add("admin-shell");
   gate?.setAttribute("hidden", "");
   host.hidden = false;
-  if (!host.dataset.filled) {
-    const html = await fetch("admin.html").then((response) => response.text());
-    const doc = new DOMParser().parseFromString(html, "text/html");
-    const main = doc.querySelector("main");
-    host.replaceChildren(document.importNode(main, true));
-    host.dataset.filled = "1";
-  }
+  const html = await fetch("admin.html", { cache: "no-store" }).then((response) => response.text());
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const main = doc.querySelector("main");
+  host.replaceChildren(document.importNode(main, true));
+  host.dataset.filled = "1";
   await loadScriptOnce("markdown-toolbar.js");
   await loadScriptOnce("admin.js");
   window.mountAmbaAdmin(host.querySelector("main") || host, {
