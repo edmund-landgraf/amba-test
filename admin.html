@@ -59,18 +59,21 @@
         </div>
         <div id="ambaLinkedFields">
         <div class="adventure-summary-form">
-          <a class="adventure-summary-link is-empty" id="summaryPreview" href="#" target="_blank" rel="noopener noreferrer">Adventure Summary</a>
-          <a class="adventure-summary-link is-empty" id="playerHookPreview" href="#" target="_blank" rel="noopener noreferrer">Player Hook</a>
-          <span class="adventure-summary-edit-spacer" aria-hidden="true"></span>
-          <label>
-            Adventure Summary URL
-            <input id="syndicationUrl" type="text" inputmode="url" autocomplete="off" placeholder="https://amba.unwhelm.online/syndicate/…" readonly>
-          </label>
-          <label>
-            AMBA player hook URL
-            <input id="playerHookUrl" type="text" inputmode="url" autocomplete="off" placeholder="https://amba.unwhelm.online/syndicate/…/p/…" readonly>
-          </label>
-          <button class="button secondary" id="sessionLinksToggle" type="button">Edit</button>
+          <div class="adventure-summary-field">
+            <a class="adventure-summary-link is-empty" id="summaryPreview" href="#" target="_blank" rel="noopener noreferrer">Adventure Summary</a>
+            <label>
+              Adventure Summary URL
+              <input id="syndicationUrl" type="text" inputmode="url" autocomplete="off" placeholder="https://amba.unwhelm.online/syndicate/…" readonly>
+            </label>
+          </div>
+          <div class="adventure-summary-field adventure-summary-field-hook">
+            <a class="adventure-summary-link is-empty" id="playerHookPreview" href="#" target="_blank" rel="noopener noreferrer">Player Hook</a>
+            <label>
+              AMBA player hook URL
+              <input id="playerHookUrl" type="text" inputmode="url" autocomplete="off" placeholder="https://amba.unwhelm.online/syndicate/…/p/…" readonly>
+            </label>
+            <button class="button secondary" id="sessionLinksToggle" type="button">Edit</button>
+          </div>
         </div>
         </div>
         <div id="manualWritePanel" hidden>

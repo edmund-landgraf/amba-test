@@ -1095,13 +1095,23 @@ fieldset {
 
 .adventure-summary-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  gap: 8px 12px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.adventure-summary-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.adventure-summary-field-hook {
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
 }
 
-.adventure-summary-edit-spacer {
-  min-width: 0;
+.adventure-summary-field-hook .adventure-summary-link {
+  grid-column: 1 / -1;
 }
 
 .adventure-summary-form input:read-only,
@@ -3050,16 +3060,11 @@ dialog.modal.admin-shell > .modal-close {
   .checklist,
   .time-card,
   .add-row,
-  .adventure-summary-form,
   .identity-strip,
   .handle-row,
   .security-roadmap,
   .guide-links {
     grid-template-columns: 1fr;
-  }
-
-  .adventure-summary-edit-spacer {
-    display: none;
   }
 
   .identity-strip .label,
