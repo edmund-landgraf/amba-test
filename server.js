@@ -40,6 +40,13 @@ const {
   coerceDiscordHost,
   hostedByBannerHeight
 } = require("./lib/discord-hosts");
+const {
+  MAX_WG_CHARACTER_OPTIONS,
+  ensurePrivateCharacterOption,
+  isPrivateCharacterSheet,
+  publicPrivateCharacter,
+  removePrivateCharacterOption
+} = require("./lib/private-characters");
 const discordGuildId = "1534196054944121074";
 
 const jsonFiles = {
@@ -243,6 +250,7 @@ const mime = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml",
   ".png": "image/png",
@@ -352,9 +360,15 @@ async function handleApi(req, res) {
       sendJson(res, 401, { error: "login_required" });
       return;
     }
-    const name = safeExportName(url.searchParams.get("name"));
+    const name = safeZipExportName(url.searchParams.get("name"));
     if (!name) {
       sendJson(res, 400, { error: "bad_filename" });
+      return;
+    }
+    const index = await readExportIndex();
+    const record = index[name];
+    if (!record || (normalizeEmail(record.email) !== email && !hasAdminAccess(req))) {
+      sendJson(res, 403, { error: "forbidden" });
       return;
     }
     const filePath = path.join(WG_EXPORT_DIR, name);
@@ -385,6 +399,20 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "POST" && url.pathname === "/api/private-characters") {
+    const body = await readBody(req);
+    sendJson(res, 200, await savePrivateCharacter(body));
+    return;
+  }
+
+  if (req.method === "DELETE" && url.pathname === "/api/private-characters") {
+    sendJson(res, 200, await deletePrivateCharacter({
+      email: url.searchParams.get("email"),
+      name: url.searchParams.get("name")
+    }));
+    return;
+  }
+
   if (req.method === "DELETE" && url.pathname === "/api/wg-sheets") {
     const result = await deleteWgSheet({
       email: url.searchParams.get("email"),
@@ -397,7 +425,8 @@ async function handleApi(req, res) {
   if (req.method === "DELETE" && url.pathname === "/api/party-pcs") {
     const result = await excludePartyPc({
       email: url.searchParams.get("email"),
-      url: url.searchParams.get("url")
+      url: url.searchParams.get("url"),
+      privateExportName: url.searchParams.get("privateExportName")
     });
     sendJson(res, 200, result);
     return;
@@ -871,7 +900,7 @@ async function serveStatic(req, res) {
     const file = await fs.readFile(filePath);
     const ext = path.extname(filePath);
     const headers = { "content-type": mime[ext] || "application/octet-stream" };
-    if (ext === ".html" || ext === ".js" || ext === ".css") {
+    if (ext === ".html" || ext === ".js" || ext === ".mjs" || ext === ".css") {
       headers["cache-control"] = "no-store";
     }
     res.writeHead(200, headers);
@@ -907,6 +936,7 @@ async function getState(email) {
   const feedback = await readJson("feedback");
   const users = await readJson("users");
   const user = email ? await findUserByEmail(email) : null;
+  const tokenByEmail = new Map(users.map((item) => [item.email, item.tokenColor]));
   const desired = desiredPlayerCount(adventure);
   const times = (adventure.times || []).map((time) => {
     const { createdBy, ...publicTime } = time;
@@ -914,22 +944,26 @@ async function getState(email) {
       .filter((signup) => signup.votes?.[time.id])
       .map((signup) => {
         const status = signup.votes[time.id] === "in" ? "" : signup.votes[time.id];
-        const note = (status === "maybe" || status === "no")
-          ? String(signup.voteNotes?.[time.id] || "").trim()
-          : "";
+        const mine = Boolean(user && signup.email === user.email);
+        const tokenColor = tokenByEmail.get(signup.email);
         return {
           handle: signup.handle,
           status,
-          note,
-          mine: Boolean(user && signup.email === user.email)
+          note: String(signup.voteNotes?.[time.id] || "").trim(),
+          mine,
+          tokenColor: tokenColor === 0 || tokenColor ? tokenColor : ""
         };
       });
     const yesCount = participants.filter((person) => person.status === "yes").length;
+    const mineNote = user
+      ? String(signups.find((signup) => signup.email === user.email)?.voteNotes?.[time.id] || "").trim()
+      : "";
     return {
       ...publicTime,
       createdByMe: Boolean(user && createdBy && createdBy === user.email),
       signupsDisabled: Boolean(time.signupsDisabled),
       scheduledToPlay: !time.signupsDisabled && yesCount >= desired,
+      mineNote,
       participants
     };
   });
@@ -940,7 +974,7 @@ async function getState(email) {
     user: user ? publicUser(user, adventure) : null,
     signups: signups.map(publicSignup),
     feedback: feedback.map(publicFeedback),
-    pcs: publicPcs(adventure, users)
+    pcs: publicPcs(adventure, users, user?.email || "")
   };
 }
 
@@ -960,6 +994,9 @@ async function upsertUser(data) {
     existing.preferredComm = normalizePreferredComm(
       data.preferredComm !== undefined ? data.preferredComm : existing.preferredComm
     );
+    existing.tokenColor = data.tokenColor !== undefined
+      ? normalizeStoredTokenColor(data.tokenColor)
+      : (existing.tokenColor === 0 || existing.tokenColor ? existing.tokenColor : "");
     existing.timezone = String(data.timezone || existing.timezone || "").trim();
     existing.characterStatus = String(data.characterStatus || existing.characterStatus || "").trim();
     existing.role = "admin";
@@ -979,6 +1016,7 @@ async function upsertUser(data) {
     discordUserId: normalizeDiscordUserId(data.discordUserId),
     redditUserId: normalizeRedditUserId(data.redditUserId),
     preferredComm: normalizePreferredComm(data.preferredComm),
+    tokenColor: normalizeStoredTokenColor(data.tokenColor),
     timezone: String(data.timezone || "").trim(),
     characterStatus: String(data.characterStatus || "").trim(),
     role: "admin",
@@ -1574,18 +1612,15 @@ async function upsertAdventureSignup(user, extra = {}) {
   record.updatedAt = new Date().toISOString();
   if (extra.status === "leave" && extra.timeId) {
     delete record.votes[extra.timeId];
-    delete record.voteNotes[extra.timeId];
   } else if (extra.timeId && extra.status === "in") {
     record.votes[extra.timeId] = record.votes[extra.timeId] || "in";
   } else if (extra.timeId && extra.status) {
     record.votes[extra.timeId] = extra.status;
-    if (extra.status === "maybe" || extra.status === "no") {
-      const note = String(extra.voteNote || "").trim();
-      if (note) record.voteNotes[extra.timeId] = note;
-      else delete record.voteNotes[extra.timeId];
-    } else {
-      delete record.voteNotes[extra.timeId];
-    }
+  }
+  if (extra.timeId && extra.voteNote !== undefined) {
+    const note = String(extra.voteNote || "").trim();
+    if (note) record.voteNotes[extra.timeId] = note;
+    else delete record.voteNotes[extra.timeId];
   }
   if (!existing) adventure.signups.push(record);
   await writeAdventure(adventure);
@@ -1599,14 +1634,21 @@ async function saveSlot(data) {
   if (!timeId) throw new Error("Time is required.");
   const session = await applyPastSessionLocks(await liveAdventure());
   const locked = (session.times || []).find((item) => item.id === timeId);
-  if (locked?.signupsDisabled) throw new Error("signups_disabled");
+  const noteOnly = data.status == null || data.status === "";
+  if (locked?.signupsDisabled && !noteOnly) throw new Error("signups_disabled");
+  if (noteOnly && data.voteNote !== undefined) {
+    return upsertAdventureSignup(user, {
+      timeId,
+      voteNote: String(data.voteNote || "").trim()
+    });
+  }
   const status = data.status === "leave" || data.status === "yes" || data.status === "maybe" || data.status === "no"
     ? data.status
     : "in";
   return upsertAdventureSignup(user, {
     timeId,
     status,
-    voteNote: String(data.voteNote || "").trim()
+    ...(data.voteNote !== undefined ? { voteNote: String(data.voteNote || "").trim() } : {})
   });
 }
 
@@ -1653,6 +1695,7 @@ function publicUser(user, adventure) {
     discordUserId: user.discordUserId || "",
     redditUserId: user.redditUserId || "",
     preferredComm: user.preferredComm || "email",
+    tokenColor: user.tokenColor === 0 || user.tokenColor ? user.tokenColor : "",
     timezone: user.timezone,
     characterStatus: signup?.characterStatus || user.characterStatus || "",
     wgSheets: (pack?.sheets || []).map((sheet) => publicSheet(sheet, user.handle)),
@@ -1668,6 +1711,7 @@ const WG_SHEET_HOSTS = new Set([
 ]);
 
 function publicSheet(sheet, handle) {
+  if (isPrivateCharacterSheet(sheet)) return publicPrivateCharacter(sheet, handle);
   return {
     url: sheet.url,
     id: sheet.id,
@@ -1681,14 +1725,24 @@ function publicSheet(sheet, handle) {
   };
 }
 
-function publicPcs(adventure, users) {
+function publicPcs(adventure, users, viewerEmail = "") {
   const handles = new Map(users.map((user) => [user.email, user.handle]));
+  const tokens = new Map(users.map((user) => [user.email, user.tokenColor]));
+  const viewer = normalizeEmail(viewerEmail);
   const rows = [];
   for (const pack of adventure.wgSheets || []) {
     const handle = handles.get(pack.email) || "";
+    const tokenColor = tokens.get(pack.email);
     for (const sheet of pack.sheets || []) {
       if (sheet.inParty === false) continue;
-      rows.push(publicSheet(sheet, handle));
+      const row = {
+        ...publicSheet(sheet, handle),
+        tokenColor: tokenColor === 0 || tokenColor ? tokenColor : ""
+      };
+      if (isPrivateCharacterSheet(sheet) && normalizeEmail(pack.email) !== viewer) {
+        delete row.privateExportName;
+      }
+      rows.push(row);
     }
   }
   rows.sort((a, b) => String(a.name || a.url).localeCompare(String(b.name || b.url)));
@@ -1832,7 +1886,7 @@ async function saveWgSheet(data) {
   const replaceUrl = parseWgSheetUrl(data.replaceUrl)?.url || "";
   const previous = (pack.sheets || []).find((sheet) => sheet.url === replaceUrl || sheet.url === parsed.url);
   const sheets = (pack.sheets || []).filter((sheet) => sheet.url !== replaceUrl && sheet.url !== parsed.url);
-  if (sheets.length >= 6) throw new Error("sheet_limit");
+  if (sheets.length >= MAX_WG_CHARACTER_OPTIONS) throw new Error("sheet_limit");
   const row = await fetchPublicCharacter(parsed.id);
   if (!row) throw new Error("not_public");
   if (!isPublicCharacter(row)) throw new Error("not_public");
@@ -1845,7 +1899,7 @@ async function saveWgSheet(data) {
   pack.sheets = sheets;
   await writeAdventure(adventure);
   const users = await readJson("users");
-  return { user: publicUser(user, adventure), pcs: publicPcs(adventure, users) };
+  return { user: publicUser(user, adventure), pcs: publicPcs(adventure, users, user.email) };
 }
 
 async function deleteWgSheet(data) {
@@ -1860,36 +1914,44 @@ async function deleteWgSheet(data) {
     await writeAdventure(adventure);
   }
   const users = await readJson("users");
-  return { user: publicUser(user, adventure), pcs: publicPcs(adventure, users) };
+  return { user: publicUser(user, adventure), pcs: publicPcs(adventure, users, user.email) };
 }
 
 async function excludePartyPc(data) {
   const user = await findUserByEmail(data.email);
   if (!user) throw new Error("login_required");
-  const parsed = parseWgSheetUrl(data.url);
-  if (!parsed) throw new Error("bad_sheet_url");
+  const privateExportName = safeZipExportName(data.privateExportName);
+  const parsed = privateExportName ? null : parseWgSheetUrl(data.url);
+  if (!privateExportName && !parsed) throw new Error("bad_sheet_url");
   const adventure = await liveAdventure();
   const pack = (adventure.wgSheets || []).find((item) => item.email === user.email);
-  const sheet = (pack?.sheets || []).find((item) => item.url === parsed.url);
+  const sheet = (pack?.sheets || []).find((item) => {
+    if (privateExportName) return isPrivateCharacterSheet(item) && item.privateExportName === privateExportName;
+    return item.url === parsed.url;
+  });
   if (!sheet) throw new Error("not_found");
   sheet.inParty = false;
   await writeAdventure(adventure);
   const users = await readJson("users");
-  return { user: publicUser(user, adventure), pcs: publicPcs(adventure, users) };
+  return { user: publicUser(user, adventure), pcs: publicPcs(adventure, users, user.email) };
 }
 
 async function includePartyPc(data) {
   const user = await findUserByEmail(data.email);
   if (!user) throw new Error("login_required");
-  const parsed = parseWgSheetUrl(data.url);
-  if (!parsed) throw new Error("bad_sheet_url");
+  const privateExportName = safeZipExportName(data.privateExportName);
+  const parsed = privateExportName ? null : parseWgSheetUrl(data.url);
+  if (!privateExportName && !parsed) throw new Error("bad_sheet_url");
   const adventure = await liveAdventure();
   const pack = (adventure.wgSheets || []).find((item) => item.email === user.email);
-  const sheet = (pack?.sheets || []).find((item) => item.url === parsed.url);
+  const sheet = (pack?.sheets || []).find((item) => {
+    if (privateExportName) return isPrivateCharacterSheet(item) && item.privateExportName === privateExportName;
+    return item.url === parsed.url;
+  });
   if (!sheet) throw new Error("not_found");
   if (sheet.inParty !== false) {
     const users = await readJson("users");
-    return { user: publicUser(user, adventure), pcs: publicPcs(adventure, users) };
+    return { user: publicUser(user, adventure), pcs: publicPcs(adventure, users, user.email) };
   }
   const slots = partySlotCounts(adventure);
   const inPartyCount = (pack.sheets || []).filter((item) => item.inParty !== false).length;
@@ -1897,7 +1959,59 @@ async function includePartyPc(data) {
   sheet.inParty = true;
   await writeAdventure(adventure);
   const users = await readJson("users");
-  return { user: publicUser(user, adventure), pcs: publicPcs(adventure, users) };
+  return { user: publicUser(user, adventure), pcs: publicPcs(adventure, users, user.email) };
+}
+
+async function findOwnedWgExport(user, name) {
+  const zipName = safeZipExportName(name);
+  if (!zipName) throw new Error("bad_filename");
+  const index = await readExportIndex();
+  const record = index[zipName];
+  const sessionId = await defaultAdventureId();
+  if (!record || normalizeEmail(record.email) !== user.email || (record.sessionId || sessionId) !== sessionId) {
+    throw new Error("forbidden");
+  }
+  try {
+    await fs.stat(path.join(WG_EXPORT_DIR, zipName));
+  } catch {
+    throw new Error("not_found");
+  }
+  return zipName;
+}
+
+async function savePrivateCharacter(data) {
+  const user = await findUserByEmail(data.email);
+  if (!user) throw new Error("login_required");
+  const zipName = await findOwnedWgExport(user, data.name);
+  const adventure = await liveAdventure();
+  if (!Array.isArray(adventure.wgSheets)) adventure.wgSheets = [];
+  let pack = adventure.wgSheets.find((item) => item.email === user.email);
+  if (!pack) {
+    pack = { email: user.email, sheets: [] };
+    adventure.wgSheets.push(pack);
+  }
+  ensurePrivateCharacterOption(pack, zipName, {
+    allowWaitlist: true,
+    maxPcsPerPlayer: partySlotCounts(adventure).maxPcsPerPlayer
+  });
+  await writeAdventure(adventure);
+  const users = await readJson("users");
+  return { user: publicUser(user, adventure), pcs: publicPcs(adventure, users, user.email) };
+}
+
+async function deletePrivateCharacter(data) {
+  const user = await findUserByEmail(data.email);
+  if (!user) throw new Error("login_required");
+  const zipName = safeZipExportName(data.name);
+  if (!zipName) throw new Error("bad_filename");
+  const adventure = await liveAdventure();
+  const pack = (adventure.wgSheets || []).find((item) => item.email === user.email);
+  if (pack) {
+    removePrivateCharacterOption(pack, zipName);
+    await writeAdventure(adventure);
+  }
+  const users = await readJson("users");
+  return { user: publicUser(user, adventure), pcs: publicPcs(adventure, users, user.email) };
 }
 
 function publicSignup(signup) {
@@ -1974,6 +2088,13 @@ function requireAdmin(req, res) {
     sendJson(res, 401, { error: "unauthorized" });
     return false;
   }
+  adminTokens.add(token);
+  return true;
+}
+
+function hasAdminAccess(req) {
+  const token = adminTokenFromReq(req);
+  if (!token || (!adminTokens.has(token) && !isSignedAdminToken(token))) return false;
   adminTokens.add(token);
   return true;
 }
@@ -2267,6 +2388,11 @@ async function deleteWgExport(data) {
   }
   delete index[zipName];
   await writeExportIndex(index);
+  const adventure = await liveAdventure();
+  const pack = (adventure.wgSheets || []).find((item) => item.email === user.email);
+  if (removePrivateCharacterOption(pack, zipName)) {
+    await writeAdventure(adventure);
+  }
   return listWgExports(user.email);
 }
 
@@ -2934,6 +3060,15 @@ function normalizePreferredComm(value) {
   const allowed = new Set(["email", "discord", "reddit"]);
   const next = String(value || "").trim().toLowerCase();
   return allowed.has(next) ? next : "email";
+}
+
+function normalizeStoredTokenColor(value) {
+  if (value === "" || value == null) return "";
+  const raw = String(value).trim().toLowerCase();
+  if (raw === "auto") return "";
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 0 || n > 9) return "";
+  return n;
 }
 
 function normalizeHandle(value) {

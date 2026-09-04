@@ -8,7 +8,7 @@ export default defineConfig({
   },
   build: {
     outDir: "grid",
-    emptyOutDir: true,
+    emptyOutDir: false,
     cssCodeSplit: false,
     rollupOptions: {
       input: "src/scheduler.jsx",

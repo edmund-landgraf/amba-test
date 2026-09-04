@@ -1254,9 +1254,13 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       if (menu) menu.hidden = true;
     }
 
+    function menuHost() {
+      return document.querySelector("dialog.admin-shell[open]") || document.body;
+    }
+
     function ensureUrlCopyMenu() {
       let menu = q("#urlCopyMenu");
-      if (menu) return menu;
+      if (!menu) {
       menu = document.createElement("div");
       menu.id = "urlCopyMenu";
       menu.className = "schedule-context-menu";
@@ -1282,7 +1286,6 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         }
       });
       menu.appendChild(item);
-      document.body.appendChild(menu);
       document.addEventListener("mousedown", (event) => {
         if (!menu.contains(event.target)) closeUrlCopyMenu();
       });
@@ -1290,6 +1293,9 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         if (event.key === "Escape") closeUrlCopyMenu();
       });
       window.addEventListener("scroll", closeUrlCopyMenu, true);
+      }
+      const host = menuHost();
+      if (menu.parentNode !== host) host.appendChild(menu);
       return menu;
     }
 

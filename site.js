@@ -1,14 +1,23 @@
 import { TIMEZONES, timezoneLabel } from "./timezones.js";
+import {
+  applyTokenEl,
+  assignTokenColors,
+  collectPageHandles,
+  collectTokenPreferences,
+  tokenIndexFor
+} from "./lib/token-colors.mjs";
 
 let appState = {
   session: null,
   user: null,
   signups: [],
   feedback: [],
-  pcs: []
+  pcs: [],
+  wgExports: null
 };
 
 let currentEmail = readStored("ambaEmail");
+let tokenMap = Object.create(null);
 const isQuestionnairePage = location.pathname.endsWith("/questionnaire.html");
 
 const feedbackForm = document.querySelector("#feedbackForm");
@@ -52,8 +61,6 @@ const settingsForm = document.querySelector("#settingsForm");
 const closeSettings = document.querySelector("#closeSettings");
 const profileDiscordUserId = document.querySelector("#profileDiscordUserId");
 const profileRedditUserId = document.querySelector("#profileRedditUserId");
-
-start();
 
 function readCookie(name) {
   for (const part of String(document.cookie || "").split(";")) {
@@ -137,13 +144,18 @@ function askConfirm(message, { title = "Overwrite?", ok = "Overwrite" } = {}) {
 window.askAmbaConfirm = askConfirm;
 
 async function start() {
-  fillTimezoneSelect();
-  await loadState();
   wireEvents();
+  fillTimezoneSelect();
+  try {
+    await loadState();
+  } catch (error) {
+    console.error(error);
+  }
   await renderDiscordPanel();
 }
 
 function fillTimezoneSelect(selected = "") {
+  const timezoneSelect = document.querySelector("#timezoneSelect");
   if (!timezoneSelect) return;
   timezoneSelect.replaceChildren();
   const blank = document.createElement("option");
@@ -167,6 +179,7 @@ function fillTimezoneSelect(selected = "") {
 
 async function loadState() {
   appState = await api(`/api/state${currentEmail ? `?email=${encodeURIComponent(currentEmail)}` : ""}`);
+  refreshTokenColors();
   syncIdentity();
   renderAdventureTitle();
   await refreshWgExports();
@@ -250,7 +263,13 @@ function renderHostedBy() {
 
 function wireEvents() {
   feedbackForm?.addEventListener("submit", saveFeedback);
-  identityForm?.addEventListener("submit", saveIdentity);
+  document.querySelector("#identityForm")?.addEventListener("submit", saveIdentity);
+  document.querySelector("#identityForm")?.addEventListener("click", (event) => {
+    const button = event.target.closest(".token-swatch-btn");
+    if (!button) return;
+    event.preventDefault();
+    setProfileTokenColor(button.dataset.tokenValue);
+  });
   settingsForm?.addEventListener("submit", saveSettings);
   document.querySelector("#settingsDownloadExport")?.addEventListener("click", async () => {
     const note = document.querySelector("#settingsBackupNote");
@@ -335,6 +354,8 @@ function wireEvents() {
     closeLoginModal();
   });
   closeProfile?.addEventListener("click", closeProfileModal);
+  document.querySelector("#closeProfileFooter")?.addEventListener("click", closeProfileModal);
+  profileModal?.addEventListener("cancel", (event) => event.preventDefault());
   window.addEventListener("amba-need-login", joinTheTest);
   window.addEventListener("amba-need-timezone", () => {
     if (!appState.user?.email) {
@@ -357,7 +378,6 @@ function wireEvents() {
     if (event.target === settingsModal) settingsModal.close();
   });
   openTimezoneFromProfile?.addEventListener("click", () => {
-    closeProfileModal();
     openTimezoneModal();
   });
 
@@ -367,33 +387,41 @@ function wireEvents() {
       closeLoginModal();
     }
   });
-  profileModal?.addEventListener("click", (event) => {
-    if (event.target === profileModal) closeProfileModal();
-  });
 
   deleteAccount?.addEventListener("click", deleteProfile);
-  accountButton?.addEventListener("click", toggleSettingsMenu);
-  menuSettings?.addEventListener("click", () => {
-    closeSettingsMenu();
-    openSettingsModal();
-  });
-  menuTimezone?.addEventListener("click", () => {
-    closeSettingsMenu();
-    openTimezoneModal();
-  });
-  menuProfile?.addEventListener("click", () => {
-    closeSettingsMenu();
-    openProfileModal();
-  });
-  menuLogin?.addEventListener("click", () => {
-    closeSettingsMenu();
-    joinTheTest();
-  });
-  menuLogout?.addEventListener("click", () => {
-    closeSettingsMenu();
-    logout();
-  });
   document.addEventListener("click", (event) => {
+    const accountButton = document.querySelector("#accountButton");
+    const settingsMenu = document.querySelector("#settingsMenu");
+    if (event.target.closest("#accountButton")) {
+      event.preventDefault();
+      toggleSettingsMenu();
+      return;
+    }
+    if (event.target.closest("#menuSettings")) {
+      closeSettingsMenu();
+      openSettingsModal();
+      return;
+    }
+    if (event.target.closest("#menuTimezone")) {
+      closeSettingsMenu();
+      openTimezoneModal();
+      return;
+    }
+    if (event.target.closest("#menuProfile")) {
+      closeSettingsMenu();
+      openProfileModal();
+      return;
+    }
+    if (event.target.closest("#menuLogin")) {
+      closeSettingsMenu();
+      joinTheTest();
+      return;
+    }
+    if (event.target.closest("#menuLogout")) {
+      closeSettingsMenu();
+      logout();
+      return;
+    }
     if (!settingsMenu || settingsMenu.hidden) return;
     if (!event.target.closest(".account-menu")) closeSettingsMenu();
   });
@@ -403,6 +431,10 @@ function wireEvents() {
   wireWgDrop();
   wireWgSheets();
   wirePcContextMenu();
+  window.addEventListener("amba-token-map", (event) => {
+    refreshTokenColors(event.detail);
+    renderPcs();
+  });
 }
 
 function loadScriptOnce(src) {
@@ -536,19 +568,29 @@ function joinTheTest() {
 
 async function saveIdentity(event) {
   event.preventDefault();
-  if (!appState.user?.email) {
+  const form = document.querySelector("#identityForm");
+  if (!form || !appState.user?.email) {
     joinTheTest();
     return;
   }
-  const data = Object.fromEntries(new FormData(identityForm).entries());
+  const data = Object.fromEntries(new FormData(form).entries());
   data.email = appState.user.email;
   data.handle = appState.user.handle;
   data.timezone = appState.user.timezone;
-  const result = await api("/api/signup", { method: "POST", body: data });
-  appState.user = result.user;
-  closeProfileModal();
-  await loadState();
-}
+  data.discordUserId = appState.user.discordUserId;
+  data.redditUserId = appState.user.redditUserId;
+  data.preferredComm = appState.user.preferredComm;
+  data.tokenColor = document.querySelector("#profileTokenColor")?.value || data.tokenColor || "auto";
+  try {
+    const result = await api("/api/signup", { method: "POST", body: data });
+    appState.user = result.user;
+    refreshTokenColors();
+    syncIdentity();
+    setProfileTokenColor(appState.user.tokenColor);
+    if (profileNote) profileNote.textContent = "Saved.";
+  } catch (error) {
+    if (profileNote) profileNote.textContent = error.message || "Could not save profile.";
+  }
 
 async function login(event) {
   event.preventDefault();
@@ -604,6 +646,27 @@ async function deleteProfile() {
   await loadState();
 }
 
+function refreshTokenColors(nextMap) {
+  if (nextMap && typeof nextMap === "object") {
+    tokenMap = nextMap;
+  } else {
+    const slots = partySlotCounts();
+    const pcs = (appState.pcs || []).slice(0, slots.maxPartyPcs);
+    const handles = collectPageHandles({
+      times: appState.session?.times,
+      pcs,
+      selfHandle: appState.user?.handle
+    });
+    tokenMap = assignTokenColors(handles, collectTokenPreferences({
+      times: appState.session?.times,
+      pcs,
+      selfHandle: appState.user?.handle,
+      selfTokenColor: appState.user?.tokenColor
+    }));
+  }
+  applyTokenEl(document.querySelector("#accountButton"), tokenIndexFor(tokenMap, appState.user?.handle, 0));
+}
+
 function syncIdentity() {
   const user = appState.user;
   if (feedbackHandle && user?.handle) feedbackHandle.value = user.handle;
@@ -612,7 +675,9 @@ function syncIdentity() {
   if (profileTimezone) profileTimezone.textContent = user?.timezone ? timezoneLabel(user.timezone) : "Not set";
   if (profileDiscordUserId) profileDiscordUserId.textContent = user?.discordUserId || "Not set";
   if (profileRedditUserId) profileRedditUserId.textContent = user?.redditUserId || "Not set";
+  const accountInitials = document.querySelector("#accountInitials");
   if (accountInitials) accountInitials.textContent = user?.handle ? initialsForHandle(user.handle) : "?";
+  applyTokenEl(document.querySelector("#accountButton"), tokenIndexFor(tokenMap, user?.handle, 0));
   if (menuHandle) menuHandle.textContent = user?.handle ? `Welcome, ${user.handle}` : "Not signed in";
   if (menuEmail) menuEmail.textContent = user?.email || "Log in by email";
   if (generatedHandle && user?.handle) generatedHandle.value = user.handle;
@@ -629,15 +694,28 @@ function closeLoginModal() {
   if (loginModal?.open) loginModal.close();
 }
 
+function setProfileTokenColor(value) {
+  const field = document.querySelector("#profileTokenColor");
+  const next = value === 0 || value === "0" ? "0" : (value === "" || value == null ? "auto" : String(value));
+  if (field) field.value = next;
+  document.querySelectorAll(".token-swatch-btn").forEach((button) => {
+    const on = button.dataset.tokenValue === next;
+    button.classList.toggle("is-selected", on);
+    button.setAttribute("aria-checked", on ? "true" : "false");
+  });
+}
+
 function openProfileModal() {
   if (!profileModal) return;
   syncIdentity();
   if (profileNote) profileNote.textContent = appState.user
     ? "Delete account removes this user, their availability, and their feedback."
     : "Log in by email to view your profile.";
-  if (identityForm && appState.user) {
-    identityForm.discord.value = appState.user.discord || "";
-    if (appState.user.characterStatus) identityForm.characterStatus.value = appState.user.characterStatus;
+  const form = document.querySelector("#identityForm");
+  if (form && appState.user) {
+    form.discord.value = appState.user.discord || "";
+    if (appState.user.characterStatus) form.characterStatus.value = appState.user.characterStatus;
+    setProfileTokenColor(appState.user.tokenColor);
   }
   profileModal.showModal();
 }
@@ -900,12 +978,16 @@ function partySlotCounts(session = appState.session) {
 }
 
 function toggleSettingsMenu() {
+  const settingsMenu = document.querySelector("#settingsMenu");
+  const accountButton = document.querySelector("#accountButton");
   if (!settingsMenu || !accountButton) return;
   settingsMenu.hidden = !settingsMenu.hidden;
   accountButton.setAttribute("aria-expanded", String(!settingsMenu.hidden));
 }
 
 function closeSettingsMenu() {
+  const settingsMenu = document.querySelector("#settingsMenu");
+  const accountButton = document.querySelector("#accountButton");
   if (!settingsMenu || !accountButton) return;
   settingsMenu.hidden = true;
   accountButton.setAttribute("aria-expanded", "false");
@@ -959,13 +1041,13 @@ function renderPcs() {
       const link = document.createElement("a");
       link.href = "wg.html";
       link.textContent = "WG";
-      td.append("No public sheets yet. Add yours on ", link, ".");
+      td.append("No PCs yet. Add yours on ", link, ".");
       tr.append(td);
       body.append(tr);
       continue;
     }
     for (const pc of pcs) {
-      body.append(pcRow(pc, { canRemove: body.id === "signupPcsBody" }));
+      body.append(pcRow(pc, { canRemove: true }));
     }
   }
 }
@@ -973,7 +1055,9 @@ function renderPcs() {
 function ownsPc(pc) {
   const user = appState.user;
   if (!user?.email) return false;
-  const urls = new Set((user.wgSheets || []).map((sheet) => sheet.url));
+  const urls = new Set((user.wgSheets || []).map((sheet) => sheet.url).filter(Boolean));
+  const privateNames = new Set((user.wgSheets || []).map((sheet) => sheet.privateExportName).filter(Boolean));
+  if (pc?.privateExportName && privateNames.has(pc.privateExportName)) return true;
   if (pc?.url && urls.has(pc.url)) return true;
   return Boolean(user.handle && pc?.handle && user.handle === pc.handle);
 }
@@ -985,7 +1069,7 @@ function closePcContextMenu() {
 
 function wirePcContextMenu() {
   if (document.querySelector("#pcContextMenu")) return;
-  if (!document.querySelector("#signupPcsBody, #wgSheetList")) return;
+  if (!document.querySelector("#signupPcsBody, #pcsTableBody, #wgSheetList")) return;
   const menu = document.createElement("div");
   menu.id = "pcContextMenu";
   menu.className = "schedule-context-menu";
@@ -1000,13 +1084,14 @@ function wirePcContextMenu() {
     event.preventDefault();
     event.stopPropagation();
     const url = menu.dataset.url || "";
+    const privateExportName = menu.dataset.privateExportName || "";
     const name = menu.dataset.name || "this PC";
     const action = menu.dataset.action || "remove";
     closePcContextMenu();
-    if (!url) return;
+    if (!url && !privateExportName) return;
     window.setTimeout(async () => {
       if (action === "add") {
-        await includePartyPc(url, name);
+        await includePartyPc({ url, privateExportName }, name);
         return;
       }
       const ok = await askConfirm(
@@ -1016,7 +1101,7 @@ function wirePcContextMenu() {
           ok: "Remove"
         }
       );
-      if (ok) await excludePartyPc(url);
+      if (ok) await excludePartyPc({ url, privateExportName });
     }, 0);
   });
   menu.append(item);
@@ -1036,6 +1121,7 @@ function openPcContextMenu(event, pc, action = "remove") {
   if (!menu) return;
   const item = menu.querySelector("button");
   menu.dataset.url = pc.url || "";
+  menu.dataset.privateExportName = pc.privateExportName || "";
   menu.dataset.name = pc.name || `Sheet ${pc.id || ""}`.trim() || "this PC";
   menu.dataset.action = action;
   if (item) item.textContent = action === "add" ? "Add to party" : "Remove";
@@ -1064,12 +1150,17 @@ function pcRow(pc, { canRemove = false } = {}) {
     hero.append(ph);
   }
   const name = document.createElement("td");
-  const link = document.createElement("a");
-  link.href = pc.url;
-  link.target = "_blank";
-  link.rel = "noreferrer";
-  link.textContent = pc.name || `Sheet ${pc.id || ""}`.trim() || "Sheet";
-  name.append(link);
+  const label = pc.name || `Sheet ${pc.id || ""}`.trim() || "Sheet";
+  if (pc.url) {
+    const link = document.createElement("a");
+    link.href = pc.url;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.textContent = label;
+    name.append(link);
+  } else {
+    name.textContent = label;
+  }
   const abc = document.createElement("td");
   abc.textContent = pc.abc || "—";
   const level = document.createElement("td");
@@ -1079,6 +1170,7 @@ function pcRow(pc, { canRemove = false } = {}) {
   avatar.className = "grid-avatar";
   avatar.title = pc.handle || "";
   avatar.textContent = initialsForHandle(pc.handle);
+  applyTokenEl(avatar, tokenIndexFor(tokenMap, pc.handle));
   player.append(avatar);
   tr.append(hero, name, abc, level, player);
   return tr;
@@ -1086,41 +1178,103 @@ function pcRow(pc, { canRemove = false } = {}) {
 
 function renderWgSheetList() {
   const list = document.querySelector("#wgSheetList");
-  if (!list) return;
+  if (!list) {
+    renderPrivateCharacterChoices();
+    return;
+  }
   list.replaceChildren();
   const sheets = appState.user?.wgSheets || [];
   for (const sheet of sheets) {
     const item = document.createElement("li");
-    const link = document.createElement("a");
-    link.href = sheet.url;
-    link.target = "_blank";
-    link.rel = "noreferrer";
-    link.textContent = sheet.name || sheet.url;
+    const isPrivate = Boolean(sheet.privateExportName || sheet.type === "private");
+    const title = isPrivate ? document.createElement("strong") : document.createElement("a");
+    if (isPrivate) {
+      title.textContent = sheet.name || "Private character";
+    } else {
+      title.href = sheet.url;
+      title.target = "_blank";
+      title.rel = "noreferrer";
+      title.textContent = sheet.name || sheet.url;
+    }
     const meta = document.createElement("span");
     const inParty = sheet.inParty !== false;
     meta.textContent = [
-      sheet.abc,
-      sheet.level !== "" ? `Lv ${sheet.level}` : "",
+      isPrivate ? sheet.privateExportName : sheet.abc,
+      !isPrivate && sheet.level !== "" ? `Lv ${sheet.level}` : "",
       inParty ? "in party" : "not in party"
     ].filter(Boolean).join(" · ");
-    const edit = document.createElement("button");
-    edit.type = "button";
-    edit.className = "button";
-    edit.textContent = "Edit";
-    edit.addEventListener("click", () => beginEditWgSheet(sheet.url));
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "file-remove";
-    remove.setAttribute("aria-label", `Delete ${sheet.name || sheet.url}`);
+    remove.setAttribute("aria-label", `Delete ${sheet.name || sheet.url || sheet.privateExportName}`);
     remove.textContent = "×";
-    remove.addEventListener("click", () => deleteWgSheet(sheet.url));
+    remove.addEventListener("click", () => {
+      if (isPrivate) deletePrivateCharacter(sheet.privateExportName);
+      else deleteWgSheet(sheet.url);
+    });
     if (!inParty) {
       item.classList.add("sheet-addable");
       item.addEventListener("contextmenu", (event) => openPcContextMenu(event, sheet, "add"));
     }
-    item.append(link, meta, edit, remove);
+    item.append(title, meta);
+    if (!isPrivate) {
+      const edit = document.createElement("button");
+      edit.type = "button";
+      edit.className = "button";
+      edit.textContent = "Edit";
+      edit.addEventListener("click", () => beginEditWgSheet(sheet.url));
+      item.append(edit);
+    }
+    item.append(remove);
     list.append(item);
   }
+  renderPrivateCharacterChoices();
+}
+
+function renderPrivateCharacterChoices() {
+  const wrap = document.querySelector("#privateCharacterChoices");
+  const note = document.querySelector("#privateCharacterNote");
+  if (!wrap) return;
+  wrap.replaceChildren();
+  const files = (appState.wgExports?.files || []).filter((file) => file.mine);
+  const selected = new Set((appState.user?.wgSheets || [])
+    .filter((sheet) => sheet.privateExportName || sheet.type === "private")
+    .map((sheet) => sheet.privateExportName));
+  if (!appState.user?.email) {
+    if (note) note.textContent = "";
+    return;
+  }
+  if (!files.length) {
+    const upload = document.createElement("a");
+    upload.href = "upload.html";
+    upload.textContent = "Uploads";
+    wrap.append("No saved private WG JSON archives yet. Add one on ", upload, " first, then come back here.");
+    if (note) note.textContent = "";
+    return;
+  }
+  const list = document.createElement("ul");
+  list.className = "file-list private-character-list";
+  for (const file of files) {
+    const item = document.createElement("li");
+    const name = document.createElement("strong");
+    name.textContent = file.name;
+    const meta = document.createElement("span");
+    meta.textContent = [formatLocalBytes(file.size), file.updatedAt ? new Date(file.updatedAt).toLocaleDateString() : ""]
+      .filter(Boolean)
+      .join(" · ");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = selected.has(file.name) ? "button" : "button primary";
+    button.textContent = selected.has(file.name) ? "Remove choice" : "Use this private character";
+    button.addEventListener("click", () => {
+      if (selected.has(file.name)) deletePrivateCharacter(file.name);
+      else savePrivateCharacter(file.name);
+    });
+    item.append(name, meta, button);
+    list.append(item);
+  }
+  wrap.append(list);
+  if (note) note.textContent = "";
 }
 
 function beginEditWgSheet(url) {
@@ -1171,6 +1325,7 @@ async function saveWgSheet(event) {
     appState.pcs = result.pcs;
     cancelEditWgSheet();
     renderWgSheetList();
+    refreshTokenColors();
     renderPcs();
     if (note) note.textContent = "Saved.";
   } catch (error) {
@@ -1184,7 +1339,7 @@ async function saveWgSheet(event) {
   }
 }
 
-async function includePartyPc(url, name = "this PC") {
+async function includePartyPc(pc, name = "this PC") {
   const note = document.querySelector("#wgSheetNote");
   if (!appState.user?.email) return;
   const perPlayer = partySlotCounts().maxPcsPerPlayer;
@@ -1198,11 +1353,16 @@ async function includePartyPc(url, name = "this PC") {
   try {
     const result = await api("/api/party-pcs", {
       method: "POST",
-      body: { email: appState.user.email, url }
+      body: {
+        email: appState.user.email,
+        url: pc.url || "",
+        privateExportName: pc.privateExportName || ""
+      }
     });
     appState.user = result.user;
     appState.pcs = result.pcs;
     renderWgSheetList();
+    refreshTokenColors();
     renderPcs();
     if (note) note.textContent = `Added ${name} to the party.`;
   } catch (error) {
@@ -1214,16 +1374,22 @@ async function includePartyPc(url, name = "this PC") {
   }
 }
 
-async function excludePartyPc(url) {
+async function excludePartyPc(pc) {
   if (!appState.user?.email) return;
+  const params = new URLSearchParams({
+    email: appState.user.email
+  });
+  if (pc.url) params.set("url", pc.url);
+  if (pc.privateExportName) params.set("privateExportName", pc.privateExportName);
   try {
     const result = await api(
-      `/api/party-pcs?email=${encodeURIComponent(appState.user.email)}&url=${encodeURIComponent(url)}`,
+      `/api/party-pcs?${params.toString()}`,
       { method: "DELETE" }
     );
     appState.user = result.user;
     appState.pcs = result.pcs;
     renderWgSheetList();
+    refreshTokenColors();
     renderPcs();
   } catch {
     window.alert("Could not remove that PC from the party.");
@@ -1247,10 +1413,71 @@ async function deleteWgSheet(url) {
     appState.pcs = result.pcs;
     cancelEditWgSheet();
     renderWgSheetList();
+    refreshTokenColors();
     renderPcs();
     if (note) note.textContent = "Deleted.";
   } catch {
     if (note) note.textContent = "Could not delete that link.";
+  }
+}
+
+async function savePrivateCharacter(name) {
+  const note = document.querySelector("#privateCharacterNote") || document.querySelector("#wgSheetNote");
+  if (!appState.user?.email) return;
+  try {
+    const result = await api("/api/private-characters", {
+      method: "POST",
+      body: {
+        email: appState.user.email,
+        name
+      }
+    });
+    appState.user = result.user;
+    appState.pcs = result.pcs;
+    renderWgSheetList();
+    refreshTokenColors();
+    renderPcs();
+    const saved = (appState.user.wgSheets || []).find((sheet) => sheet.privateExportName === name);
+    if (note) {
+      note.textContent = saved?.inParty === false
+        ? "Saved private character. It is outside the party list until there is room."
+        : "Added private character.";
+    }
+  } catch (error) {
+    const perPlayer = partySlotCounts().maxPcsPerPlayer;
+    const message = error.code === "sheet_limit"
+      ? "Six character options max. Remove one before adding another."
+      : error.code === "party_per_player_limit"
+      ? `You already have ${perPlayer} PC${perPlayer === 1 ? "" : "s"} in the party. Remove one from Signup before adding another.`
+      : error.code === "forbidden"
+      ? "That upload belongs to another player."
+      : "Could not add that private character.";
+    if (note) note.textContent = message;
+    window.alert(message);
+  }
+}
+
+async function deletePrivateCharacter(name) {
+  const note = document.querySelector("#privateCharacterNote") || document.querySelector("#wgSheetNote");
+  if (!appState.user?.email) return;
+  const ok = await askConfirm("Remove this private character choice from WG? The uploaded JSON file stays in Uploads.", {
+    title: "Remove private choice?",
+    ok: "Remove"
+  });
+  if (!ok) return;
+  try {
+    const result = await api(
+      `/api/private-characters?email=${encodeURIComponent(appState.user.email)}&name=${encodeURIComponent(name)}`,
+      { method: "DELETE" }
+    );
+    appState.user = result.user;
+    appState.pcs = result.pcs;
+    renderWgSheetList();
+    refreshTokenColors();
+    renderPcs();
+    if (note) note.textContent = "Removed private character.";
+  } catch {
+    if (note) note.textContent = "Could not remove that private character.";
   }
 }
 
@@ -1321,9 +1548,12 @@ async function uploadWgFiles(fileList) {
 
 async function refreshWgExports() {
   const list = document.querySelector("#wgFileList");
-  if (!list) return;
+  const privateChoices = document.querySelector("#privateCharacterChoices");
+  if (!list && !privateChoices) return;
   if (!appState.user?.email) {
-    list.replaceChildren();
+    appState.wgExports = null;
+    list?.replaceChildren();
+    renderPrivateCharacterChoices();
     const note = document.querySelector("#wgDropNote");
     if (note) note.textContent = "";
     return;
@@ -1332,34 +1562,40 @@ async function refreshWgExports() {
     const listing = await api(`/api/wg-exports?email=${encodeURIComponent(appState.user.email)}`);
     renderWgExports(listing);
   } catch {
-    list.replaceChildren();
+    appState.wgExports = null;
+    list?.replaceChildren();
+    renderPrivateCharacterChoices();
   }
 }
 
 function renderWgExports(listing) {
   const list = document.querySelector("#wgFileList");
   const note = document.querySelector("#wgDropNote");
-  if (!list || !listing) return;
-  list.replaceChildren();
-  for (const file of listing.files || []) {
-    const item = document.createElement("li");
-    const link = document.createElement("a");
-    link.href = `/api/wg-exports/file?name=${encodeURIComponent(file.name)}&email=${encodeURIComponent(appState.user.email)}`;
-    link.textContent = file.name;
-    const meta = document.createElement("span");
-    meta.textContent = [file.handle, formatLocalBytes(file.size)].filter(Boolean).join(" · ");
-    item.append(link, meta);
-    if (file.mine) {
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "file-remove";
-      remove.setAttribute("aria-label", `Delete ${file.name}`);
-      remove.textContent = "×";
-      remove.addEventListener("click", () => deleteOwnedWgExport(file.name));
-      item.append(remove);
+  if (!listing) return;
+  appState.wgExports = listing;
+  if (list) {
+    list.replaceChildren();
+    for (const file of listing.files || []) {
+      const item = document.createElement("li");
+      const link = document.createElement("a");
+      link.href = `/api/wg-exports/file?name=${encodeURIComponent(file.name)}&email=${encodeURIComponent(appState.user.email)}`;
+      link.textContent = file.name;
+      const meta = document.createElement("span");
+      meta.textContent = [file.handle, formatLocalBytes(file.size)].filter(Boolean).join(" · ");
+      item.append(link, meta);
+      if (file.mine) {
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "file-remove";
+        remove.setAttribute("aria-label", `Delete ${file.name}`);
+        remove.textContent = "×";
+        remove.addEventListener("click", () => deleteOwnedWgExport(file.name));
+        item.append(remove);
+      }
+      list.append(item);
     }
-    list.append(item);
   }
+  renderPrivateCharacterChoices();
   if (note && listing.usedLabel) {
     note.textContent = `${listing.usedLabel} of ${listing.capLabel} used.`;
   }
@@ -1375,6 +1611,10 @@ async function deleteOwnedWgExport(name) {
       { method: "DELETE" }
     );
     renderWgExports(listing);
+    appState.user.wgSheets = (appState.user.wgSheets || []).filter((sheet) => sheet.privateExportName !== name);
+    appState.pcs = (appState.pcs || []).filter((pc) => pc.privateExportName !== name);
+    renderWgSheetList();
+    renderPcs();
     if (note) note.textContent = `Deleted. ${listing.usedLabel} of ${listing.capLabel} used.`;
   } catch {
     if (note) note.textContent = "Could not delete that file.";
@@ -1387,3 +1627,4 @@ function formatLocalBytes(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+start();

@@ -12,37 +12,40 @@
   <main>
     <section class="page-hero">
       <p class="eyebrow">WG JSON</p>
-      <h1>Upload character exports</h1>
-      <p class="lede">Log in here first. Then export each public character as Wanderer's Guide JSON and drop the files on this page. We zip each file and keep only the archive. Same name replaces. Use × to delete a file you uploaded.</p>
+      <h1>Private character fallback</h1>
+      <p class="lede">If your WG character is public, you probably do not need this page. Once you save the public sheet link on the <a href="wg.html">WG</a> page, the character is already read-only in the party pool, and AMBA can import from the WG link. Upload a JSON file only when you want to play a character that is staying private.</p>
     </section>
 
     <section class="doc login-required-panel">
-      <p>This page is only for people signed in on this site. Use the avatar menu, or the button below. We do not take AMBA, WG, Owlbear, Discord, or API-key passwords.</p>
+      <p>Log in on this site before uploading. This page only stores WG character export files for private-character fallback. It does not ask for AMBA, WG, Owlbear, Discord, or API-key passwords.</p>
       <p><button class="button primary" id="openUploadLogin" type="button">Log in</button></p>
     </section>
 
     <section class="doc logged-in-only">
-      <h2>How to export WG JSON</h2>
-      <p>Build two public characters first. Old UI: <a href="https://amba.wandersguide.site/">amba.wandersguide.site</a>. New UI: <a href="https://wgui.wandersguide.site/">wgui.wandersguide.site</a>. Same WG account on both. Turn on <strong>Public Character</strong> (Home → Options) before you export. Details are on the <a href="wg.html">WG</a> page.</p>
+      <h2>Public link first</h2>
+      <p>The easier path is to make your character public in WG and save the public sheet link on the <a href="wg.html">WG</a> page. That puts the character on Signup for the group to see, keeps the sheet read-only for everyone else, and gives AMBA enough to import from the WG link. No JSON upload needed.</p>
+
+      <h2>If the character is private</h2>
+      <p>If you want to keep a character private, export that character as Wanderer’s Guide JSON and drop the file here. The GM can use the uploaded JSON for the character you are actually playing.</p>
       <ul>
         <li><strong>Old UI:</strong> Open <strong>Characters</strong>. On that PC’s card, open the options menu (the menu with Create Copy). Choose <strong>Export to JSON</strong>. Save the <code>.json</code> file.</li>
         <li><strong>New UI:</strong> Open the character sheet. Open the <strong>Character</strong> menu. Choose <strong>Export JSON</strong>. Save the <code>.json</code> file.</li>
       </ul>
-      <p>Export each of your two PCs. Do not upload a Pathbuilder file, a PDF, or the GM API key.</p>
+      <p>Upload WG JSON exports only. Pathbuilder characters should be imported into WG first, then exported from WG. PDFs and API keys do not belong here.</p>
 
       <h2>Drop files here</h2>
-      <p>Two JSON files per person. We store a zip of each one. You can delete your own files with ×. The GM later downloads four of the eight from this list after we pick on Discord, then unzips to import.</p>
+      <p>Drop a WG JSON file here only for a private character you intend to play. The site stores a zip of each file, and you can delete your own uploads with the delete button. After the group picks the warmup party, the GM downloads any needed private-character files, unzips them, and imports them into AMBA.</p>
       <div class="drop-band">
         <label class="dropzone" id="wgDrop">
           <input id="wgDropInput" type="file" accept="application/json,.json" multiple hidden>
-          <span>Drop WG JSON here, or click to choose. We zip it and throw out the original. Same name replaces.</span>
+          <span>Drop private-character WG JSON here, or click to choose. We zip the file and keep the archive. Same name replaces.</span>
         </label>
         <p class="form-note" id="wgDropNote"></p>
         <ul class="file-list" id="wgFileList"></ul>
       </div>
       <aside class="example">
         <h3>Example</h3>
-        <p>Merry-Anchor exports <code>scout.json</code> from old UI and <code>cleric.json</code> from new UI, then drops both here. The list keeps <code>scout.zip</code> and <code>cleric.zip</code>.</p>
+        <p>Merry-Anchor makes a scout public and saves the sheet link on WG, so no upload is needed for that one. Their secret backup character stays private, so they export <code>cleric.json</code> from WG and drop it here. The list keeps <code>cleric.zip</code>.</p>
       </aside>
 
       <nav class="related">

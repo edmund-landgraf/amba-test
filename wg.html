@@ -11,9 +11,9 @@
 <body>
   <main>
     <section class="page-hero">
-      <p class="eyebrow">WGUI</p>
-      <h1>Players log into WG here. They never log into AMBA.</h1>
-      <p class="lede">If you already build in Pathbuilder and fight on Foundry (or a Discord bot + a map), this is the same split: WG is the sheet, new UI is live combat, AMBA is GM-only prep. Build in old and/or new UI; combat on the call is new UI only. Up to six public characters, export JSON, drop files on Upload. We consider two per player, pick four of eight on Discord; the GM downloads those four from Upload.</p>
+      <p class="eyebrow">Wanderer’s Guide</p>
+      <h1>Bring characters for the party pool</h1>
+      <p class="lede">WG is where player characters start. You can save up to six public WG characters here, and they will appear on the Signup page for the group to see. The GM sets how many characters from each player are considered for this run. Once the party is chosen, each player keeps one character in the party and removes their extras.</p>
     </section>
 
     <section class="band pcs-band">
@@ -34,16 +34,17 @@
           <tbody id="pcsTableBody"></tbody>
         </table>
       </div>
-      <p class="form-note" id="pcsEmpty">No public sheet links yet.</p>
+      <p class="form-note" id="pcsEmpty">No PCs yet.</p>
     </section>
 
     <section class="doc login-required-panel">
-      <p>Log in on this site to paste up to six public WG sheet links. Right-click a link to add it to the party. Remove from the party on <a href="index.html">Signup</a>.</p>
+      <p>Log in on this site to save your public WG sheet links. You can add a few options, and we will choose a good party mix together before the warmup.</p>
     </section>
 
     <section class="doc logged-in-only">
-      <h2>Your public sheet links</h2>
-      <p>Up to six links per player. Old UI: <a href="https://amba.wandersguide.site/">amba.wandersguide.site</a> <code>/sheet/…</code>. New UI: <a href="https://wgui.wandersguide.site/">wgui.wandersguide.site</a> <code>/sheet/…</code>. Same public, read-only sheet. Right-click a saved link to add it to the party (default two to consider). To swap one out, remove it on <a href="index.html">Signup</a> first. You can edit or delete a link later.</p>
+      <h2>Your character options</h2>
+      <p>You can save up to six WG character options here. Public characters use a sheet link; private characters use a saved WG JSON archive and show up to the group as Private character. The old WG UI and new WG UI use the same account and character data, so use whichever builder feels better.</p>
+      <p>Saved characters show up on the <a href="index.html">Signup</a> page. The GM can set how many characters per player are considered for the warmup. After the table picks the party, each player keeps the character they are playing and removes their other characters from the party list.</p>
       <form id="wgSheetForm" class="sheet-link-form">
         <label>Sheet link <input name="url" type="url" required placeholder="https://wgui.wandersguide.site/sheet/…"></label>
         <input type="hidden" name="replaceUrl" value="">
@@ -52,51 +53,59 @@
       </form>
       <p class="form-note" id="wgSheetNote"></p>
       <ul class="file-list" id="wgSheetList"></ul>
+      <div class="private-character-panel">
+        <h3>I have a private character</h3>
+        <p class="form-note">If this character is staying private, upload its WG JSON first, then choose that saved file here. The party list will show it as Private character.</p>
+        <div id="privateCharacterChoices" class="private-character-choices"></div>
+        <p class="form-note" id="privateCharacterNote"></p>
+      </div>
     </section>
 
     <section class="doc">
-      <p>Old UI (original builder): <a href="https://amba.wandersguide.site/">amba.wandersguide.site</a>. New UI: <a href="https://wgui.wandersguide.site/">wgui.wandersguide.site</a>. Same WG account on both—like Pathbuilder 2e desktop vs web, not two different characters. The GM keeps AMBA on the Discord share. Players do not need AMBA accounts: they use the <strong>player syndication link</strong> (<a href="session.html">Session</a> step 6) for the adventure packet. Optional: an AMBA account plus module sharing to follow encounter design (Session step 5).</p>
+      <p>Old UI: <a href="https://amba.wandersguide.site/">amba.wandersguide.site</a>. New UI: <a href="https://wgui.wandersguide.site/">wgui.wandersguide.site</a>. Same WG account, same characters, two different ways to work with them. Players use WG for character sheets and the new combat view. AMBA stays mostly on the GM’s screen, unless someone is curious and the GM shares access.</p>
 
       <h2>Have a character on Pathbuilder?</h2>
-      <p>Bring it into WG with WG’s own importer. Do not drop a Pathbuilder file on <a href="upload.html">Uploads</a>—that page only takes WG JSON.</p>
+      <p>Easy: bring it into WG with WG’s importer first. Once it is in WG, make it public and save the sheet link here. If you want to keep that character private, then export WG JSON and use <a href="upload.html">Uploads</a> instead.</p>
       <ol>
-        <li>In <a href="https://pathbuilder2e.com/">Pathbuilder 2e</a>, open the character, use the menu, and choose <strong>Export JSON</strong>. Pathbuilder gives a six-digit id (it hosts the JSON; you paste the id, not a file).</li>
+        <li>In <a href="https://pathbuilder2e.com/">Pathbuilder 2e</a>, open the character, use the menu, and choose <strong>Export JSON</strong>. Pathbuilder can give you a JSON ID, and you can also save the exported JSON file.</li>
         <li>In the <strong>new</strong> UI, open <strong>Characters</strong> (<a href="https://wgui.wandersguide.site/">wgui.wandersguide.site</a>).</li>
         <li>Open the import menu next to Create Character (upload icon). Choose <strong>Import from Pathbuilder</strong>.</li>
-        <li>Paste the six-digit id and import. That creates a WG character on your account.</li>
+        <li>Paste the JSON ID or upload the exported Pathbuilder JSON file. That creates a WG character on your account.</li>
       </ol>
-      <p>Then treat it like any other WG PC: turn on <strong>Public Character</strong>, export <strong>WG</strong> JSON, and drop that file on Uploads. You still need two characters that are not twins—import a second Pathbuilder PC or build the other one in WG.</p>
+      <p>Once the character is in WG, treat it like any other WG PC: turn on <strong>Public Character</strong> and save the public sheet link here. Bringing a few different character options is welcome; the GM will set how many are considered for the run. Use Uploads only for characters that are staying private.</p>
 
-      <h2>Public Character — old UI and new UI</h2>
-      <p>Turn on <strong>Public Character</strong> for both PCs so anyone with the sheet link can open them—the equivalent of a public Pathbuilder share, not a locked Foundry actor. Same label in both UIs; different clicks to get there.</p>
+      <h2>Public sheet links</h2>
+      <p>Turn on <strong>Public Character</strong> for any PC you want the group to consider. This part is required: the site uses the public sheet link to show your character on Signup, and the group needs to be able to open the sheet before choosing the party.</p>
+      <p>It works like a shareable Pathbuilder link: people with the link can view the sheet, but they are not editing your private character. The setting has the same name in both WG UIs; the clicks are just a little different.</p>
       <ul>
         <li><strong>Old UI:</strong> Open the character in the builder (<code>/builder/…</code>). Use the <strong>Home</strong> step (house icon, first stepper step). Open the <strong>Options</strong> tab (last of Books, Homebrew, Variant Rules, Options). Switch on <strong>Public Character</strong> (after Organized Play, before Voluntary Flaw).</li>
         <li><strong>New UI:</strong> Open the character builder (sheet with <code>?view=builder</code>, or Characters → that PC). Stay on the <strong>Home</strong> step (not Builder). Open the <strong>Options</strong> tab. Switch on <strong>Public Character</strong>.</li>
       </ul>
-      <p>Use old UI, new UI, or both for building. Do not skip the public switch.</p>
+      <p>Use old UI, new UI, or both for building. Just make sure the character is public before saving the sheet link here.</p>
 
       <h2>Before the call</h2>
-      <p>Sign in with your own WG account. Create two characters that are not twins. Make both public. Export each character’s WG JSON. Then drop both files on <a href="upload.html">Uploads</a>. Do not log into AMBA. Do not ask for the GM API key.</p>
+      <p>Before the call, bring any WG characters you want considered, up to six. Make each one public and save the public sheet links here. More than one option is helpful, but everyone will only play one character once the party is chosen. If a character is staying private, export that one as WG JSON and put it on <a href="upload.html">Uploads</a>.</p>
       <aside class="example">
         <h3>Example</h3>
-        <p>Merry-Anchor builds a scout in old UI and a cleric in new UI, turns on Public Character on both (Home → Options), exports both, and drops them on Upload.</p>
+        <p>Merry-Anchor builds a scout in old UI and a cleric in new UI, turns on Public Character on both (Home → Options), and saves both sheet links here. Their private backup character gets exported as WG JSON and dropped on Uploads.</p>
       </aside>
 
       <h2>When the group meets</h2>
-      <p>When we first meet on Discord, pick <strong>four of the eight</strong> to play. The GM then downloads those four from <a href="upload.html">Uploads</a> and imports them as PCs in the AMBA module, then creates the WG campaign and posts the join key. Enter the key in the <strong>new</strong> UI. That makes you available for the campaign. You should not appear under Characters on the GM’s WG account—that list is the GM’s characters if AMBA is linked. You should appear on the <strong>Party bench</strong> in encounters. The four leftover files stay unused for this run.</p>
+      <p>In Discord, we will look at the characters on Signup and pick a party that seems fun for the warmup. The GM controls how many characters from each player are in consideration. Once the party is picked, each player keeps one character in the party and removes their extras.</p>
+      <p>The GM imports selected public characters from their WG links, uses uploaded JSON for any private characters, creates the WG campaign, and shares the join key. Paste that key in the new WGUI so your character can appear on the Party bench for encounters.</p>
 
-      <h2>What the GM does (still in AMBA)</h2>
-      <p>After Discord pick, download the four chosen JSON files from <a href="upload.html">Uploads</a>. Import them as module PCs. Link WG from the AMBA avatar menu (Settings → Wanderer's Guide), then Create campaign in the module’s WG settings and post the <em>WG join key</em> in Discord. Combat is designed and fired from AMBA. Players watch and click in the <strong>new</strong> UI only.</p>
+      <h2>What the GM connects</h2>
+      <p>After the group chooses characters, the GM imports the selected public WG links into AMBA and downloads any private-character JSON files from <a href="upload.html">Uploads</a>. From there, the GM connects WG, creates the campaign, and shares the WG join key. Players use that key in the new WGUI; the GM keeps the API setup private.</p>
       <aside class="example">
         <h3>Example</h3>
-        <p>GM, still in AMBA: “Join key is in the pin. Paste it in WGUI. Check the Party bench, not Characters.”</p>
+        <p>GM, still in AMBA: “Join key is in the pin. Paste it in WGUI. Once the party is chosen, keep the character you are playing and remove the extras from the party list.”</p>
       </aside>
 
-      <h2>Combat and skill — new UI only</h2>
-      <p>On the call, open the <strong>new</strong> UI (<a href="https://wgui.wandersguide.site/">wgui.wandersguide.site</a>). Leave the old builder. The table designs a moderate XP encounter and one skill in AMBA. Confirm the four chosen PCs on the Party bench. Combat notes stay in the new UI, not on the map.</p>
+      <h2>Combat and challenges</h2>
+      <p>On the call, we will use the new WGUI for combat and challenge screens. It may look a little different if you are used to the old builder, but the warmup only needs one round and one challenge moment. Enough to see where everything lives.</p>
 
       <h2>If the bench is empty</h2>
-      <p>Joined players may not show on the Party bench in every encounter, and the API may not update WG in real time. If they never show, mention it on <a href="feedback.html">feedback</a> and continue to <a href="owlbear.html">Owlbear</a> with tokens placed by hand if needed.</p>
+      <p>If joined characters do not show up on the Party bench right away, no panic. We will note what happened, keep going, and use <a href="owlbear.html">Owlbear</a> with manual tokens if needed. That is exactly the kind of thing the warmup is meant to uncover.</p>
 
       <nav class="related">
         <a href="https://wgui.wandersguide.site/">Open WGUI (players)</a>

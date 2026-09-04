@@ -39,11 +39,11 @@
           <path fill="currentColor" d="M12 7.2a4.8 4.8 0 1 1 0 9.6 4.8 4.8 0 0 1 0-9.6Zm0-5.2a.9.9 0 0 1 .9.9v1.6a.9.9 0 1 1-1.8 0V2.9A.9.9 0 0 1 12 2Zm0 16.4a.9.9 0 0 1 .9.9v1.6a.9.9 0 1 1-1.8 0v-1.6a.9.9 0 0 1 .9-.9Zm10-7.4a.9.9 0 0 1-.9.9h-1.6a.9.9 0 1 1 0-1.8h1.6a.9.9 0 0 1 .9.9ZM4.5 12a.9.9 0 0 1-.9.9H2a.9.9 0 1 1 0-1.8h1.6a.9.9 0 0 1 .9.9Zm14.4-6.9a.9.9 0 0 1 0 1.27l-1.13 1.13a.9.9 0 1 1-1.27-1.27L17.63 4a.9.9 0 0 1 1.27 0ZM6.5 16.63a.9.9 0 0 1 0 1.27l-1.13 1.13A.9.9 0 1 1 4.1 17.76l1.13-1.13a.9.9 0 0 1 1.27 0Zm11.13 1.27a.9.9 0 0 1-1.27 0l-1.13-1.13a.9.9 0 1 1 1.27-1.27l1.13 1.13a.9.9 0 0 1 0 1.27ZM6.5 5.1a.9.9 0 0 1 0 1.27L5.37 7.5A.9.9 0 1 1 4.1 6.23L5.23 5.1A.9.9 0 0 1 6.5 5.1Z"/>
         </svg>
       </button>
-      <menu class="account-menu">
+      <div class="account-menu">
         <button class="avatar-button" id="accountButton" type="button" aria-haspopup="menu" aria-expanded="false">
           <span id="accountInitials">?</span>
         </button>
-        <menu class="settings-menu" id="settingsMenu" role="menu" hidden>
+        <div class="settings-menu" id="settingsMenu" role="menu" hidden>
           <p class="menu-identity">
             <span id="menuHandle">Not signed in</span>
             <small id="menuEmail">Log in by email</small>
@@ -53,8 +53,8 @@
           <button type="button" id="menuTimezone" role="menuitem">Set time zone</button>
           <button type="button" id="menuProfile" role="menuitem">Profile</button>
           <button type="button" id="menuLogout" role="menuitem">Log out</button>
-        </menu>
-      </menu>
+        </div>
+      </div>
     </div>
     </div>
   `;
@@ -126,6 +126,27 @@
       <p class="modal-copy">Your handle is used in the shared session sheet. Your email is private and used only to log back in.</p>
       <button class="button secondary" id="openTimezoneFromProfile" type="button">Set time zone</button>
       <form id="identityForm">
+        <fieldset class="token-choice">
+          <legend>Token color</legend>
+          <input type="hidden" name="tokenColor" id="profileTokenColor" value="auto">
+          <div class="token-swatch-row" role="radiogroup" aria-label="Token color">
+            <button type="button" class="token-swatch-btn is-selected" data-token-value="auto" aria-checked="true" title="Auto">
+              <span class="token-swatch token-swatch-auto"></span>
+              Auto
+            </button>
+            <button type="button" class="token-swatch-btn" data-token-value="0" aria-checked="false" title="Teal"><span class="token-swatch" data-token="0"></span></button>
+            <button type="button" class="token-swatch-btn" data-token-value="1" aria-checked="false" title="Rust"><span class="token-swatch" data-token="1"></span></button>
+            <button type="button" class="token-swatch-btn" data-token-value="2" aria-checked="false" title="Blue"><span class="token-swatch" data-token="2"></span></button>
+            <button type="button" class="token-swatch-btn" data-token-value="3" aria-checked="false" title="Plum"><span class="token-swatch" data-token="3"></span></button>
+            <button type="button" class="token-swatch-btn" data-token-value="4" aria-checked="false" title="Olive"><span class="token-swatch" data-token="4"></span></button>
+            <button type="button" class="token-swatch-btn" data-token-value="5" aria-checked="false" title="Slate"><span class="token-swatch" data-token="5"></span></button>
+            <button type="button" class="token-swatch-btn" data-token-value="6" aria-checked="false" title="Wine"><span class="token-swatch" data-token="6"></span></button>
+            <button type="button" class="token-swatch-btn" data-token-value="7" aria-checked="false" title="Brown"><span class="token-swatch" data-token="7"></span></button>
+            <button type="button" class="token-swatch-btn" data-token-value="8" aria-checked="false" title="Indigo"><span class="token-swatch" data-token="8"></span></button>
+            <button type="button" class="token-swatch-btn" data-token-value="9" aria-checked="false" title="Cyan"><span class="token-swatch" data-token="9"></span></button>
+          </div>
+        </fieldset>
+        <p class="form-note">Picked colors stay yours. If two people pick the same fill, the first person on the page keeps it and the other gets the next free color.</p>
         <label>Discord handle <input name="discord" autocomplete="off" placeholder="Optional"></label>
         <label>Character status
           <select name="characterStatus">
@@ -136,7 +157,10 @@
           </select>
         </label>
         <input type="hidden" id="generatedHandle" name="handle">
-        <button class="button primary" type="submit">Save profile</button>
+        <p class="form-actions">
+          <button class="button primary" type="submit">Save profile</button>
+          <button class="button secondary" id="closeProfileFooter" type="button">Close</button>
+        </p>
       </form>
       <button class="button danger" id="deleteAccount" type="button">Delete account</button>
       <p class="form-note" id="profileNote">Deleting removes your profile, availability, and feedback.</p>

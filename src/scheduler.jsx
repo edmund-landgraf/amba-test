@@ -7,6 +7,13 @@ import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-quartz.css";
 import { renderMarkdown } from "./markdown.js";
 import { ZONE_IANA } from "../timezones.js";
+import {
+  assignTokenColors,
+  collectPageHandles,
+  collectTokenPreferences,
+  overflowTokenStyle,
+  tokenIndexFor
+} from "../lib/token-colors.mjs";
 
 function api(url, options = {}) {
   return fetch(url, {
@@ -95,17 +102,36 @@ function isPhoneLayout() {
   return typeof document !== "undefined" && document.documentElement.dataset.layout === "phone";
 }
 
-function avatarTitle(person) {
-  const handle = person.handle || "";
-  const note = String(person.note || "").trim();
-  return note ? `${handle} — ${note}` : handle;
+function avatarClass(person) {
+  return `grid-avatar${person.mine ? " mine" : ""}${String(person.note || "").trim() ? " has-note" : ""}`;
 }
 
-function VoteCell({ people }) {
+function tokenAvatarProps(tokenMap, handle) {
+  const index = tokenIndexFor(tokenMap, handle);
+  const extra = overflowTokenStyle(index);
+  return {
+    "data-token": String(index),
+    style: extra || undefined
+  };
+}
+
+function stopTokenMenu(event, row, person, onTokenMenu) {
+  event.preventDefault();
+  event.stopPropagation();
+  onTokenMenu?.(event, row, person);
+}
+
+function VoteCell({ people, tokenMap, row, onTokenMenu }) {
   return (
     <span className="vote-cell">
       {(people || []).map((person) => (
-        <span className={`grid-avatar${person.mine ? " mine" : ""}`} key={person.handle} title={avatarTitle(person)}>
+        <span
+          className={avatarClass(person)}
+          key={person.handle}
+          title={person.handle || ""}
+          {...tokenAvatarProps(tokenMap, person.handle)}
+          onContextMenu={(event) => stopTokenMenu(event, row, person, onTokenMenu)}
+        >
           {initials(person.handle)}
         </span>
       ))}
@@ -122,19 +148,36 @@ function SessionLabel({ slot, statusLabel }) {
   );
 }
 
-function rowMenuFromEvent(event, row) {
-  const x = Math.min(event.clientX, window.innerWidth - 220);
-  const y = Math.min(event.clientY, window.innerHeight - 220);
+function menuPoint(event) {
   return {
-    x,
-    y,
+    x: Math.min(event.clientX, window.innerWidth - 220),
+    y: Math.min(event.clientY, window.innerHeight - 220)
+  };
+}
+
+function rowMenuFromEvent(event, row) {
+  return {
+    kind: "row",
+    ...menuPoint(event),
     row,
     timeId: row.id,
     createdByMe: row.createdByMe,
     signupsDisabled: row.signupsDisabled,
+    mineNote: row.mineNote || "",
     date: row.date,
     time: row.time,
     lengthMinutes: row.lengthMinutes
+  };
+}
+
+function tokenMenuFromEvent(event, row, person) {
+  return {
+    kind: "token",
+    ...menuPoint(event),
+    row,
+    timeId: row.id,
+    person,
+    mineNote: row.mineNote || ""
   };
 }
 
@@ -155,7 +198,7 @@ function statusFromPoint(event, fallback) {
   return fallback;
 }
 
-function GlanceVoteCell({ people, status, row, onActivate }) {
+function GlanceVoteCell({ people, status, row, onActivate, tokenMap, selfHandle, onTokenMenu }) {
   const holdTimer = useRef(null);
   const lastTap = useRef(0);
   const armed = useRef(false);
@@ -233,16 +276,38 @@ function GlanceVoteCell({ people, status, row, onActivate }) {
         }}
       >
         {(people || []).filter((person) => !person.mine).map((person) => (
-          <span className="grid-avatar" key={person.handle} title={avatarTitle(person)}>
+          <span
+            className={avatarClass(person)}
+            key={person.handle}
+            title={person.handle || ""}
+            {...tokenAvatarProps(tokenMap, person.handle)}
+            onContextMenu={(event) => stopTokenMenu(event, row, person, onTokenMenu)}
+          >
             {initials(person.handle)}
           </span>
         ))}
         {mine ? (
-          <span className="grid-avatar mine" title={avatarTitle(mine)}>
+          <span
+            className={avatarClass(mine)}
+            title={mine.handle || ""}
+            {...tokenAvatarProps(tokenMap, mine.handle)}
+            onContextMenu={(event) => stopTokenMenu(event, row, mine, onTokenMenu)}
+          >
             {initials(mine.handle)}
           </span>
         ) : ghost ? (
-          <span className="grid-avatar mine is-ghost" title="Your vote">You</span>
+          <span
+            className="grid-avatar mine is-ghost"
+            title={selfHandle || "Your vote"}
+            {...tokenAvatarProps(tokenMap, selfHandle)}
+            onContextMenu={(event) => stopTokenMenu(event, row, {
+              handle: selfHandle || "You",
+              mine: true,
+              note: row.mineNote || ""
+            }, onTokenMenu)}
+          >
+            You
+          </span>
         ) : null}
       </button>
     </td>
@@ -338,7 +403,11 @@ function TimeGrid() {
   const [setupSource, setSetupSource] = useState("connect");
   const [edit, setEdit] = useState(null);
   const [reschedule, setReschedule] = useState(null);
+  const [noteDraft, setNoteDraft] = useState(null);
   const [toast, setToast] = useState("");
+  const [tokenMap, setTokenMap] = useState(() => Object.create(null));
+  const [selfHandle, setSelfHandle] = useState("");
+  const lastNoteRef = useRef("");
   const phoneLayout = isPhoneLayout();
   const [narrowHook, setNarrowHook] = useState(() =>
     phoneLayout
@@ -367,7 +436,28 @@ function TimeGrid() {
     setHookUrl(nextHook);
     setHookText(playerHookText);
     setSetupSource(state.session?.setupSource === "manual" ? "manual" : "connect");
-    setRows((state.session?.times || []).map((time) => {
+    const maxPartyPcs = (() => {
+      const max = Number(state.session?.maxPartyPcs);
+      return Number.isFinite(max) && max > 0 ? Math.min(16, Math.round(max)) : 8;
+    })();
+    const pcs = (state.pcs || []).slice(0, maxPartyPcs);
+    const handles = collectPageHandles({
+      times: state.session?.times,
+      pcs,
+      selfHandle: state.user?.handle
+    });
+    const nextMap = assignTokenColors(handles, collectTokenPreferences({
+      times: state.session?.times,
+      pcs,
+      selfHandle: state.user?.handle,
+      selfTokenColor: state.user?.tokenColor
+    }));
+    setSelfHandle(state.user?.handle || "");
+    setTokenMap(nextMap);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("amba-token-map", { detail: nextMap }));
+    }
+    const nextRows = (state.session?.times || []).map((time) => {
       const people = time.participants || [];
       const instant = time.date && time.time
         ? wallTimeToUtc(time.date, time.time, time.timezone || "Pacific")
@@ -396,12 +486,17 @@ function TimeGrid() {
         maybe: people.filter((person) => person.status === "maybe"),
         no: people.filter((person) => person.status === "no"),
         mine: people.find((person) => person.mine)?.status || "",
-        mineNote: people.find((person) => person.mine)?.note || "",
+        mineNote: time.mineNote || people.find((person) => person.mine)?.note || "",
         createdByMe: Boolean(time.createdByMe),
         signupsDisabled: Boolean(time.signupsDisabled),
         scheduledToPlay: Boolean(time.scheduledToPlay)
       };
-    }).sort((a, b) => (a.startIso || "").localeCompare(b.startIso || "")));
+    }).sort((a, b) => (a.startIso || "").localeCompare(b.startIso || ""));
+    const latestMine = nextRows.findLast
+      ? nextRows.findLast((row) => String(row.mineNote || "").trim())
+      : [...nextRows].reverse().find((row) => String(row.mineNote || "").trim());
+    if (latestMine) lastNoteRef.current = String(latestMine.mineNote).trim();
+    setRows(nextRows);
   }, [email, userZone]);
 
   useEffect(() => {
@@ -419,6 +514,7 @@ function TimeGrid() {
         setMenu(null);
         setEdit(null);
         setReschedule(null);
+        setNoteDraft(null);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -449,6 +545,7 @@ function TimeGrid() {
   useEffect(() => {
     if (!menu) return undefined;
     function close(event) {
+      if (event?.button && event.button !== 0) return;
       if (event?.target?.closest?.(".grid-context-menu")) return;
       setMenu(null);
     }
@@ -456,13 +553,13 @@ function TimeGrid() {
       if (event.key === "Escape") close();
     }
     const timer = window.setTimeout(() => {
-      window.addEventListener("click", close);
+      window.addEventListener("pointerdown", close);
       window.addEventListener("scroll", close, true);
     }, 0);
     window.addEventListener("keydown", onKey);
     return () => {
       window.clearTimeout(timer);
-      window.removeEventListener("click", close);
+      window.removeEventListener("pointerdown", close);
       window.removeEventListener("scroll", close, true);
       window.removeEventListener("keydown", onKey);
     };
@@ -497,7 +594,8 @@ function TimeGrid() {
 
   function applyMine(row, status) {
     const minePerson = [...row.yes, ...row.maybe, ...row.no].find((person) => person.mine)
-      || { handle: "You", mine: true, note: "" };
+      || { handle: "You", mine: true, note: row.mineNote || "" };
+    minePerson.note = row.mineNote || minePerson.note || "";
     const strip = (list) => list.filter((person) => !person.mine);
     return {
       ...row,
@@ -534,6 +632,48 @@ function TimeGrid() {
     if (!createdByMe) return;
     await api("/api/times", { method: "DELETE", body: { email, timeId } });
     setMenu(null);
+    await load(email, userZone);
+  }
+
+  function lastEditText(row, person) {
+    const here = String(person?.note || row?.mineNote || "").trim();
+    if (here) return here;
+    const fromRows = [...rows].reverse().find((item) => String(item.mineNote || "").trim());
+    return String(fromRows?.mineNote || lastNoteRef.current || "").trim();
+  }
+
+  function openViewNote(person) {
+    setMenu(null);
+    setNoteDraft({
+      mode: "view",
+      handle: person?.handle || "Player",
+      text: String(person?.note || "").trim()
+    });
+  }
+
+  function openNote(row, person) {
+    if (!requireReady()) return;
+    const timeId = row?.timeId || row?.id;
+    if (!timeId) return;
+    setMenu(null);
+    setNoteDraft({
+      mode: "edit",
+      timeId,
+      handle: person?.handle || selfHandle || "You",
+      text: lastEditText(row, person)
+    });
+  }
+
+  async function saveNote(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!noteDraft) return;
+    if (!requireReady()) return;
+    const voteNote = String(noteDraft.text || "").trim();
+    lastNoteRef.current = voteNote;
+    setNoteDraft(null);
+    showToast(voteNote ? "note saved" : "note cleared");
+    await api("/api/slot", { method: "POST", body: { email, timeId: noteDraft.timeId, voteNote } });
     await load(email, userZone);
   }
 
@@ -579,8 +719,27 @@ function TimeGrid() {
     }));
   }
 
+  function markRowOpen(timeId) {
+    setRows((current) => current.map((item) => {
+      if (item.id !== timeId) return item;
+      return {
+        ...item,
+        signupsDisabled: false,
+        statusLabel: item.scheduledToPlay ? "Live, scheduled to play" : ""
+      };
+    }));
+  }
+
+  const openTokenMenu = useCallback((event, row, person) => {
+    if (!row || !person) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setMenu(tokenMenuFromEvent(event, row, person));
+  }, []);
+
   const openRowMenu = useCallback((event, row) => {
     if (!row) return;
+    if (event?.target?.closest?.(".grid-avatar")) return;
     event.preventDefault();
     event.stopPropagation();
     setMenu(rowMenuFromEvent(event, row));
@@ -608,6 +767,32 @@ function TimeGrid() {
       await load(email, userZone);
     } catch (error) {
       showToast(error.message || "Could not close signups");
+      await load(email, userZone);
+    }
+  }
+
+  async function openSignups(row) {
+    if (!requireReady()) return;
+    const timeId = row?.timeId || row?.id;
+    if (!timeId) return;
+    setMenu(null);
+    markRowOpen(timeId);
+    try {
+      await api("/api/times/update", {
+        method: "POST",
+        body: {
+          email,
+          timeId,
+          date: row.date,
+          time: row.time,
+          lengthMinutes: Number(row.lengthMinutes) || 120,
+          signupsDisabled: false
+        }
+      });
+      showToast("Slot opened back up");
+      await load(email, userZone);
+    } catch (error) {
+      showToast(error.message || "Could not reopen signups");
       await load(email, userZone);
     }
   }
@@ -699,7 +884,14 @@ function TimeGrid() {
       minWidth: 140,
       sortable: true,
       comparator: (a, b) => (a?.length || 0) - (b?.length || 0),
-      cellRenderer: (params) => <VoteCell people={params.data?.yes} />
+      cellRenderer: (params) => (
+        <VoteCell
+          people={params.data?.yes}
+          tokenMap={tokenMap}
+          row={params.data}
+          onTokenMenu={openTokenMenu}
+        />
+      )
     },
     {
       colId: "maybe",
@@ -709,7 +901,14 @@ function TimeGrid() {
       minWidth: 140,
       sortable: true,
       comparator: (a, b) => (a?.length || 0) - (b?.length || 0),
-      cellRenderer: (params) => <VoteCell people={params.data?.maybe} />
+      cellRenderer: (params) => (
+        <VoteCell
+          people={params.data?.maybe}
+          tokenMap={tokenMap}
+          row={params.data}
+          onTokenMenu={openTokenMenu}
+        />
+      )
     },
     {
       colId: "no",
@@ -719,9 +918,16 @@ function TimeGrid() {
       minWidth: 140,
       sortable: true,
       comparator: (a, b) => (a?.length || 0) - (b?.length || 0),
-      cellRenderer: (params) => <VoteCell people={params.data?.no} />
+      cellRenderer: (params) => (
+        <VoteCell
+          people={params.data?.no}
+          tokenMap={tokenMap}
+          row={params.data}
+          onTokenMenu={openTokenMenu}
+        />
+      )
     }
-  ], [openRowMenu]);
+  ], [openRowMenu, openTokenMenu, tokenMap]);
 
   const statusMount = typeof document !== "undefined" ? document.querySelector("#schedule-status") : null;
   const hookMount = typeof document !== "undefined" ? document.querySelector("#player-hook") : null;
@@ -755,9 +961,11 @@ function TimeGrid() {
             <tr
               key={row.id}
               className={row.signupsDisabled ? "is-signups-disabled" : row.scheduledToPlay ? "is-scheduled-live" : ""}
-              onContextMenu={(event) => openRowMenu(event, row)}
             >
-              <th scope="row">
+              <th
+                scope="row"
+                onContextMenu={(event) => openRowMenu(event, row)}
+              >
                 <SessionLabel slot={row.slot} statusLabel={row.statusLabel} />
               </th>
               {phoneLayout ? VOTE_COLS.map((status) => (
@@ -766,13 +974,16 @@ function TimeGrid() {
                   people={row[status]}
                   status={status}
                   row={row}
+                  tokenMap={tokenMap}
+                  selfHandle={selfHandle}
+                  onTokenMenu={openTokenMenu}
                   onActivate={(next) => slideVote(row, next)}
                 />
               )) : (
                 <>
-                  <td><VoteCell people={row.yes} /></td>
-                  <td><VoteCell people={row.maybe} /></td>
-                  <td><VoteCell people={row.no} /></td>
+                  <td><VoteCell people={row.yes} tokenMap={tokenMap} row={row} onTokenMenu={openTokenMenu} /></td>
+                  <td><VoteCell people={row.maybe} tokenMap={tokenMap} row={row} onTokenMenu={openTokenMenu} /></td>
+                  <td><VoteCell people={row.no} tokenMap={tokenMap} row={row} onTokenMenu={openTokenMenu} /></td>
                 </>
               )}
             </tr>
@@ -881,6 +1092,7 @@ function TimeGrid() {
             return "";
           }}
           onCellClicked={(event) => {
+            if (event.event?.button && event.event.button !== 0) return;
             setMenu(null);
             const status = event.column?.getColId();
             if (status !== "yes" && status !== "maybe" && status !== "no") return;
@@ -891,20 +1103,48 @@ function TimeGrid() {
             vote(event.data.id, status, event.data.mine);
           }}
           onCellContextMenu={(event) => {
+            const native = event.event || event;
+            if (native?.target?.closest?.(".grid-avatar")) return;
             if (!event.data) return;
-            openRowMenu(event.event || event, event.data);
+            openRowMenu(native, event.data);
           }}
         />
       </div>
       )}
-      {menu ? (
-        <div className="grid-context-backdrop" onClick={() => setMenu(null)}>
-          <menu
-            className="grid-context-menu"
-            style={{ left: menu.x, top: menu.y }}
-            onClick={(event) => event.stopPropagation()}
-            onContextMenu={(event) => event.preventDefault()}
-          >
+      {menu ? createPortal(
+        <div
+          className="grid-context-backdrop"
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget) setMenu(null);
+          }}
+          onContextMenu={(event) => event.preventDefault()}
+        >
+        <div
+          className="grid-context-menu"
+          role="menu"
+          style={{ left: menu.x, top: menu.y }}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+          onContextMenu={(event) => event.preventDefault()}
+        >
+            {menu.kind === "token" ? (
+              menu.person?.mine ? (
+                <button
+                  type="button"
+                  onClick={() => openNote(menu.row || menu, menu.person)}
+                >
+                  Edit note
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => openViewNote(menu.person)}
+                >
+                  View note
+                </button>
+              )
+            ) : (
+              <>
             <button
               type="button"
               disabled={!menu.row?.startIso}
@@ -929,7 +1169,7 @@ function TimeGrid() {
               type="button"
               disabled={!menu.createdByMe}
               title={menu.createdByMe ? "Edit this session row" : "You can only edit rows you created"}
-              onClick={() => openEdit(menu)}
+              onClick={() => openEdit(menu.row || menu)}
             >
               Edit
             </button>
@@ -945,11 +1185,7 @@ function TimeGrid() {
               <button
                 type="button"
                 title="Pick a new time. Yes votes become Maybe."
-                onMouseDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  openReschedule(menu.row);
-                }}
+                onClick={() => openReschedule(menu.row)}
               >
                 Reschedule
               </button>
@@ -957,17 +1193,16 @@ function TimeGrid() {
               <button
                 type="button"
                 title="Close signups for this row only"
-                onMouseDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  closeSignups(menu.row);
-                }}
+                onClick={() => closeSignups(menu.row)}
               >
                 Not Enough Players
               </button>
             )}
-          </menu>
+              </>
+            )}
         </div>
+        </div>,
+        document.body
       ) : null}
       {edit ? createPortal(
         <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setEdit(null); }}>
@@ -1019,6 +1254,37 @@ function TimeGrid() {
               </label>
               <button className="button primary" type="submit">Reschedule</button>
             </form>
+          </div>
+        </div>,
+        document.body
+      ) : null}
+      {noteDraft ? createPortal(
+        <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setNoteDraft(null); }}>
+          <div className="modal small-modal" role="dialog" aria-labelledby="rowNoteTitle" onMouseDown={(event) => event.stopPropagation()}>
+            <button className="modal-close" type="button" aria-label="Close note" onClick={() => setNoteDraft(null)}>x</button>
+            {noteDraft.mode === "view" ? (
+              <>
+                <h2 id="rowNoteTitle">{noteDraft.handle}</h2>
+                <p className="modal-copy">{noteDraft.text || "No note."}</p>
+              </>
+            ) : (
+              <>
+                <h2 id="rowNoteTitle">Edit note</h2>
+                <p className="modal-copy">One note per row. Hover still shows the handle. Others can right-click your token to view this.</p>
+                <form className="edit-row" onSubmit={saveNote}>
+                  <label>Note
+                    <textarea
+                      autoFocus
+                      rows={4}
+                      maxLength={280}
+                      value={noteDraft.text}
+                      onChange={(event) => setNoteDraft({ ...noteDraft, text: event.target.value })}
+                    />
+                  </label>
+                  <button className="button primary" type="submit">Save note</button>
+                </form>
+              </>
+            )}
           </div>
         </div>,
         document.body

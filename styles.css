@@ -16,6 +16,26 @@
   --wash-end: #f8f7f3;
   --panel-soft: rgba(255, 255, 255, 0.86);
   --input-bg: #fff;
+  --token-0: #1f4f43;
+  --token-0-ink: #fff;
+  --token-1: #9a3b2a;
+  --token-1-ink: #fff;
+  --token-2: #2a4d89;
+  --token-2-ink: #fff;
+  --token-3: #6b3d79;
+  --token-3-ink: #fff;
+  --token-4: #456228;
+  --token-4-ink: #fff;
+  --token-5: #3a536e;
+  --token-5-ink: #fff;
+  --token-6: #8a2f50;
+  --token-6-ink: #fff;
+  --token-7: #6e4324;
+  --token-7-ink: #fff;
+  --token-8: #3d3e8a;
+  --token-8-ink: #fff;
+  --token-9: #1a5f6e;
+  --token-9-ink: #fff;
   --page-gutter: 18px;
   --page-max: 72rem;
   --page-width: min(var(--page-max), calc(100% - (2 * var(--page-gutter))));
@@ -41,6 +61,26 @@
   --wash-end: #0e1014;
   --panel-soft: rgba(30, 34, 42, 0.92);
   --input-bg: #16181d;
+  --token-0: #2f6f5e;
+  --token-0-ink: #fff;
+  --token-1: #c45c4a;
+  --token-1-ink: #fff;
+  --token-2: #4a72b5;
+  --token-2-ink: #fff;
+  --token-3: #8b5a9a;
+  --token-3-ink: #fff;
+  --token-4: #6a8a3e;
+  --token-4-ink: #1c2430;
+  --token-5: #5a738f;
+  --token-5-ink: #fff;
+  --token-6: #c45678;
+  --token-6-ink: #fff;
+  --token-7: #a06a42;
+  --token-7-ink: #fff;
+  --token-8: #6a6bb8;
+  --token-8-ink: #fff;
+  --token-9: #3a8a96;
+  --token-9-ink: #fff;
 }
 
 * {
@@ -64,7 +104,7 @@ a {
 .site-header {
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 60;
   width: 100%;
   min-height: 78px;
   padding: 14px 0;
@@ -304,6 +344,8 @@ main:has(.doc) .lede {
 }
 
 .hero .button {
+  position: relative;
+  z-index: 2;
   margin-top: 2px;
   flex: 0 0 auto;
 }
@@ -774,11 +816,13 @@ li + li {
   font-size: 0.92rem;
 }
 
-body:not(.is-logged-in) #logoutInline {
+body:not(.is-logged-in) #logoutInline,
+body:not(.is-logged-in) #menuLogout {
   display: none;
 }
 
-body.is-logged-in #openLoginInline {
+body.is-logged-in #openLoginInline,
+body.is-logged-in #menuLogin {
   display: none;
 }
 
@@ -1580,6 +1624,49 @@ dialog.markdown-popout-dialog::backdrop {
   outline: 2px solid var(--gold);
 }
 
+.avatar-button[data-token="0"],
+.grid-avatar[data-token="0"] { background: var(--token-0); color: var(--token-0-ink); }
+.avatar-button[data-token="1"],
+.grid-avatar[data-token="1"] { background: var(--token-1); color: var(--token-1-ink); }
+.avatar-button[data-token="2"],
+.grid-avatar[data-token="2"] { background: var(--token-2); color: var(--token-2-ink); }
+.avatar-button[data-token="3"],
+.grid-avatar[data-token="3"] { background: var(--token-3); color: var(--token-3-ink); }
+.avatar-button[data-token="4"],
+.grid-avatar[data-token="4"] { background: var(--token-4); color: var(--token-4-ink); }
+.avatar-button[data-token="5"],
+.grid-avatar[data-token="5"] { background: var(--token-5); color: var(--token-5-ink); }
+.avatar-button[data-token="6"],
+.grid-avatar[data-token="6"] { background: var(--token-6); color: var(--token-6-ink); }
+.avatar-button[data-token="7"],
+.grid-avatar[data-token="7"] { background: var(--token-7); color: var(--token-7-ink); }
+.avatar-button[data-token="8"],
+.grid-avatar[data-token="8"] { background: var(--token-8); color: var(--token-8-ink); }
+.avatar-button[data-token="9"],
+.grid-avatar[data-token="9"] { background: var(--token-9); color: var(--token-9-ink); }
+
+.grid-avatar.has-note {
+  position: relative;
+}
+
+.grid-avatar.has-note::after {
+  content: "";
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 0 2px #fff;
+}
+
+.edit-row textarea {
+  width: 100%;
+  min-height: 88px;
+  resize: vertical;
+}
+
 .grid-context-backdrop {
   position: fixed;
   inset: 0;
@@ -1588,6 +1675,7 @@ dialog.markdown-popout-dialog::backdrop {
 
 .grid-context-menu {
   position: fixed;
+  z-index: 41;
   margin: 0;
   padding: 6px;
   min-width: 160px;
@@ -1833,6 +1921,71 @@ pre {
   padding: 0;
   box-shadow: none;
   accent-color: var(--accent-strong);
+}
+
+.token-choice {
+  margin: 4px 0 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.token-choice legend {
+  padding: 0 4px;
+}
+
+.token-swatch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.token-swatch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.token-swatch {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid rgba(28, 36, 48, 0.18);
+  background: var(--token-0);
+  vertical-align: middle;
+}
+
+.token-swatch[data-token="0"] { background: var(--token-0); }
+.token-swatch[data-token="1"] { background: var(--token-1); }
+.token-swatch[data-token="2"] { background: var(--token-2); }
+.token-swatch[data-token="3"] { background: var(--token-3); }
+.token-swatch[data-token="4"] { background: var(--token-4); }
+.token-swatch[data-token="5"] { background: var(--token-5); }
+.token-swatch[data-token="6"] { background: var(--token-6); }
+.token-swatch[data-token="7"] { background: var(--token-7); }
+.token-swatch[data-token="8"] { background: var(--token-8); }
+.token-swatch[data-token="9"] { background: var(--token-9); }
+
+.token-swatch-auto {
+  background:
+    conic-gradient(var(--token-0), var(--token-2), var(--token-6), var(--token-3), var(--token-0));
+}
+
+.token-swatch-btn.is-selected .token-swatch,
+.token-swatch-btn:focus-visible .token-swatch {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
 }
 
 .party-slot-sliders {
@@ -2230,6 +2383,29 @@ body.is-logged-in .drop-band {
 .file-list .file-remove:hover,
 .file-list .file-remove:focus-visible {
   color: var(--ink);
+}
+
+.private-character-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.private-character-panel h3 {
+  margin: 0;
+}
+
+.private-character-choices {
+  color: var(--muted);
+}
+
+.file-list.private-character-list li {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .doc .example {
@@ -2924,10 +3100,8 @@ dialog.modal.admin-shell > .modal-close {
   border-top-color: rgba(58, 65, 76, 0.86);
 }
 
-[data-theme="dark"] .avatar-button,
-[data-theme="dark"] .grid-avatar {
-  background: linear-gradient(135deg, #1f4f43, #2f6f5e);
-  color: #fff;
+[data-theme="dark"] .grid-avatar.has-note::after {
+  box-shadow: 0 0 0 2px var(--parchment-deep);
 }
 
 [data-theme="dark"] .scheduler-grid {
