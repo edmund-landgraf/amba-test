@@ -50,6 +50,7 @@ function sampleState() {
       {
         id: "amba-workflow-test-1",
         title: "The Palakar Convergence",
+        subtitle: "Blood, gold, and ancient magic in the Palakar Forest.",
         targetPlayers: 4,
         maxPartyPcs: 8,
         playPartyPcs: 4,
@@ -73,6 +74,19 @@ function sampleState() {
         syndicationUrl: "https://example.test/syndicate/x",
         playerHookUrl: "https://example.test/syndicate/x/p/1",
         playerHookText: "Trouble along Profit's Flow",
+        readingLinks: [
+          {
+            id: "read-1",
+            url: "https://example.test/syndicate/x/p/lore",
+            kind: "syndication",
+            title: "Gazetteer",
+            description: "A forest of palakar trees.",
+            image: "https://example.test/cover.jpg",
+            siteName: "AMBA",
+            fetchedAt: "2026-09-04T00:00:00.000Z",
+            fetchError: ""
+          }
+        ],
         setupSource: "connect",
         ambaModuleId: "amba-workflow-test-1",
         adminPasswordHash: null,
@@ -120,6 +134,7 @@ function sampleState() {
       {
         id: "empty-table",
         title: "Empty table",
+        subtitle: "",
         targetPlayers: 4,
         maxPartyPcs: 8,
         playPartyPcs: 4,
@@ -143,6 +158,7 @@ function sampleState() {
         syndicationUrl: "",
         playerHookUrl: "",
         playerHookText: "",
+        readingLinks: [],
         setupSource: "connect",
         ambaModuleId: "empty-table",
         adminPasswordHash: null,

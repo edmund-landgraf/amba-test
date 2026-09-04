@@ -405,6 +405,7 @@ function TimeGrid() {
   const [hookUrl, setHookUrl] = useState("");
   const [hookText, setHookText] = useState("");
   const [setupSource, setSetupSource] = useState("connect");
+  const [readingLinks, setReadingLinks] = useState([]);
   const [edit, setEdit] = useState(null);
   const [reschedule, setReschedule] = useState(null);
   const [noteDraft, setNoteDraft] = useState(null);
@@ -441,6 +442,7 @@ function TimeGrid() {
     setHookUrl(nextHook);
     setHookText(playerHookText);
     setSetupSource(state.session?.setupSource === "manual" ? "manual" : "connect");
+    setReadingLinks(Array.isArray(state.session?.readingLinks) ? state.session.readingLinks : []);
     const maxPartyPcs = (() => {
       const max = Number(state.session?.maxPartyPcs);
       return Number.isFinite(max) && max > 0 ? Math.min(16, Math.round(max)) : 8;
@@ -950,12 +952,20 @@ function TimeGrid() {
   const statusMount = typeof document !== "undefined" ? document.querySelector("#schedule-status") : null;
   const hookMount = typeof document !== "undefined" ? document.querySelector("#player-hook") : null;
   const hookBand = typeof document !== "undefined" ? document.querySelector("#player-hook-band") : null;
+  const readingMount = typeof document !== "undefined" ? document.querySelector("#reading-grid") : null;
+  const readingBand = typeof document !== "undefined" ? document.querySelector("#reading-band") : null;
 
   useEffect(() => {
     if (!hookBand) return;
     const show = setupSource === "manual" ? Boolean(hookText.trim()) : Boolean(hookUrl);
     hookBand.hidden = !show;
   }, [hookUrl, hookText, setupSource, hookBand]);
+
+  useEffect(() => {
+    if (!readingBand) return;
+    const showPack = setupSource !== "manual" && Boolean(summaryUrl);
+    readingBand.hidden = !(showPack || readingLinks.length);
+  }, [summaryUrl, readingLinks, setupSource, readingBand]);
 
   const zoneNote = email && !userZone
     ? "Set your time zone in Settings before you can mark times. Times will show in your zone."
@@ -1060,20 +1070,58 @@ function TimeGrid() {
       </div>
   ) : null;
 
+  function readingHost(url) {
+    try {
+      return new URL(url).hostname.replace(/^www\./i, "");
+    } catch {
+      return "";
+    }
+  }
+
+  const showPack = setupSource !== "manual" && Boolean(summaryUrl);
+  const readingBlock = (showPack || readingLinks.length) ? (
+    <>
+      {showPack ? (
+        <a className="reading-card is-syndication is-pack" href={summaryUrl} target="_blank" rel="noopener noreferrer">
+          <span className="reading-card-cover is-empty" aria-hidden="true" />
+          <span className="reading-card-body">
+            <span className="reading-card-kicker">AMBA</span>
+            <strong className="reading-card-title">Player Pack</strong>
+            <span className="reading-card-excerpt">The living player syndication for this adventure.</span>
+            <span className="reading-card-host">{readingHost(summaryUrl)}</span>
+          </span>
+        </a>
+      ) : null}
+      {readingLinks.map((link) => (
+        <a
+          key={link.id || link.url}
+          className={`reading-card${link.kind === "syndication" ? " is-syndication" : ""}`}
+          href={link.url}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {link.image ? (
+            <img className="reading-card-cover" src={link.image} alt="" />
+          ) : (
+            <span className="reading-card-cover is-empty" aria-hidden="true" />
+          )}
+          <span className="reading-card-body">
+            <span className="reading-card-kicker">{link.kind === "syndication" ? "AMBA" : (link.siteName || readingHost(link.url) || "Web")}</span>
+            <strong className="reading-card-title">{link.title || readingHost(link.url)}</strong>
+            {link.description ? <span className="reading-card-excerpt">{link.description}</span> : null}
+            <span className="reading-card-host">{readingHost(link.url)}</span>
+          </span>
+        </a>
+      ))}
+    </>
+  ) : null;
+
   return (
     <section className="scheduler">
       {zoneNote ? <p className="form-note">{zoneNote}</p> : null}
       {statusMount ? createPortal(statusGrid, statusMount) : statusGrid}
       {hookMount && hookBlock ? createPortal(hookBlock, hookMount) : hookBlock}
-      {setupSource === "manual" ? null : summaryUrl ? (
-        <div className="adventure-summary">
-          <div className="session-link-row">
-            <a className="adventure-summary-link" href={summaryUrl} target="_blank" rel="noopener noreferrer">
-              Player Pack
-            </a>
-          </div>
-        </div>
-      ) : null}
+      {readingMount && readingBlock ? createPortal(readingBlock, readingMount) : readingBlock}
       <form id="mark-times" className="add-row" onSubmit={addRow}>
         <label>Date <input required type="date" value={draft.date} onChange={(event) => setDraft({ ...draft, date: event.target.value })} /></label>
         <label>Time

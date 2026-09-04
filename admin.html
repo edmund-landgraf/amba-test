@@ -26,6 +26,7 @@
       <button type="button" class="admin-tab" data-tab="discord">Discord</button>
       <button type="button" class="admin-tab" data-tab="promote">Promote</button>
       <button type="button" class="admin-tab" data-tab="questionnaire">Questionnaire</button>
+      <button type="button" class="admin-tab" data-tab="reading">Reading</button>
       <button type="button" class="admin-tab" data-tab="backup">Backup</button>
     </nav>
     <section class="doc admin-tab-panel" id="panelSetup" hidden>
@@ -38,7 +39,6 @@
           <span class="status-pill status-pill--off" id="ambaStatus" aria-live="polite">Not connected</span>
         </p>
         <p class="form-note" id="ambaConnectNote">Connect calls AMBA GET /api/modules (the editor SPA is /app; the API is not under /app). Localhost uses :5190 then :3101. amba-play and amba-test use amba.unwhelm.online. Manual AMBA pastes the two links. Manual writes a title and markdown shown on signup.</p>
-        <div id="ambaLinkedFields">
         <div id="adventurePicker">
           <label>
             Adventure
@@ -47,6 +47,17 @@
           </label>
           <p class="form-note" id="adventurePickerNote" hidden>Published AMBA modules. Pick one and the summary and player-hook links are added for you.</p>
         </div>
+        <div class="setup-identity-fields">
+          <label>
+            Adventure title
+            <input id="setupAdventureTitle" type="text" autocomplete="off" readonly disabled>
+          </label>
+          <label>
+            Subtitle
+            <textarea id="setupAdventureSubtitle" rows="3" spellcheck="true" readonly disabled></textarea>
+          </label>
+        </div>
+        <div id="ambaLinkedFields">
         <div class="adventure-summary-form">
           <a class="adventure-summary-link is-empty" id="summaryPreview" href="#" target="_blank" rel="noopener noreferrer">Adventure Summary</a>
           <a class="adventure-summary-link is-empty" id="playerHookPreview" href="#" target="_blank" rel="noopener noreferrer">Player Hook</a>
@@ -63,10 +74,6 @@
         </div>
         </div>
         <div id="manualWritePanel" hidden>
-          <label>
-            Adventure title
-            <input id="manualTitle" type="text" autocomplete="off" placeholder="Adventure name">
-          </label>
           <div class="content-field-label-row">
             <label for="manualHook">Player hook / adventure summary</label>
             <button type="button" class="content-pop-out-btn" id="manualHookPopOut">Pop out</button>
@@ -298,6 +305,27 @@ Sign up on our test site (not AMBA itself): {{signupUrl}}
         <div class="email-list questionnaire-response-list" id="questionnaireResponses"></div>
       </section>
     </section>
+    <section class="doc admin-tab-panel" id="panelReading" hidden>
+      <form class="promote-card" id="readingAddForm">
+        <h2>Add a link</h2>
+        <p class="form-note">Paste an AMBA syndication URL or any public page. Previews are fetched from the HTML (Open Graph, or the AMBA handout body for syndication).</p>
+        <label>URL
+          <input id="readingUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://…">
+        </label>
+        <p class="form-actions">
+          <button class="button primary" type="submit">Add</button>
+        </p>
+        <p class="form-note" id="readingNote"></p>
+      </form>
+      <section class="promote-card">
+        <h2>Reading list</h2>
+        <p class="form-note">Order here is the order on signup. Save after you remove or reorder by re-adding.</p>
+        <div class="email-list reading-admin-list" id="readingList"></div>
+        <p class="form-actions">
+          <button class="button primary" id="readingSave" type="button">Save</button>
+        </p>
+      </section>
+    </section>
     <section class="doc admin-tab-panel" id="panelBackup" hidden>
       <p class="form-actions">
         <button class="button primary" id="makeBackup" type="button">Make backup</button>
@@ -312,7 +340,7 @@ Sign up on our test site (not AMBA itself): {{signupUrl}}
   <footer><p><a href="index.html">Back to signup</a></p></footer>
   <script src="header.js"></script>
   <script src="markdown-toolbar.js"></script>
-  <script src="admin.js?v=users-tab-1"></script>
+  <script src="admin.js?v=reading-tab-2"></script>
   <script type="module" src="site.js"></script>
   <script>
     window.mountAmbaAdmin(document.querySelector("main"), { page: true });

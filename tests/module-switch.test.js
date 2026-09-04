@@ -24,11 +24,13 @@ describe("module switch", () => {
       wgSheets: [{ email: "a@b.com", sheets: [{ url: "https://example.test" }] }],
       promote: { posts: [{ id: "p1" }] }
     };
-    const next = provisionNewAdventure(previous, { title: "A Different Module" }, new Set(["amba-workflow-test-1"]));
+    const next = provisionNewAdventure(previous, { title: "A Different Module", subtitle: "A tagline." }, new Set(["amba-workflow-test-1"]));
     assert.notEqual(next.id, previous.id);
     assert.equal(next.title, "A Different Module");
+    assert.equal(next.subtitle, "A tagline.");
     assert.deepEqual(next.times, []);
     assert.deepEqual(next.wgSheets, []);
+    assert.deepEqual(next.readingLinks, []);
     assert.deepEqual(next.promote.posts, []);
     assert.equal(next.signups.length, 1);
     assert.equal(next.signups[0].email, "a@b.com");

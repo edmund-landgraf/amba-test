@@ -334,13 +334,33 @@ main:has(.doc) .lede {
 .hero h1 {
   max-width: 860px;
   margin: 0;
-  font-size: clamp(1.25rem, 2.4vw, 1.7rem);
-  line-height: 1.2;
+  font-size: clamp(1.55rem, 3.2vw, 2.15rem);
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.hero-subtitle {
+  max-width: 42rem;
+  margin: 0.5rem 0 0;
+  color: var(--ink);
+  font-family: "EB Garamond", Georgia, "Times New Roman", serif;
+  font-size: clamp(1.2rem, 2.35vw, 1.52rem);
+  font-style: normal;
+  font-weight: 600;
+  font-variant-caps: small-caps;
+  font-feature-settings: "smcp" 1, "c2sc" 0;
+  letter-spacing: 0.07em;
+  line-height: 1.35;
+}
+
+.hero-subtitle[hidden] {
+  display: none;
 }
 
 .hero .lede {
   max-width: 860px;
-  margin: 8px 0 0;
+  margin: 10px 0 0;
 }
 
 .hero .button {
@@ -1084,15 +1104,29 @@ fieldset {
   min-width: 0;
 }
 
-.adventure-summary-form input:read-only {
+.adventure-summary-form input:read-only,
+.setup-identity-fields input:read-only,
+.setup-identity-fields textarea:read-only {
   color: var(--ink);
   background: var(--input-bg);
   opacity: 1;
   cursor: default;
 }
 
+.setup-identity-fields {
+  display: grid;
+  gap: 8px;
+}
+
+.setup-identity-fields textarea {
+  min-height: 4.5rem;
+  resize: vertical;
+}
+
 #adventureSelect:disabled,
-#adventureName:disabled {
+#adventureName:disabled,
+#setupAdventureTitle:disabled,
+#setupAdventureSubtitle:disabled {
   opacity: 0.72;
   cursor: not-allowed;
 }
@@ -1381,6 +1415,133 @@ dialog.markdown-popout-dialog::backdrop {
   height: 100%;
   border: 0;
   background: transparent;
+}
+
+.reading-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin: 12px 0 4px;
+}
+
+.reading-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  text-decoration: none;
+  color: inherit;
+  border: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 10px 28px rgba(28, 36, 48, 0.08);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.reading-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 36px rgba(28, 36, 48, 0.12);
+}
+
+.reading-card.is-syndication {
+  background:
+    linear-gradient(165deg, rgba(255, 248, 230, 0.92), rgba(240, 228, 201, 0.96));
+  color: #2c2418;
+}
+
+.reading-card-cover {
+  display: block;
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  background:
+    linear-gradient(165deg, rgba(31, 79, 67, 0.12), rgba(186, 154, 96, 0.2));
+}
+
+.reading-card-cover.is-empty {
+  min-height: 88px;
+  height: 88px;
+}
+
+.reading-card.is-syndication .reading-card-cover.is-empty {
+  background:
+    linear-gradient(165deg, rgba(255, 248, 230, 0.5), rgba(186, 154, 96, 0.28));
+}
+
+.reading-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px 16px;
+}
+
+.reading-card-kicker {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-strong);
+}
+
+.reading-card.is-syndication .reading-card-kicker {
+  color: #6b3a12;
+}
+
+.reading-card-title {
+  font-size: 1.05rem;
+  line-height: 1.25;
+}
+
+.reading-card-excerpt {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.reading-card.is-syndication .reading-card-excerpt {
+  color: #3a2e1c;
+  font-family: Georgia, "Times New Roman", serif;
+  font-style: italic;
+}
+
+.reading-card-host {
+  margin-top: auto;
+  padding-top: 4px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.reading-admin-row {
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+}
+
+.reading-admin-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: var(--sky);
+}
+
+.reading-admin-copy .form-note {
+  margin: 4px 0 0;
+}
+
+.reading-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: end;
+}
+
+@media (max-width: 960px) {
+  .reading-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .add-row {
@@ -3103,6 +3264,15 @@ dialog.modal.admin-shell > .modal-close {
   background: linear-gradient(180deg, transparent, var(--parchment-deep) 88%);
 }
 
+[data-theme="dark"] .reading-card {
+  background: var(--panel);
+}
+
+[data-theme="dark"] .reading-card.is-syndication {
+  background: linear-gradient(165deg, rgba(196, 174, 134, 0.92), rgba(168, 144, 104, 0.96));
+  color: #2c2418;
+}
+
 [data-theme="dark"] .grid-context-menu button {
   color: var(--ink);
 }
@@ -3350,6 +3520,10 @@ dialog.modal.admin-shell > .modal-close {
 [data-layout="phone"] .player-hook-toggle {
   min-height: 44px;
   padding: 10px 0;
+}
+
+[data-layout="phone"] .reading-grid {
+  grid-template-columns: 1fr;
 }
 
 [data-layout="phone"] .file-list .file-remove {

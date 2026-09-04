@@ -6,6 +6,9 @@
   <title>An AMBA Adventure</title>
   <meta name="description" content="A new way for GMs to play adventures with AMBA, Wanderer's Guide, Owlbear, and live combat.">
   <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,600;1,600&display=swap" rel="stylesheet">
   <script src="layout.js"></script>
   <script src="theme.js"></script>
   <link rel="stylesheet" href="grid/scheduler.css">
@@ -22,6 +25,7 @@
       <div class="hero-copy">
         <p class="eyebrow">A new way for GMs to play adventures</p>
         <h1 id="adventureTitle">An AMBA Adventure</h1>
+        <p class="hero-subtitle" id="adventureSubtitle" hidden></p>
         <p class="lede">Thank you for checking out our adventure. Stay a minute: read the player hook, mark when you can play, and Join in so we can save you a seat. Want the table setup? Session, Videos, and the rest of the guide are just below.</p>
       </div>
       <button class="button primary" id="joinTest" type="button">Join in</button>
@@ -63,6 +67,12 @@
       <p class="eyebrow">The pitch</p>
       <h2>Player Hook</h2>
       <div id="player-hook"></div>
+    </section>
+
+    <section id="reading-band" class="band" hidden>
+      <p class="eyebrow">Reading</p>
+      <h2>Player pack and more</h2>
+      <div id="reading-grid" class="reading-grid"></div>
     </section>
 
     <section id="times" class="band">

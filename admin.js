@@ -4,6 +4,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
   root.dataset.adminMounted = "1";
   let promoteState = null;
   let questionnaireState = { questions: [], responses: [] };
+  let readingLinks = [];
     const token = (() => {
       const cookie = document.cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith("ambaAdminToken="));
       if (cookie) {
@@ -41,7 +42,8 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
     const ambaConnectNote = q("#ambaConnectNote");
     const ambaLinkedFields = q("#ambaLinkedFields");
     const manualWritePanel = q("#manualWritePanel");
-    const manualTitle = q("#manualTitle");
+    const setupAdventureTitle = q("#setupAdventureTitle");
+    const setupAdventureSubtitle = q("#setupAdventureSubtitle");
     const manualHook = q("#manualHook");
     const manualHookToolbar = q("#manualHookToolbar");
     if (window.attachMarkdownToolbar) window.attachMarkdownToolbar(manualHookToolbar, manualHook);
@@ -161,12 +163,9 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         writeBtn.classList.toggle("is-active", isWrite);
       }
       if (isWrite) {
-        ambaModules = null;
-        setAmbaConnectionStatus(false);
         setLinksEditing(false);
         syncAdventurePicker();
-        if (manualTitle) manualTitle.value = displayAdventureTitle(adventureTitle) || adventureTitle || "";
-        setAmbaConnectNote("Manual. The markdown below is the player hook and adventure summary on signup.");
+        setAmbaConnectNote("Manual. Pick a published module to fill title and subtitle, then you can edit them. The markdown below is the player hook on signup.");
         return;
       }
       if (isManual) {
@@ -175,12 +174,14 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         if (adventureSelect) adventureSelect.dataset.source = "manual";
         setLinksEditing(true);
         syncAdventurePicker();
+        syncTitleSubtitleFields();
         setAmbaConnectNote("Manual AMBA. Paste the adventure summary and player-hook syndication links, then Save.");
         return;
       }
       setLinksEditing(false);
       if (lastAdventureData) fillAdventureSelect(lastAdventureData);
       syncAdventurePicker();
+      syncTitleSubtitleFields();
       if (!options.silent && !ambaModules) {
         setAmbaConnectNote(ambaConnectCopy());
       }
@@ -190,9 +191,45 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       return String(value || "").replace(/\s*\([^)]*\)\s*$/g, "").replace(/\s+/g, " ").trim();
     }
 
+    function displayAdventureSubtitle(value) {
+      if (value == null) return "";
+      return String(value).trim();
+    }
+
     function isArtifactTitle(value) {
       const title = displayAdventureTitle(value).toLowerCase();
       return !title || title === "player hook" || title === "adventure summary";
+    }
+
+    function selectedAmbaModule() {
+      if (!ambaModules || !adventureSelect?.value) return null;
+      return ambaModules.find((module) => module.id === adventureSelect.value) || null;
+    }
+
+    function fillTitleSubtitleFrom(source) {
+      if (!source) return;
+      const title = displayAdventureTitle(source.title) || String(source.title || "").trim();
+      if (setupAdventureTitle && (title || source.title != null)) setupAdventureTitle.value = title;
+      if (setupAdventureSubtitle && source.subtitle != null) {
+        setupAdventureSubtitle.value = displayAdventureSubtitle(source.subtitle);
+      }
+    }
+
+    function syncTitleSubtitleFields() {
+      const module = selectedAmbaModule();
+      const hasModuleChoice = Boolean(module || liveAmbaModuleId || adventureSelect?.value);
+      const editable = setupMode === "write" && hasModuleChoice;
+      const lockedFill = Boolean(ambaModules && module);
+      if (module && !editable) fillTitleSubtitleFrom(module);
+      else if (!editable && setupAdventureTitle && !setupAdventureTitle.value) {
+        setupAdventureTitle.value = displayAdventureTitle(adventureTitle) || adventureTitle || "";
+      }
+      const greyed = !lockedFill && !editable;
+      for (const el of [setupAdventureTitle, setupAdventureSubtitle]) {
+        if (!el) continue;
+        el.readOnly = !editable;
+        el.disabled = greyed;
+      }
     }
 
     function syncAdventurePicker() {
@@ -205,6 +242,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         if (!connected) adventureName.value = displayAdventureTitle(adventureTitle) || adventureTitle || "";
       }
       if (adventurePickerNote) adventurePickerNote.hidden = !connected;
+      syncTitleSubtitleFields();
     }
 
     function fillAdventureSelect(data) {
@@ -233,7 +271,10 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       if (!module) return;
       syndicationUrl.value = module.adventureSummaryUrl || "";
       playerHookUrl.value = module.playerHookUrl || "";
+      adventureTitle = displayAdventureTitle(module.title) || module.title || adventureTitle;
+      fillTitleSubtitleFrom(module);
       refreshPreviews();
+      syncTitleSubtitleFields();
     }
 
     function fillAmbaModuleSelect(modules, selectedId) {
@@ -318,7 +359,6 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         fillAmbaModuleSelect(matched.modules, selected?.id || "");
         if (selected) {
           applyAmbaModule(selected);
-          adventureTitle = displayAdventureTitle(selected.title) || selected.title || adventureTitle;
         }
         setAmbaConnectNote(
           matched.modules.length
@@ -359,7 +399,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         if (data.setupSource !== "manual") await connectToAmba({ restore: true });
         await loadPromote();
         const hash = location.hash.replace("#", "");
-        if (hash === "setup" || hash === "party" || hash === "discord" || hash === "promote" || hash === "backup" || hash === "questionnaire" || hash === "users") showTab(hash);
+        if (hash === "setup" || hash === "party" || hash === "discord" || hash === "promote" || hash === "backup" || hash === "questionnaire" || hash === "users" || hash === "reading") showTab(hash);
       } catch (error) {
         yesStatus.textContent = error.message || "Could not load yes emails.";
       }
@@ -373,7 +413,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       syndicationUrl.value = data.syndicationUrl || "";
       playerHookUrl.value = data.playerHookUrl || "";
       if (manualHook) manualHook.value = data.playerHookText || "";
-      if (manualTitle) manualTitle.value = displayAdventureTitle(data.title) || data.title || "";
+      fillTitleSubtitleFrom({ title: data.title, subtitle: data.subtitle });
       refreshPreviews();
       render(data.emails || []);
       fillAdventureSelect(data);
@@ -672,6 +712,143 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       }
       return data;
     }
+
+    function readingApiError(error) {
+      const code = String(error.message || "");
+      if (code === "not_found") {
+        return "Restart the Node process for amba-test (the Reading API is not loaded yet), then add the link again.";
+      }
+      return code || "Could not update reading links.";
+    }
+
+    async function loadReading() {
+      const note = q("#readingNote");
+      try {
+        const data = await promoteFetch("/api/admin/reading", {
+          headers: { authorization: `Bearer ${token}` }
+        });
+        readingLinks = data.readingLinks || [];
+        renderReadingList();
+        if (note) note.textContent = "";
+      } catch (error) {
+        if (note) note.textContent = readingApiError(error);
+      }
+    }
+
+    function renderReadingList() {
+      const list = q("#readingList");
+      if (!list) return;
+      list.replaceChildren();
+      if (!readingLinks.length) {
+        const empty = document.createElement("p");
+        empty.className = "form-note";
+        empty.textContent = "No reading links yet.";
+        list.append(empty);
+        return;
+      }
+      for (const link of readingLinks) {
+        const row = document.createElement("div");
+        row.className = "email-row reading-admin-row";
+        const thumb = document.createElement(link.image ? "img" : "span");
+        thumb.className = "reading-admin-thumb";
+        if (link.image) {
+          thumb.src = link.image;
+          thumb.alt = "";
+        }
+        const copy = document.createElement("div");
+        copy.className = "reading-admin-copy";
+        const title = document.createElement("strong");
+        title.textContent = link.title || link.url;
+        const meta = document.createElement("p");
+        meta.className = "form-note";
+        meta.textContent = [link.kind === "syndication" ? "AMBA" : (link.siteName || "Web"), link.description || link.url].filter(Boolean).join(" · ");
+        copy.append(title, meta);
+        const actions = document.createElement("div");
+        actions.className = "reading-admin-actions";
+        const badge = document.createElement("span");
+        badge.className = "status-pill";
+        badge.textContent = link.kind === "syndication" ? "AMBA" : "Web";
+        const refresh = document.createElement("button");
+        refresh.type = "button";
+        refresh.className = "button secondary";
+        refresh.textContent = "Refresh";
+        refresh.addEventListener("click", async () => {
+          const note = q("#readingNote");
+          if (note) note.textContent = "Refreshing…";
+          try {
+            const data = await promoteFetch("/api/admin/reading/refresh", {
+              method: "POST",
+              headers: { ...headers(), "content-type": "application/json" },
+              body: JSON.stringify({ id: link.id })
+            });
+            readingLinks = data.readingLinks || [];
+            renderReadingList();
+            const updated = readingLinks.find((row) => row.id === link.id);
+            if (note) note.textContent = updated?.fetchError || "Preview updated.";
+          } catch (error) {
+            if (note) note.textContent = readingApiError(error);
+          }
+        });
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "button danger";
+        remove.textContent = "Remove";
+        remove.addEventListener("click", () => {
+          readingLinks = readingLinks.filter((row) => row.id !== link.id);
+          renderReadingList();
+        });
+        actions.append(badge, refresh, remove);
+        row.append(thumb, copy, actions);
+        list.append(row);
+      }
+    }
+
+    q("#readingAddForm")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const note = q("#readingNote");
+      const input = q("#readingUrl");
+      const url = String(input?.value || "").trim();
+      if (!url) {
+        if (note) note.textContent = "Paste a URL first.";
+        return;
+      }
+      if (note) note.textContent = "Fetching preview…";
+      try {
+        const data = await promoteFetch("/api/admin/reading", {
+          method: "PUT",
+          headers: { ...headers(), "content-type": "application/json" },
+          body: JSON.stringify({
+            readingLinks: [...readingLinks.map((row) => ({ id: row.id, url: row.url })), { url }]
+          })
+        });
+        readingLinks = data.readingLinks || [];
+        renderReadingList();
+        if (input) input.value = "";
+        const last = readingLinks[readingLinks.length - 1];
+        if (note) note.textContent = last?.fetchError ? last.fetchError : "Added.";
+      } catch (error) {
+        if (note) note.textContent = readingApiError(error);
+      }
+    });
+
+    q("#readingSave")?.addEventListener("click", async () => {
+      const note = q("#readingNote");
+      if (note) note.textContent = "Saving…";
+      try {
+        const data = await promoteFetch("/api/admin/reading", {
+          method: "PUT",
+          headers: { ...headers(), "content-type": "application/json" },
+          body: JSON.stringify({
+            readingLinks: readingLinks.map((row) => ({ id: row.id, url: row.url }))
+          })
+        });
+        readingLinks = data.readingLinks || [];
+        renderReadingList();
+        if (note) note.textContent = "Reading list saved.";
+      } catch (error) {
+        if (note) note.textContent = readingApiError(error);
+      }
+    });
 
     async function loadQuestionnaire() {
       const note = q("#questionnaireBuilderNote");
@@ -1146,7 +1323,8 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         body: JSON.stringify({
           mode: "write",
           setupSource: "manual",
-          title: manualTitle?.value || "",
+          title: setupAdventureTitle?.value || "",
+          subtitle: displayAdventureSubtitle(setupAdventureSubtitle?.value),
           playerHookText: manualHook?.value || "",
         })
       });
@@ -1156,25 +1334,25 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         throw new Error(`Could not save (${why}).`);
       }
       adventureTitle = displayAdventureTitle(data.session?.title) || data.session?.title || adventureTitle;
-      if (manualTitle) manualTitle.value = adventureTitle;
+      fillTitleSubtitleFrom(data.session || { title: adventureTitle, subtitle: setupAdventureSubtitle?.value });
       if (manualHook) manualHook.value = data.session?.playerHookText || manualHook.value;
+      syncTitleSubtitleFields();
       sessionLinksNote.textContent = "Saved. Signup shows this markdown as the hook and summary.";
+      await options.onSaved?.();
     }
 
     async function saveSessionLinks() {
       sessionLinksNote.textContent = "Saving…";
+      const module = selectedAmbaModule();
       const response = await fetch("/api/admin/session", {
         method: "POST",
         headers: headers(),
         body: JSON.stringify({
           syndicationUrl: syndicationUrl.value,
           playerHookUrl: playerHookUrl.value,
-          ...(adventureSelect.dataset.source === "amba" && adventureSelect.value
-            ? {
-                ambaModuleId: adventureSelect.value,
-                title: displayAdventureTitle(ambaModules?.find((module) => module.id === adventureSelect.value)?.title) || undefined
-              }
-            : {})
+          ...(module ? { ambaModuleId: module.id } : {}),
+          title: displayAdventureTitle(setupAdventureTitle?.value) || displayAdventureTitle(module?.title) || undefined,
+          subtitle: displayAdventureSubtitle(setupAdventureSubtitle?.value ?? module?.subtitle)
         })
       });
       const data = await response.json().catch(() => ({}));
@@ -1186,10 +1364,12 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       playerHookUrl.value = data.session?.playerHookUrl || "";
       adventureTitle = displayAdventureTitle(data.session?.title) || data.session?.title || adventureTitle;
       if (adventureName) adventureName.value = adventureTitle;
+      fillTitleSubtitleFrom(data.session || {});
       setLinksEditing(setupMode === "manual");
       refreshPreviews();
       syncAdventurePicker();
       sessionLinksNote.textContent = "Saved. Signup shows the player hook from these AMBA links.";
+      await options.onSaved?.();
     }
 
     adventureSelect.addEventListener("change", async () => {
@@ -1200,6 +1380,10 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       applyAmbaModule(module);
       liveAmbaModuleId = id;
       adventureSelect.dataset.liveId = id;
+      if (setupMode === "write") {
+        sessionLinksNote.textContent = `Filled title and subtitle from ${displayAdventureTitle(module?.title) || "the selected module"}. You can edit them, then Save.`;
+        return;
+      }
       try {
         await saveSessionLinks();
         sessionLinksNote.textContent = `Bound syndication links from ${displayAdventureTitle(module?.title) || "the selected AMBA module"}.`;
@@ -1232,6 +1416,8 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         playerHookUrl.value = data.session?.playerHookUrl || playerHookUrl.value;
         adventureTitle = displayAdventureTitle(data.session?.title) || data.session?.title || adventureTitle;
         if (adventureName) adventureName.value = adventureTitle;
+        const selected = ambaModules?.find((module) => module.id === adventureSelect.value);
+        fillTitleSubtitleFrom(selected || data.session || {});
         refreshPreviews();
         syncAdventurePicker();
         sessionLinksNote.textContent = "Refreshed from the AMBA API and syndication pages.";
@@ -1530,6 +1716,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       discord: ["Discord", "Choose Chaos Goblins, AMBA, or paste a Discord URL. This updates the public Discord page widget."],
       promote: ["Promote", "Push looking-for-players posts. Every template sends people back here to sign up."],
       questionnaire: ["Questionnaire", "Build player questions and review submitted answers."],
+      reading: ["Reading", "Links players should look at before the table. AMBA syndication pages get a handout-style preview."],
       backup: ["Backup", "Save a timestamped JSON snapshot of this site. Restore replaces live data after you confirm."]
     };
     const ADMIN_DISCORD_MANUAL = "__manual__";
@@ -1704,6 +1891,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         discord: q("#panelDiscord"),
         promote: q("#panelPromote"),
         questionnaire: q("#panelQuestionnaire"),
+        reading: q("#panelReading"),
         backup: q("#panelBackup")
       };
       Object.entries(panels).forEach(([key, panel]) => {
@@ -1724,6 +1912,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       if (tab === "backup") refreshBackups();
       if (tab === "users") refreshUsers();
       if (tab === "questionnaire") loadQuestionnaire();
+      if (tab === "reading") loadReading();
       if (tab === "discord") loadAdminDiscord();
       if (tab === "party") loadAdminPartySlots();
     }

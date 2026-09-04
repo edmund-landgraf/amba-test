@@ -197,6 +197,18 @@ function displayAdventureTitle(value) {
   return String(value || "").replace(/\s*\([^)]*\)\s*$/g, "").replace(/\s+/g, " ").trim();
 }
 
+function ensureAdventureSubtitleEl() {
+  const existing = document.querySelector("#adventureSubtitle");
+  if (existing) return existing;
+  const heading = document.querySelector("#adventureTitle");
+  if (!heading) return null;
+  const sub = document.createElement("p");
+  sub.id = "adventureSubtitle";
+  sub.className = "hero-subtitle";
+  heading.insertAdjacentElement("afterend", sub);
+  return sub;
+}
+
 function renderAdventureTitle() {
   const raw = displayAdventureTitle(appState.session?.title);
   const title = !raw || /^(player hook|adventure summary)$/i.test(raw)
@@ -204,6 +216,12 @@ function renderAdventureTitle() {
     : raw;
   const heading = document.querySelector("#adventureTitle");
   if (heading) heading.textContent = title;
+  const subtitle = String(appState.session?.subtitle || "").trim();
+  const sub = ensureAdventureSubtitleEl();
+  if (sub) {
+    sub.textContent = subtitle;
+    sub.hidden = !subtitle;
+  }
   renderHostedBy();
   const page = location.pathname.split("/").filter(Boolean).pop() || "index.html";
   const suffixes = {
@@ -510,6 +528,7 @@ async function openAdminShell() {
   await loadScriptOnce("markdown-toolbar.js");
   await loadScriptOnce("admin.js");
   window.mountAmbaAdmin(host.querySelector("main") || host, {
+    onSaved: () => loadState(),
     onUnauthorized: () => {
       resetAdminModal();
       if (adminNote) adminNote.textContent = "Admin session expired. Enter the password again.";

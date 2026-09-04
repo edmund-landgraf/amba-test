@@ -31,6 +31,7 @@ const {
   isArtifactTitle,
   moduleTitleFromSyndication
 } = require("./lib/adventure-title");
+const linkPreview = require("./lib/link-preview");
 const {
   DEFAULT_DISCORD_HOSTS,
   listDiscordHosts,
@@ -710,6 +711,30 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/admin/reading") {
+    if (!requireAdmin(req, res)) return;
+    sendJson(res, 200, await getReadingLinks());
+    return;
+  }
+
+  if (req.method === "PUT" && url.pathname === "/api/admin/reading") {
+    if (!requireAdmin(req, res)) return;
+    const body = await readBody(req);
+    sendJson(res, 200, await saveReadingLinks(body.readingLinks || []));
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/admin/reading/refresh") {
+    if (!requireAdmin(req, res)) return;
+    try {
+      const body = await readBody(req);
+      sendJson(res, 200, await refreshReadingLink(body.id || body.url));
+    } catch (error) {
+      sendJson(res, 400, { error: error.message || "Could not refresh." });
+    }
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/api/admin/amba-modules") {
     if (!requireAdmin(req, res)) return;
     sendJson(res, 200, await listAmbaModules());
@@ -1332,6 +1357,7 @@ async function sessionLinks() {
   }
   return {
     title: displayAdventureTitle(session.title) || session.title || "",
+    subtitle: String(session.subtitle || "").trim(),
     ambaModuleId: session.ambaModuleId || session.id || "",
     syndicationUrl: session.syndicationUrl || "",
     playerHookUrl: session.playerHookUrl || "",
@@ -1340,6 +1366,67 @@ async function sessionLinks() {
     displayHostedByBanner: session.displayHostedByBanner !== false,
     hostedByBannerHeight: hostedByBannerHeight(session.hostedByBannerHeight)
   };
+}
+
+function readingList(adventure) {
+  return (Array.isArray(adventure.readingLinks) ? adventure.readingLinks : []).map((item) => ({
+    id: item.id,
+    url: item.url,
+    kind: item.kind === "syndication" ? "syndication" : "web",
+    title: item.title || "",
+    description: item.description || "",
+    image: item.image || "",
+    siteName: item.siteName || "",
+    fetchedAt: item.fetchedAt || "",
+    fetchError: item.fetchError || ""
+  }));
+}
+
+async function scrapeReadingLink(url, id) {
+  const safe = sanitizeHttpUrl(url);
+  if (!safe) throw new Error("A valid http(s) URL is required.");
+  try {
+    const html = await fetchPageHtml(safe);
+    return { id, ...linkPreview.fromHtml(safe, html) };
+  } catch (error) {
+    return { id, ...linkPreview.failedPreview(safe, error.message) };
+  }
+}
+
+async function getReadingLinks() {
+  return { readingLinks: readingList(await liveAdventure()) };
+}
+
+async function saveReadingLinks(items) {
+  const adventure = await liveAdventure();
+  const previous = Array.isArray(adventure.readingLinks) ? adventure.readingLinks : [];
+  const byId = new Map(previous.map((row) => [row.id, row]));
+  const next = [];
+  for (const item of Array.isArray(items) ? items : []) {
+    const url = sanitizeHttpUrl(item?.url);
+    if (!url) continue;
+    const id = String(item.id || "").trim() || crypto.randomUUID();
+    const existing = byId.get(id) || previous.find((row) => row.url === url);
+    if (existing && existing.url === url) next.push({ ...existing, id, url });
+    else next.push(await scrapeReadingLink(url, id));
+  }
+  adventure.readingLinks = next;
+  adventure.updatedAt = new Date().toISOString();
+  await writeAdventure(adventure);
+  return { readingLinks: readingList(adventure) };
+}
+
+async function refreshReadingLink(idOrUrl) {
+  const adventure = await liveAdventure();
+  const key = String(idOrUrl || "").trim();
+  const links = Array.isArray(adventure.readingLinks) ? [...adventure.readingLinks] : [];
+  const index = links.findIndex((row) => row.id === key || row.url === sanitizeHttpUrl(key));
+  if (index < 0) throw new Error("Reading link not found.");
+  links[index] = await scrapeReadingLink(links[index].url, links[index].id);
+  adventure.readingLinks = links;
+  adventure.updatedAt = new Date().toISOString();
+  await writeAdventure(adventure);
+  return { readingLinks: readingList(adventure) };
 }
 
 async function refreshLiveSessionFromApi() {
@@ -1371,6 +1458,9 @@ async function saveSession(data) {
     session.syndicationUrl = "";
     session.playerHookUrl = "";
     session.title = String(data.title || "").trim() || session.title;
+    if (Object.prototype.hasOwnProperty.call(data || {}, "subtitle")) {
+      session.subtitle = data.subtitle == null ? "" : String(data.subtitle).trim();
+    }
     session.playerHookText = String(data.playerHookText || "");
     session.updatedAt = new Date().toISOString();
     await writeAdventure(session);
@@ -1384,8 +1474,14 @@ async function saveSession(data) {
   if (data.ambaModuleId) session.ambaModuleId = String(data.ambaModuleId).trim();
   const apiTitle = displayAdventureTitle(data.title);
   if (apiTitle && !isArtifactTitle(apiTitle)) session.title = apiTitle;
+  if (Object.prototype.hasOwnProperty.call(data || {}, "subtitle")) {
+    session.subtitle = data.subtitle == null ? "" : String(data.subtitle).trim();
+  }
   await refreshSessionFromLinks(session);
   if (apiTitle && !isArtifactTitle(apiTitle)) session.title = apiTitle;
+  if (Object.prototype.hasOwnProperty.call(data || {}, "subtitle")) {
+    session.subtitle = data.subtitle == null ? "" : String(data.subtitle).trim();
+  }
   session.updatedAt = new Date().toISOString();
   await writeAdventure(session);
   return sessionLinks();
@@ -2456,6 +2552,7 @@ function publicSession(adventure) {
   return {
     id: adventure.id,
     title: displayAdventureTitle(adventure.title) || adventure.title || "An AMBA Adventure",
+    subtitle: String(adventure.subtitle || "").trim(),
     targetPlayers: adventure.targetPlayers,
     maxPartyPcs: partySlotCounts(adventure).maxPartyPcs,
     playPartyPcs: partySlotCounts(adventure).playPartyPcs,
@@ -2466,6 +2563,7 @@ function publicSession(adventure) {
     syndicationUrl: adventure.syndicationUrl || "",
     playerHookUrl: adventure.playerHookUrl || "",
     playerHookText: adventure.playerHookText || "",
+    readingLinks: (Array.isArray(adventure.readingLinks) ? adventure.readingLinks : []).map(linkPreview.publicReadingLink),
     setupSource: adventure.setupSource === "manual" ? "manual" : "connect",
     ambaModuleId: adventure.ambaModuleId || adventure.id,
     displayHostedByBanner: adventure.displayHostedByBanner !== false,
@@ -3061,6 +3159,7 @@ async function adminYesMail() {
     slot: await leadingYesSlot(),
     modules,
     title: links.title,
+    subtitle: links.subtitle,
     ambaModuleId: links.ambaModuleId,
     syndicationUrl: links.syndicationUrl,
     playerHookUrl: links.playerHookUrl,
