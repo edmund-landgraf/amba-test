@@ -21,33 +21,36 @@ function formatWhen(iso) {
 
 function BackupGrid({ rows, token, onChange }) {
   const columnDefs = useMemo(() => [
-    { field: "name", headerName: "File name", flex: 2, minWidth: 220 },
+    { field: "name", headerName: "File name", flex: 2, minWidth: 160 },
     {
       field: "exportedAt",
       headerName: "Created",
       flex: 1,
-      minWidth: 160,
+      minWidth: 140,
       valueFormatter: (p) => formatWhen(p.value)
     },
     {
       field: "bytes",
       headerName: "Size",
-      width: 100,
+      width: 88,
       valueFormatter: (p) => formatBytes(p.value)
     },
     {
       headerName: "",
       field: "name",
-      colId: "restore",
-      width: 110,
+      colId: "actions",
+      flex: 1.4,
+      minWidth: 220,
       sortable: false,
       filter: false,
       cellRenderer: (params) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "button secondary";
-        button.textContent = "Restore";
-        button.addEventListener("click", async () => {
+        const wrap = document.createElement("div");
+        wrap.className = "backup-actions";
+        const restore = document.createElement("button");
+        restore.type = "button";
+        restore.className = "button secondary";
+        restore.textContent = "Restore";
+        restore.addEventListener("click", async () => {
           const ok = await (window.askAmbaConfirm
             ? window.askAmbaConfirm(`Overwrite all live AMBA Test data with ${params.value}?`)
             : Promise.resolve(confirm(`Overwrite all live AMBA Test data with ${params.value}?`)));
@@ -59,22 +62,11 @@ function BackupGrid({ rows, token, onChange }) {
           });
           onChange?.();
         });
-        return button;
-      }
-    },
-    {
-      headerName: "",
-      field: "name",
-      colId: "download",
-      width: 120,
-      sortable: false,
-      filter: false,
-      cellRenderer: (params) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "button secondary";
-        button.textContent = "Download";
-        button.addEventListener("click", async () => {
+        const download = document.createElement("button");
+        download.type = "button";
+        download.className = "button secondary";
+        download.textContent = "Download";
+        download.addEventListener("click", async () => {
           const response = await fetch(`/api/admin/backups/file?name=${encodeURIComponent(params.value)}`, {
             headers: { authorization: `Bearer ${token}` }
           });
@@ -87,22 +79,11 @@ function BackupGrid({ rows, token, onChange }) {
           a.remove();
           window.setTimeout(() => URL.revokeObjectURL(a.href), 2000);
         });
-        return button;
-      }
-    },
-    {
-      headerName: "",
-      field: "name",
-      colId: "delete",
-      width: 110,
-      sortable: false,
-      filter: false,
-      cellRenderer: (params) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "button danger";
-        button.textContent = "Delete";
-        button.addEventListener("click", async () => {
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "button danger";
+        remove.textContent = "Delete";
+        remove.addEventListener("click", async () => {
           if (!confirm(`Delete ${params.value}?`)) return;
           await fetch(`/api/admin/backups/file?name=${encodeURIComponent(params.value)}`, {
             method: "DELETE",
@@ -110,7 +91,8 @@ function BackupGrid({ rows, token, onChange }) {
           });
           onChange?.();
         });
-        return button;
+        wrap.append(restore, download, remove);
+        return wrap;
       }
     }
   ], [token, onChange]);
@@ -124,6 +106,8 @@ function BackupGrid({ rows, token, onChange }) {
       suppressCellFocus
       headerHeight={48}
       rowHeight={48}
+      onGridReady={(event) => event.api.sizeColumnsToFit()}
+      onGridSizeChanged={(event) => event.api.sizeColumnsToFit()}
     />
   );
 }

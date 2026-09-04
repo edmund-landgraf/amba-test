@@ -168,6 +168,7 @@ function fillTimezoneSelect(selected = "") {
 async function loadState() {
   appState = await api(`/api/state${currentEmail ? `?email=${encodeURIComponent(currentEmail)}` : ""}`);
   syncIdentity();
+  renderAdventureTitle();
   await refreshWgExports();
   renderPcs();
   renderWgSheetList();
@@ -177,6 +178,35 @@ async function loadState() {
       timezone: appState.user?.timezone || ""
     }
   }));
+}
+
+function displayAdventureTitle(value) {
+  return String(value || "").replace(/\s*\([^)]*\)\s*$/g, "").replace(/\s+/g, " ").trim();
+}
+
+function renderAdventureTitle() {
+  const raw = displayAdventureTitle(appState.session?.title);
+  const title = !raw || /^(player hook|adventure summary)$/i.test(raw)
+    ? "An AMBA Adventure"
+    : raw;
+  const heading = document.querySelector("#adventureTitle");
+  if (heading) heading.textContent = title;
+  const page = location.pathname.split("/").filter(Boolean).pop() || "index.html";
+  const suffixes = {
+    "index.html": "",
+    "videos.html": "Videos",
+    "session.html": "Session",
+    "discord.html": "Discord",
+    "amba.html": "AMBA",
+    "wg.html": "WG",
+    "upload.html": "Uploads",
+    "owlbear.html": "Owlbear",
+    "questionnaire.html": "Questionnaire",
+    "feedback.html": "Feedback",
+    "admin.html": "Admin"
+  };
+  const suffix = suffixes[page];
+  document.title = suffix ? `${title} · ${suffix}` : title;
 }
 
 function wireEvents() {
@@ -333,6 +363,7 @@ function wireEvents() {
   });
   wireWgDrop();
   wireWgSheets();
+  wirePcContextMenu();
 }
 
 function loadScriptOnce(src) {
@@ -407,6 +438,7 @@ async function openAdminShell() {
     host.replaceChildren(document.importNode(main, true));
     host.dataset.filled = "1";
   }
+  await loadScriptOnce("markdown-toolbar.js");
   await loadScriptOnce("admin.js");
   window.mountAmbaAdmin(host.querySelector("main") || host, {
     onUnauthorized: () => {
@@ -654,7 +686,7 @@ async function renderDiscordPanel() {
   panel.querySelector(".discord-frame")?.remove();
 
   if (!host?.inviteLink) {
-    if (lede) lede.textContent = "This site is not connected to a Discord server. Pick one in Settings → Discord, or leave Find server to host as a stub.";
+    if (lede) lede.textContent = "This site is not connected to a Discord server. Pick one in Admin → Discord, or leave Find server to host as a stub.";
     if (title) title.textContent = "Voice and text";
     if (copy) copy.textContent = "No Discord widget, invite, or voice link is loaded from this page.";
     if (links) {
@@ -806,6 +838,17 @@ async function saveTimezone(event) {
   if (pendingTimesScroll) scrollToTimes();
 }
 
+function partySlotCounts(session = appState.session) {
+  let max = Number(session?.maxPartyPcs);
+  let play = Number(session?.playPartyPcs);
+  let perPlayer = Number(session?.maxPcsPerPlayer);
+  max = Number.isFinite(max) && max > 0 ? Math.min(16, Math.round(max)) : 8;
+  play = Number.isFinite(play) && play > 0 ? Math.min(16, Math.round(play)) : 4;
+  perPlayer = Number.isFinite(perPlayer) && perPlayer > 0 ? Math.min(6, Math.round(perPlayer)) : 2;
+  if (play > max) play = max;
+  return { maxPartyPcs: max, playPartyPcs: play, maxPcsPerPlayer: perPlayer };
+}
+
 function toggleSettingsMenu() {
   if (!settingsMenu || !accountButton) return;
   settingsMenu.hidden = !settingsMenu.hidden;
@@ -824,7 +867,13 @@ async function api(url, options = {}) {
     headers: options.body ? { "content-type": "application/json" } : undefined,
     body: options.body ? JSON.stringify(options.body) : undefined
   });
-  if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    const error = new Error(body.error || `Request failed: ${response.status}`);
+    error.status = response.status;
+    error.code = body.error;
+    throw error;
+  }
   return response.json();
 }
 
@@ -842,7 +891,12 @@ function renderPcs() {
   if (!bodies.length) return;
   const empty = document.querySelector("#pcsEmpty");
   const wrap = document.querySelector(".pcs-table-wrap");
-  const pcs = (appState.pcs || []).slice(0, 8);
+  const slots = partySlotCounts();
+  const pcs = (appState.pcs || []).slice(0, slots.maxPartyPcs);
+  const slotNote = document.querySelector("#pcsSlotNote");
+  if (slotNote) {
+    slotNote.textContent = `${pcs.length} / ${slots.maxPartyPcs} listed · ${slots.playPartyPcs} to play · ${slots.maxPcsPerPlayer} per player`;
+  }
   if (empty) empty.hidden = pcs.length > 0;
   if (wrap) wrap.hidden = pcs.length === 0;
   for (const body of bodies) {
@@ -861,13 +915,91 @@ function renderPcs() {
       continue;
     }
     for (const pc of pcs) {
-      body.append(pcRow(pc));
+      body.append(pcRow(pc, { canRemove: body.id === "signupPcsBody" }));
     }
   }
 }
 
-function pcRow(pc) {
+function ownsPc(pc) {
+  const user = appState.user;
+  if (!user?.email) return false;
+  const urls = new Set((user.wgSheets || []).map((sheet) => sheet.url));
+  if (pc?.url && urls.has(pc.url)) return true;
+  return Boolean(user.handle && pc?.handle && user.handle === pc.handle);
+}
+
+function closePcContextMenu() {
+  const menu = document.querySelector("#pcContextMenu");
+  if (menu) menu.hidden = true;
+}
+
+function wirePcContextMenu() {
+  if (document.querySelector("#pcContextMenu")) return;
+  if (!document.querySelector("#signupPcsBody, #wgSheetList")) return;
+  const menu = document.createElement("div");
+  menu.id = "pcContextMenu";
+  menu.className = "schedule-context-menu";
+  menu.hidden = true;
+  menu.setAttribute("role", "menu");
+  const item = document.createElement("button");
+  item.type = "button";
+  item.setAttribute("role", "menuitem");
+  item.textContent = "Remove";
+  item.addEventListener("mousedown", (event) => event.preventDefault());
+  item.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const url = menu.dataset.url || "";
+    const name = menu.dataset.name || "this PC";
+    const action = menu.dataset.action || "remove";
+    closePcContextMenu();
+    if (!url) return;
+    window.setTimeout(async () => {
+      if (action === "add") {
+        await includePartyPc(url, name);
+        return;
+      }
+      const ok = await askConfirm(
+        `Remove ${name} from this adventure's party? WG sheet links stay. The table is ${partySlotCounts().maxPartyPcs} max / ${partySlotCounts().playPartyPcs} to play.`,
+        {
+          title: "Remove from party?",
+          ok: "Remove"
+        }
+      );
+      if (ok) await excludePartyPc(url);
+    }, 0);
+  });
+  menu.append(item);
+  document.body.append(menu);
+  document.addEventListener("mousedown", (event) => {
+    if (!menu.contains(event.target)) closePcContextMenu();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closePcContextMenu();
+  });
+  window.addEventListener("scroll", closePcContextMenu, true);
+}
+
+function openPcContextMenu(event, pc, action = "remove") {
+  event.preventDefault();
+  const menu = document.querySelector("#pcContextMenu");
+  if (!menu) return;
+  const item = menu.querySelector("button");
+  menu.dataset.url = pc.url || "";
+  menu.dataset.name = pc.name || `Sheet ${pc.id || ""}`.trim() || "this PC";
+  menu.dataset.action = action;
+  if (item) item.textContent = action === "add" ? "Add to party" : "Remove";
+  menu.hidden = false;
+  menu.style.left = `${event.clientX}px`;
+  menu.style.top = `${event.clientY}px`;
+}
+
+function pcRow(pc, { canRemove = false } = {}) {
   const tr = document.createElement("tr");
+  if (canRemove && ownsPc(pc)) {
+    tr.classList.add("pc-owned");
+    tr.addEventListener("contextmenu", (event) => openPcContextMenu(event, pc, "remove"));
+  }
   const hero = document.createElement("td");
   if (pc.imageUrl) {
     const img = document.createElement("img");
@@ -915,7 +1047,12 @@ function renderWgSheetList() {
     link.rel = "noreferrer";
     link.textContent = sheet.name || sheet.url;
     const meta = document.createElement("span");
-    meta.textContent = [sheet.abc, sheet.level !== "" ? `Lv ${sheet.level}` : ""].filter(Boolean).join(" · ");
+    const inParty = sheet.inParty !== false;
+    meta.textContent = [
+      sheet.abc,
+      sheet.level !== "" ? `Lv ${sheet.level}` : "",
+      inParty ? "in party" : "not in party"
+    ].filter(Boolean).join(" · ");
     const edit = document.createElement("button");
     edit.type = "button";
     edit.className = "button";
@@ -927,6 +1064,10 @@ function renderWgSheetList() {
     remove.setAttribute("aria-label", `Delete ${sheet.name || sheet.url}`);
     remove.textContent = "×";
     remove.addEventListener("click", () => deleteWgSheet(sheet.url));
+    if (!inParty) {
+      item.classList.add("sheet-addable");
+      item.addEventListener("contextmenu", (event) => openPcContextMenu(event, sheet, "add"));
+    }
     item.append(link, meta, edit, remove);
     list.append(item);
   }
@@ -983,19 +1124,70 @@ async function saveWgSheet(event) {
     renderPcs();
     if (note) note.textContent = "Saved.";
   } catch (error) {
-    const text = String(error.message || "");
     if (note) {
-      note.textContent = text.includes("400")
-        ? "Need a public /sheet/ link on amba or wgui, and Public Character must be on. Two links max."
+      note.textContent = error.code === "sheet_limit"
+        ? "Six sheet links max. Delete one before adding another."
+        : error.status === 400
+        ? "Need a public /sheet/ link on amba or wgui, and Public Character must be on. Six links max."
         : "Could not save that sheet link.";
     }
+  }
+}
+
+async function includePartyPc(url, name = "this PC") {
+  const note = document.querySelector("#wgSheetNote");
+  if (!appState.user?.email) return;
+  const perPlayer = partySlotCounts().maxPcsPerPlayer;
+  const inPartyCount = (appState.user.wgSheets || []).filter((sheet) => sheet.inParty !== false).length;
+  if (inPartyCount >= perPlayer) {
+    const message = `You already have ${perPlayer} PC${perPlayer === 1 ? "" : "s"} in the party. Remove one from Signup before adding ${name}.`;
+    if (note) note.textContent = message;
+    window.alert(message);
+    return;
+  }
+  try {
+    const result = await api("/api/party-pcs", {
+      method: "POST",
+      body: { email: appState.user.email, url }
+    });
+    appState.user = result.user;
+    appState.pcs = result.pcs;
+    renderWgSheetList();
+    renderPcs();
+    if (note) note.textContent = `Added ${name} to the party.`;
+  } catch (error) {
+    const message = error.code === "party_per_player_limit"
+      ? `You already have ${perPlayer} PC${perPlayer === 1 ? "" : "s"} in the party. Remove one from Signup before adding another.`
+      : "Could not add that PC to the party.";
+    if (note) note.textContent = message;
+    window.alert(message);
+  }
+}
+
+async function excludePartyPc(url) {
+  if (!appState.user?.email) return;
+  try {
+    const result = await api(
+      `/api/party-pcs?email=${encodeURIComponent(appState.user.email)}&url=${encodeURIComponent(url)}`,
+      { method: "DELETE" }
+    );
+    appState.user = result.user;
+    appState.pcs = result.pcs;
+    renderWgSheetList();
+    renderPcs();
+  } catch {
+    window.alert("Could not remove that PC from the party.");
   }
 }
 
 async function deleteWgSheet(url) {
   const note = document.querySelector("#wgSheetNote");
   if (!appState.user?.email) return;
-  if (!confirm("Remove this sheet link?")) return;
+  const ok = await askConfirm("Remove this sheet link from WG? It will also leave the party list.", {
+    title: "Remove sheet link?",
+    ok: "Remove"
+  });
+  if (!ok) return;
   try {
     const result = await api(
       `/api/wg-sheets?email=${encodeURIComponent(appState.user.email)}&url=${encodeURIComponent(url)}`,

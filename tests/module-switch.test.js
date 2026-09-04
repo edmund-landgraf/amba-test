@@ -32,7 +32,10 @@ describe("module switch", () => {
     assert.deepEqual(next.promote.posts, []);
     assert.equal(next.signups.length, 1);
     assert.equal(next.signups[0].email, "a@b.com");
-    assert.equal(next.signups[0].handle, "Slippery-Signal");
+    assert.equal(next.targetPlayers, 4);
+    assert.equal(next.maxPartyPcs, 8);
+    assert.equal(next.playPartyPcs, 4);
+    assert.equal(next.maxPcsPerPlayer, 2);
     assert.deepEqual(next.signups[0].votes, {});
     assert.deepEqual(next.signups[0].voteNotes, {});
     assert.equal(previous.times.length, 1);

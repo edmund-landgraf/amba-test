@@ -190,6 +190,11 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       return String(value || "").replace(/\s*\([^)]*\)\s*$/g, "").replace(/\s+/g, " ").trim();
     }
 
+    function isArtifactTitle(value) {
+      const title = displayAdventureTitle(value).toLowerCase();
+      return !title || title === "player hook" || title === "adventure summary";
+    }
+
     function syncAdventurePicker() {
       const connected = Boolean(ambaModules);
       if (adventureSelect) adventureSelect.hidden = !connected;
@@ -347,7 +352,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         fillAdmin(data);
         await loadPromote();
         const hash = location.hash.replace("#", "");
-        if (hash === "setup" || hash === "promote" || hash === "backup") showTab(hash);
+        if (hash === "setup" || hash === "party" || hash === "discord" || hash === "promote" || hash === "backup" || hash === "questionnaire") showTab(hash);
       } catch (error) {
         yesStatus.textContent = error.message || "Could not load yes emails.";
       }
@@ -679,6 +684,8 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         type,
         label: "",
         required: false,
+        gmPersonalChoice: false,
+        gmPreference: type === "checkbox" ? [] : "",
         options: type === "text" ? [] : ["Option 1", "Option 2"],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -747,12 +754,22 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         const next = { type: type.value };
         if (type.value === "text") next.options = [];
         else if (!question.options?.length) next.options = ["Option 1", "Option 2"];
+        if (type.value === "select") {
+          next.gmPersonalChoice = false;
+          next.gmPreference = "";
+        } else if (type.value === "checkbox") {
+          next.gmPreference = Array.isArray(question.gmPreference) ? question.gmPreference : [];
+        } else if (Array.isArray(question.gmPreference)) {
+          next.gmPreference = question.gmPreference[0] || "";
+        }
         updateQuestion(index, next);
         renderQuestionnaireBuilder();
         renderQuestionnairePreview();
       });
       typeLabel.append(type);
 
+      const flags = document.createElement("div");
+      flags.className = "question-editor-flags";
       const required = document.createElement("label");
       required.className = "questionnaire-preview-toggle";
       const requiredInput = document.createElement("input");
@@ -760,11 +777,77 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       requiredInput.checked = Boolean(question.required);
       requiredInput.addEventListener("change", () => updateQuestion(index, { required: requiredInput.checked }));
       required.append(requiredInput, document.createTextNode("Required"));
-      controls.append(typeLabel, required);
+      flags.append(required);
+      if (question.type !== "select") {
+        const gmChoice = document.createElement("label");
+        gmChoice.className = "questionnaire-preview-toggle";
+        const gmInput = document.createElement("input");
+        gmInput.type = "checkbox";
+        gmInput.checked = Boolean(question.gmPersonalChoice);
+        gmInput.addEventListener("change", () => {
+          updateQuestion(index, { gmPersonalChoice: gmInput.checked });
+          renderQuestionnaireBuilder();
+          renderQuestionnairePreview();
+        });
+        gmChoice.append(gmInput, document.createTextNode("GM personal choice"));
+        flags.append(gmChoice);
+      }
+      controls.append(typeLabel, flags);
 
       card.append(top, label, controls);
       if (question.type !== "text") card.append(optionEditor(question, index));
+      if (question.type !== "select" && question.gmPersonalChoice) {
+        card.append(gmPreferenceEditor(question, index));
+      }
       return card;
+    }
+
+    function gmPreferenceEditor(question, index) {
+      const wrap = document.createElement("div");
+      wrap.className = "question-gm-preference";
+      if (question.type === "text") {
+        const label = document.createElement("label");
+        label.textContent = "GM preference";
+        const textarea = document.createElement("textarea");
+        textarea.rows = 2;
+        textarea.placeholder = "What you would pick, for players to see";
+        textarea.value = typeof question.gmPreference === "string" ? question.gmPreference : "";
+        textarea.addEventListener("input", () => updateQuestion(index, { gmPreference: textarea.value }));
+        label.append(textarea);
+        wrap.append(label);
+        return wrap;
+      }
+      const heading = document.createElement("p");
+      heading.className = "form-note";
+      heading.textContent = "GM preference";
+      wrap.append(heading);
+      const selected = new Set(
+        Array.isArray(question.gmPreference)
+          ? question.gmPreference
+          : [question.gmPreference].filter(Boolean)
+      );
+      const group = document.createElement("div");
+      group.className = "questionnaire-options";
+      for (const option of question.options || []) {
+        const label = document.createElement("label");
+        const input = document.createElement("input");
+        input.type = question.type === "checkbox" ? "checkbox" : "radio";
+        input.name = `gm-pref-${question.id || index}`;
+        input.value = option;
+        input.checked = selected.has(option);
+        input.addEventListener("change", () => {
+          if (question.type === "checkbox") {
+            const next = [...group.querySelectorAll("input:checked")].map((item) => item.value);
+            updateQuestion(index, { gmPreference: next });
+          } else {
+            updateQuestion(index, { gmPreference: input.value });
+          }
+        });
+        label.append(input, document.createTextNode(option));
+        group.append(label);
+      }
+      wrap.append(group);
+      return wrap;
     }
 
     function optionEditor(question, index) {
@@ -874,6 +957,13 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       const legend = document.createElement("legend");
       legend.textContent = question.required ? `${question.label} *` : question.label;
       wrap.append(legend);
+      const gmNote = gmPreferenceNote(question);
+      if (gmNote) {
+        const note = document.createElement("p");
+        note.className = "questionnaire-gm-note";
+        note.textContent = gmNote;
+        wrap.append(note);
+      }
       if (question.type === "text") {
         const textarea = document.createElement("textarea");
         textarea.rows = 4;
@@ -943,6 +1033,16 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
     function formatAnswer(value) {
       if (Array.isArray(value)) return value.join(", ");
       return String(value || "");
+    }
+
+    function gmPreferenceNote(question) {
+      if (question.type === "select" || !question.gmPersonalChoice) return "";
+      if (question.type === "checkbox") {
+        const values = (Array.isArray(question.gmPreference) ? question.gmPreference : []).map((item) => String(item || "").trim()).filter(Boolean);
+        return values.length ? `GM preference: ${values.join(", ")}` : "";
+      }
+      const text = String(question.gmPreference || "").trim();
+      return text ? `GM preference: ${text}` : "";
     }
 
     async function copyAndOpen(text, url, note) {
@@ -1160,6 +1260,68 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       }
     });
 
+    function closeUrlCopyMenu() {
+      const menu = q("#urlCopyMenu");
+      if (menu) menu.hidden = true;
+    }
+
+    function ensureUrlCopyMenu() {
+      let menu = q("#urlCopyMenu");
+      if (menu) return menu;
+      menu = document.createElement("div");
+      menu.id = "urlCopyMenu";
+      menu.className = "schedule-context-menu";
+      menu.hidden = true;
+      menu.setAttribute("role", "menu");
+      const item = document.createElement("button");
+      item.type = "button";
+      item.setAttribute("role", "menuitem");
+      item.textContent = "Copy URL";
+      item.addEventListener("mousedown", (event) => event.preventDefault());
+      item.addEventListener("click", async () => {
+        const url = menu.dataset.url || "";
+        closeUrlCopyMenu();
+        if (!url) {
+          sessionLinksNote.textContent = "Nothing to copy.";
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(url);
+          sessionLinksNote.textContent = "Copied URL.";
+        } catch {
+          window.prompt("Copy URL:", url);
+        }
+      });
+      menu.appendChild(item);
+      document.body.appendChild(menu);
+      document.addEventListener("mousedown", (event) => {
+        if (!menu.contains(event.target)) closeUrlCopyMenu();
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") closeUrlCopyMenu();
+      });
+      window.addEventListener("scroll", closeUrlCopyMenu, true);
+      return menu;
+    }
+
+    function attachUrlCopyMenu(input) {
+      if (!input) return;
+      input.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+        const url = String(input.value || "").trim();
+        const menu = ensureUrlCopyMenu();
+        const item = menu.querySelector("button");
+        menu.dataset.url = url;
+        item.disabled = !url;
+        menu.hidden = false;
+        menu.style.left = `${event.clientX}px`;
+        menu.style.top = `${event.clientY}px`;
+      });
+    }
+
+    attachUrlCopyMenu(syndicationUrl);
+    attachUrlCopyMenu(playerHookUrl);
+
     sessionLinksToggle.addEventListener("click", async () => {
       if (!linksEditing) {
         setLinksEditing(true);
@@ -1369,15 +1531,132 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
     const titles = {
       yes: ["Emails that said yes", "Open a draft with yes players on BCC so they cannot see each other. You are on CC."],
       setup: ["Setup", "Connect to AMBA, paste syndication links, or write a manual markdown hook for signup."],
+      party: ["Party", "Set max party PC slots, how many will play, and how many PCs each player can put forward."],
+      discord: ["Discord", "Choose Chaos Goblins, AMBA, or paste a Discord URL. This updates the public Discord page widget."],
       promote: ["Promote", "Push looking-for-players posts. Every template sends people back here to sign up."],
       questionnaire: ["Questionnaire", "Build player questions, preview the form, and review submitted answers."],
       backup: ["Backup", "Save a timestamped JSON snapshot of this site. Restore replaces live data after you confirm."]
     };
+    const ADMIN_DISCORD_MANUAL = "__manual__";
+    const DEFAULT_ADMIN_DISCORD_HOSTS = [
+      {
+        name: "Chaos Goblins",
+        desc: "Chaos Goblins Discord. Enable Server Widget there to load the in-page bot.",
+        inviteLink: "https://discord.com/channels/1499020422358896660/1499022016148144208"
+      },
+      {
+        name: "AMBA",
+        desc: "AMBA Discord. Enable Server Widget there to load the in-page bot.",
+        inviteLink: "https://discord.com/channels/1534196054944121074/1534196055430795277"
+      }
+    ];
+    let adminDiscordChoices = DEFAULT_ADMIN_DISCORD_HOSTS;
+    function fillAdminDiscordFields(host) {
+      const select = q("#adminDiscordHostSelect");
+      const url = q("#adminDiscordHostUrl");
+      if (!select) return;
+      select.replaceChildren();
+      select.append(new Option("Not set", ""));
+      for (const choice of adminDiscordChoices) {
+        const option = new Option(choice.name, choice.name);
+        option.title = choice.desc || "";
+        select.append(option);
+      }
+      select.append(new Option("Enter URL manually", ADMIN_DISCORD_MANUAL));
+      const matched = adminDiscordChoices.find((choice) => choice.name === host?.name);
+      if (!host?.inviteLink) select.value = "";
+      else if (matched) select.value = matched.name;
+      else select.value = ADMIN_DISCORD_MANUAL;
+      if (url) url.value = host?.inviteLink || matched?.inviteLink || "";
+      syncAdminDiscordFields();
+    }
+    function syncAdminDiscordFields() {
+      const select = q("#adminDiscordHostSelect");
+      const url = q("#adminDiscordHostUrl");
+      const desc = q("#adminDiscordHostDesc");
+      const name = select?.value || "";
+      const choice = adminDiscordChoices.find((item) => item.name === name);
+      if (desc) {
+        desc.textContent = choice?.desc
+          || (name === ADMIN_DISCORD_MANUAL ? "Paste a Discord server, channel, or invite URL." : "");
+      }
+      if (select) select.title = choice?.desc || "";
+      if (url) {
+        url.readOnly = Boolean(choice);
+        if (choice) url.value = choice.inviteLink || "";
+      }
+    }
+    async function loadAdminDiscord() {
+      const select = q("#adminDiscordHostSelect");
+      if (!select) return;
+      const note = q("#adminDiscordHostNote");
+      if (note) note.textContent = "";
+      try {
+        const response = await fetch("/api/state");
+        const data = await response.json().catch(() => ({}));
+        const choices = Array.isArray(data.discordHostChoices) ? data.discordHostChoices : [];
+        adminDiscordChoices = choices.length ? choices : DEFAULT_ADMIN_DISCORD_HOSTS;
+        fillAdminDiscordFields(data.session?.discordHost);
+      } catch {
+        adminDiscordChoices = DEFAULT_ADMIN_DISCORD_HOSTS;
+        fillAdminDiscordFields(null);
+      }
+    }
+    async function loadAdminPartySlots() {
+      const note = q("#adminPartyNote");
+      try {
+        const data = await promoteFetch("/api/admin/party-slots", { headers: headers() });
+        fillAdminPartySlots(data);
+        if (note && !note.textContent) note.textContent = "";
+      } catch {
+        fillAdminPartySlots({ maxPartyPcs: 8, playPartyPcs: 4, maxPcsPerPlayer: 2 });
+        if (note) note.textContent = "Could not load party slots. Restart the Node server if Save fails.";
+      }
+    }
+
+    function fillAdminPartySlots(slots) {
+      const maxInput = q("#adminMaxPartyPcs");
+      const playInput = q("#adminPlayPartyPcs");
+      const perInput = q("#adminMaxPcsPerPlayer");
+      if (maxInput) maxInput.value = String(slots?.maxPartyPcs || 8);
+      if (playInput) playInput.value = String(slots?.playPartyPcs || 4);
+      if (perInput) perInput.value = String(slots?.maxPcsPerPlayer || 2);
+      syncAdminPartySliders();
+    }
+
+    function syncAdminPartySliders() {
+      const maxInput = q("#adminMaxPartyPcs");
+      const playInput = q("#adminPlayPartyPcs");
+      const perInput = q("#adminMaxPcsPerPlayer");
+      if (!maxInput || !playInput) return;
+      let max = Number(maxInput.value) || 8;
+      let play = Number(playInput.value) || 4;
+      let perPlayer = Number(perInput?.value) || 2;
+      if (play > max) {
+        if (document.activeElement === maxInput) play = max;
+        else max = play;
+        maxInput.value = String(max);
+        playInput.value = String(play);
+      }
+      const maxOut = q("#adminMaxPartyPcsValue");
+      const playOut = q("#adminPlayPartyPcsValue");
+      const perOut = q("#adminMaxPcsPerPlayerValue");
+      const readout = q("#adminPartySlotsReadout");
+      const perReadout = q("#adminPerPlayerSlotsReadout");
+      if (maxOut) maxOut.textContent = String(max);
+      if (playOut) playOut.textContent = String(play);
+      if (perOut) perOut.textContent = String(perPlayer);
+      if (readout) readout.textContent = `${max} / ${play}`;
+      if (perReadout) perReadout.textContent = String(perPlayer);
+    }
+
     function showTab(name) {
       const tab = titles[name] ? name : "yes";
       const panels = {
         yes: q("#panelYes"),
         setup: q("#panelSetup"),
+        party: q("#panelParty"),
+        discord: q("#panelDiscord"),
         promote: q("#panelPromote"),
         questionnaire: q("#panelQuestionnaire"),
         backup: q("#panelBackup")
@@ -1399,7 +1678,76 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       history.replaceState(null, "", "#" + tab);
       if (tab === "backup") refreshBackups();
       if (tab === "questionnaire") loadQuestionnaire();
+      if (tab === "discord") loadAdminDiscord();
+      if (tab === "party") loadAdminPartySlots();
     }
+    q("#adminMaxPartyPcs")?.addEventListener("input", syncAdminPartySliders);
+    q("#adminPlayPartyPcs")?.addEventListener("input", syncAdminPartySliders);
+    q("#adminMaxPcsPerPlayer")?.addEventListener("input", syncAdminPartySliders);
+    q("#adminPartyForm")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const note = q("#adminPartyNote");
+      if (note) note.textContent = "Saving…";
+      syncAdminPartySliders();
+      const payload = {
+        maxPartyPcs: q("#adminMaxPartyPcs")?.value,
+        playPartyPcs: q("#adminPlayPartyPcs")?.value,
+        maxPcsPerPlayer: q("#adminMaxPcsPerPlayer")?.value
+      };
+      try {
+        const data = await promoteFetch("/api/admin/party-slots", {
+          method: "POST",
+          headers: headers(),
+          body: JSON.stringify(payload)
+        });
+        fillAdminPartySlots(data);
+        if (note) {
+          note.textContent = `Saved. Party PCs ${data.maxPartyPcs} / ${data.playPartyPcs}, ${data.maxPcsPerPlayer} per player.`;
+        }
+      } catch (error) {
+        if (note) note.textContent = error.message || "Could not save party slots. Restart the Node server, then save again.";
+      }
+    });
+    q("#adminDiscordHostSelect")?.addEventListener("change", syncAdminDiscordFields);
+    q("#adminDiscordHostForm")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const note = q("#adminDiscordHostNote");
+      if (note) note.textContent = "Saving…";
+      const payload = {
+        name: q("#adminDiscordHostSelect")?.value || "",
+        url: q("#adminDiscordHostUrl")?.value || ""
+      };
+      try {
+        let data = null;
+        try {
+          data = await promoteFetch("/api/admin/discord-host", {
+            method: "POST",
+            headers: headers(),
+            body: JSON.stringify(payload)
+          });
+        } catch (error) {
+          if (String(error.message) !== "not_found" && !selfEmail) throw error;
+          if (!selfEmail) {
+            throw new Error("Restart the Node server, then save again.");
+          }
+          const response = await fetch("/api/discord-host", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ email: selfEmail, ...payload })
+          });
+          data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.detail || data.error || response.statusText);
+        }
+        fillAdminDiscordFields(data.discordHost);
+        if (note) {
+          note.textContent = data.discordHost?.name
+            ? `Saved. Discord page uses ${data.discordHost.name}.`
+            : "Saved. Discord page has no host.";
+        }
+      } catch (error) {
+        if (note) note.textContent = error.message || "Could not save the Discord server.";
+      }
+    });
     function formatBackupBytes(bytes) {
       const n = Number(bytes) || 0;
       if (n < 1024) return `${n} B`;

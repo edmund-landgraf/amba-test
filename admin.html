@@ -21,6 +21,8 @@
     <nav class="admin-tabs" aria-label="Admin sections">
       <button type="button" class="admin-tab is-active" data-tab="yes" aria-current="page">Yes emails</button>
       <button type="button" class="admin-tab" data-tab="setup">Setup</button>
+      <button type="button" class="admin-tab" data-tab="party">Party</button>
+      <button type="button" class="admin-tab" data-tab="discord">Discord</button>
       <button type="button" class="admin-tab" data-tab="promote">Promote</button>
       <button type="button" class="admin-tab" data-tab="questionnaire">Questionnaire</button>
       <button type="button" class="admin-tab" data-tab="backup">Backup</button>
@@ -62,20 +64,65 @@
         <div id="manualWritePanel" hidden>
           <label>
             Adventure title
-            <input id="manualTitle" type="text" autocomplete="off">
+            <input id="manualTitle" type="text" autocomplete="off" placeholder="Adventure name">
           </label>
-          <label>
-            Player hook / adventure summary
-            <div class="md-editor">
-              <div class="md-toolbar" id="manualHookToolbar"></div>
-              <textarea id="manualHook" rows="16" spellcheck="true" placeholder="Write the pitch in markdown. This is what players see on signup."></textarea>
-            </div>
-          </label>
-          <p class="form-actions">
-            <button class="button primary" id="saveManualWrite" type="button">Save</button>
-          </p>
+          <div class="content-field-label-row">
+            <label for="manualHook">Player hook / adventure summary</label>
+            <button type="button" class="content-pop-out-btn" id="manualHookPopOut">Pop out</button>
+          </div>
+          <div class="md-editor">
+            <div class="md-toolbar" id="manualHookToolbar"></div>
+            <textarea id="manualHook" rows="16" spellcheck="true" placeholder="Write the pitch in markdown. This is what players see on signup."></textarea>
+          </div>
         </div>
-        <p class="form-note" id="sessionLinksNote"></p>
+        <p class="form-actions">
+          <button class="button primary" id="saveSetup" type="submit">Save</button>
+        </p>
+        <p class="form-note" id="sessionLinksNote" aria-live="polite"></p>
+      </form>
+    </section>
+    <section class="doc admin-tab-panel" id="panelParty" hidden>
+      <form class="promote-card" id="adminPartyForm">
+        <h2>Party slots</h2>
+        <p>The GM sets how many PCs can appear on Signup, how many will play, and how many each player can put forward. Default is 8 / 4 with 2 per player. WG can store six sheet links; extras stay off the party until someone is removed on Signup.</p>
+        <div class="party-slot-sliders">
+          <label>Max party PC slots
+            <output id="adminMaxPartyPcsValue" for="adminMaxPartyPcs">8</output>
+            <input id="adminMaxPartyPcs" name="maxPartyPcs" type="range" min="1" max="16" step="1" value="8">
+          </label>
+          <label>Play party PC slots
+            <output id="adminPlayPartyPcsValue" for="adminPlayPartyPcs">4</output>
+            <input id="adminPlayPartyPcs" name="playPartyPcs" type="range" min="1" max="16" step="1" value="4">
+          </label>
+          <label>Max PCs to consider per player
+            <output id="adminMaxPcsPerPlayerValue" for="adminMaxPcsPerPlayer">2</output>
+            <input id="adminMaxPcsPerPlayer" name="maxPcsPerPlayer" type="range" min="1" max="6" step="1" value="2">
+          </label>
+          <p class="form-note">Party PCs <strong id="adminPartySlotsReadout">8 / 4</strong>, <strong id="adminPerPlayerSlotsReadout">2</strong> per player.</p>
+        </div>
+        <p class="form-actions">
+          <button class="button primary" type="submit">Save party slots</button>
+        </p>
+        <p class="form-note" id="adminPartyNote" aria-live="polite"></p>
+      </form>
+    </section>
+    <section class="doc admin-tab-panel" id="panelDiscord" hidden>
+      <form class="promote-card" id="adminDiscordHostForm">
+        <h2>Discord page</h2>
+        <p>This choice drives the public Discord page widget and join link. Pick Chaos Goblins or AMBA, or paste your own server URL.</p>
+        <label>Server
+          <select id="adminDiscordHostSelect">
+            <option value="">Not set</option>
+          </select>
+        </label>
+        <p class="form-note" id="adminDiscordHostDesc"></p>
+        <label>Server URL
+          <input id="adminDiscordHostUrl" autocomplete="off" placeholder="https://discord.com/channels/… or discord.gg/…">
+        </label>
+        <p class="form-actions">
+          <button class="button primary" type="submit">Save Discord server</button>
+        </p>
+        <p class="form-note" id="adminDiscordHostNote" aria-live="polite"></p>
       </form>
     </section>
     <section class="doc admin-tab-panel" id="panelYes">

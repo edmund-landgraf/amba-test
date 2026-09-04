@@ -51,6 +51,9 @@ function sampleState() {
         id: "amba-workflow-test-1",
         title: "The Palakar Convergence",
         targetPlayers: 4,
+        maxPartyPcs: 8,
+        playPartyPcs: 4,
+        maxPcsPerPlayer: 2,
         format: "Remote",
         scope: "Short adventure",
         times: [
@@ -70,6 +73,7 @@ function sampleState() {
         syndicationUrl: "https://example.test/syndicate/x",
         playerHookUrl: "https://example.test/syndicate/x/p/1",
         playerHookText: "Trouble along Profit's Flow",
+        setupSource: "connect",
         ambaModuleId: "amba-workflow-test-1",
         adminPasswordHash: null,
         signups: [
@@ -117,6 +121,9 @@ function sampleState() {
         id: "empty-table",
         title: "Empty table",
         targetPlayers: 4,
+        maxPartyPcs: 8,
+        playPartyPcs: 4,
+        maxPcsPerPlayer: 2,
         format: "Remote",
         scope: "Short adventure",
         times: [
@@ -136,6 +143,7 @@ function sampleState() {
         syndicationUrl: "",
         playerHookUrl: "",
         playerHookText: "",
+        setupSource: "connect",
         ambaModuleId: "empty-table",
         adminPasswordHash: null,
         signups: [],

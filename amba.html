@@ -12,32 +12,35 @@
   <main>
     <section class="page-hero">
       <p class="eyebrow">AMBA</p>
-      <h1>GM builds a module or adventure here</h1>
-      <p class="lede">AMBA is GM-only for editing—the adventure document and encounter list, not the player sheet. Think Foundry journal + bestiary, or the PDF you do not pass around. The GM writes a <em>module</em> or <em>adventure</em>, then exports it; in WG that object is a <em>campaign</em>. Players never log into AMBA. They do get a <strong>player-only syndication link</strong> as the GM reveals nodes.</p>
+      <h1>The GM’s adventure workspace</h1>
+      <p class="lede">AMBA is where the GM builds the adventure behind the scenes: notes, scenes, encounters, creatures, and player-safe handouts. GMs may find this the most interesting part of the warmup. Players do not need to use AMBA to play, but it can be fun to watch how the table pieces come together before they show up in WG, Owlbear, and the player handout link.</p>
     </section>
 
     <section class="doc">
-      <p>Screen-share AMBA so the table can watch prep. Players never get an AMBA login and never get the API key. This signup site does not store that key. Export targets AMBA’s WG clone on the same server (original WGUI and AMBA’s newer UI both use that stack). Player handouts go out as a syndication bookmark, not an AMBA account.</p>
+      <p>For the warmup, the GM can screen-share AMBA so everyone can see the prep flow in motion. The private setup stays with the GM: AMBA login, WG API key, and export settings do not go in Discord or on this site. Players just need the links shared during the call. Curious players are welcome to follow along; future GMs especially may want to see what AMBA is doing.</p>
 
-      <h2>What the GM does</h2>
-      <p>Sign in to AMBA. <strong>Create an empty module or adventure first</strong>—a named stub. You cannot JSON-import PCs until that container exists. After Discord picks four of the eight, download those JSON files from <a href="upload.html">Uploads</a> and import them as <strong>PCs in the module</strong>. Do not design the act or export yet; that order is on <a href="session.html">Session</a>. When you later export, open the avatar menu → Settings → <strong>Wanderer's Guide</strong> (second-to-last, above Redeem purchase code). Paste the <strong>API Key</strong> and <strong>Character Authorization URL</strong> from WG Account → Developer → API Clients. Pick Ours (<code>amba.wandersguide.site</code>). Never put those fields in Discord or this site. Create campaign in the module’s WG settings if needed. Copy the <em>WG join key</em> into Discord—not the API key. Players enter the key in WGUI. They should not appear under Characters. They should appear on the <strong>Party bench</strong> in encounters.</p>
+      <h2>What the GM sets up</h2>
+      <p>Start by creating a small empty module or adventure in AMBA. Think of it as a named shell for the warmup. Once the group chooses characters, download the selected WG JSON files from <a href="upload.html">Uploads</a> and import them as PCs in that module.</p>
+      <p>Later, when it is time to connect WG, open AMBA settings and add the Wanderer’s Guide API details from the GM’s WG account. After the WG campaign is created, share the WG join key in Discord. That join key is for players; the API key stays private.</p>
       <aside class="example">
         <h3>Example</h3>
-        <p>On Discord we pick four. GM downloads them from Upload, imports as module PCs, Settings → Wanderer's Guide, pastes API key and Character Authorization URL, Create campaign. In Discord: “Join key is in the pin. Paste it in WGUI. Do not look for your PC under my Characters list. Check the Party bench on an encounter.”</p>
+        <p>The group picks four characters in Discord. The GM downloads those files from Uploads, imports them into the AMBA module, connects WG in AMBA settings, creates the campaign, and pins the WG join key. Players paste the join key in WGUI and look for themselves on the Party bench.</p>
       </aside>
 
-      <h2>Player syndication (player-only link)</h2>
-      <p>After the stub has an act, scene, and some player-safe nodes, the GM opens Settings → <strong>Player version</strong> → <strong>Create player version</strong>, then <strong>Copy player link</strong> into Discord. That URL is the module/adventure packet for players: no login, not the full GM tree. <strong>Manage publish tree</strong> is the checkbox tree: checked nodes are on the link; unchecked stay GM-only. Start with the initial set (overview, gazetteer, no-spoiler handouts, Act 1 intro). As the table reaches later scenes in the <a href="session.html">Session</a> order, check newly reached maps and handouts and <strong>Save publish tree</strong>. Players refresh the bookmark. Do not send Full tree export to players.</p>
+      <h2>Player handouts</h2>
+      <p>AMBA can also make a player-only link for revealed adventure material. This is not the GM’s full prep tree. It is more like a living handout packet: the GM chooses which nodes are visible, players bookmark the link, and they refresh it when new material is revealed.</p>
+      <p>For the warmup, start small: an overview, a no-spoiler handout, maybe an Act 1 intro or map. Later scenes and GM-only notes can stay hidden until the table reaches them.</p>
       <aside class="example">
         <h3>Example</h3>
         <p>GM pins the player link. First publish: Casovian Sea Gazetteer, Razored Labyrinth (No Spoilers), Act 1 overview, bridge sketch, witness account. After the table reaches A1-S2, GM checks that scene’s player-safe map and narrative, saves, and says “refresh the pin.” DM Handout packets stay unchecked.</p>
       </aside>
 
-      <h2>What players do</h2>
-      <p>Default: nothing in the AMBA editor. They log into <a href="wg.html">WG</a>, make two public characters, drop JSON here, and on the call enter the join key so they become available for the campaign. They should show on the Party bench, not under the GM’s Characters list. They also open the <strong>player syndication link</strong> from Discord and refresh it when the GM says nodes were revealed. Optional on the call: an AMBA account plus <strong>module sharing</strong> so they can follow encounter design (Shared dropdown, not a public clone). They still do not get the API key.</p>
+      <h2>What players need</h2>
+      <p>Most players do not need AMBA to play. They make or import characters in <a href="wg.html">WG</a>, share public sheet links, upload WG JSON files, join Discord, and open the player handout link when the GM shares it.</p>
+      <p>That said, AMBA may be interesting if you like seeing how a session gets built. If someone wants to follow along more closely during the warmup, the GM can use AMBA module sharing. That is optional. Screen-share is enough for everyone else.</p>
 
-      <h2>What we're curious about</h2>
-      <p>Whether JSON-to-module PC import, API-key setup, and Create campaign feel obvious, whether joined players land on the Party bench (not the GM’s Characters list), whether the player syndication link stays spoiler-safe as the GM reveals scenes, and whether the WG campaign and <a href="owlbear.html">Owlbear</a> update when the GM acts from AMBA. If something is confusing, leave a note on <a href="feedback.html">feedback</a> and keep playing.</p>
+      <h2>What we are noticing</h2>
+      <p>During the warmup, we are mostly watching whether the pieces line up cleanly: WG character import, campaign join key, Party bench, Owlbear export, and the player handout link. We are also noticing whether AMBA feels useful and understandable from the GM side. If something feels smooth, confusing, or worth changing before the real session, drop a note on <a href="feedback.html">feedback</a> and keep playing.</p>
 
       <nav class="related">
         <a href="wg.html">WGUI (players)</a>

@@ -119,6 +119,50 @@ describe("questionnaire", () => {
     });
   });
 
+  it("keeps GM personal choice except on dropdowns", () => {
+    const data = coerceQuestionnaire({
+      questions: [
+        {
+          id: "notes",
+          type: "text",
+          label: "Notes",
+          gmPersonalChoice: true,
+          gmPreference: "Keep it short."
+        },
+        {
+          id: "role",
+          type: "select",
+          label: "Role",
+          options: ["Front line", "Support"],
+          gmPersonalChoice: true,
+          gmPreference: "Support"
+        },
+        {
+          id: "pillars",
+          type: "checkbox",
+          label: "Pillars",
+          options: ["Combat", "Roleplay"],
+          gmPersonalChoice: true,
+          gmPreference: ["Roleplay", "Nope"]
+        },
+        {
+          id: "voice",
+          type: "radio",
+          label: "Voice",
+          options: ["Yes", "No"],
+          gmPersonalChoice: true,
+          gmPreference: "Yes"
+        }
+      ]
+    });
+    assert.equal(data.questions[0].gmPersonalChoice, true);
+    assert.equal(data.questions[0].gmPreference, "Keep it short.");
+    assert.equal(data.questions[1].gmPersonalChoice, false);
+    assert.equal(data.questions[1].gmPreference, "");
+    assert.deepEqual(data.questions[2].gmPreference, ["Roleplay"]);
+    assert.equal(data.questions[3].gmPreference, "Yes");
+  });
+
   it("coerces junk input into safe arrays", () => {
     assert.deepEqual(coerceQuestionnaire("nope"), { questions: [], responses: [] });
     assert.deepEqual(mergeUserResponse(null, { email: "", answers: {} }), { questions: [], responses: [] });

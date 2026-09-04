@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-quartz.css";
 import { renderMarkdown } from "./markdown.js";
+import { ZONE_IANA } from "../timezones.js";
 
 function api(url, options = {}) {
   return fetch(url, {
@@ -646,18 +647,22 @@ function TimeGrid() {
   async function addRow(event) {
     event.preventDefault();
     if (!requireReady()) return;
-    await api("/api/times", {
-      method: "POST",
-      body: {
-        email,
-        date: draft.date,
-        time: draft.time,
-        timezone: userZone,
-        lengthMinutes: Number(draft.lengthMinutes)
-      }
-    });
-    setDraft({ date: "", time: "19:00", lengthMinutes: "120" });
-    await load(email, userZone);
+    try {
+      await api("/api/times", {
+        method: "POST",
+        body: {
+          email,
+          date: draft.date,
+          time: draft.time,
+          timezone: userZone,
+          lengthMinutes: Number(draft.lengthMinutes)
+        }
+      });
+      setDraft({ date: "", time: "19:00", lengthMinutes: "120" });
+      await load(email, userZone);
+    } catch (error) {
+      showToast(error.message || "Could not add row");
+    }
   }
 
   const columnDefs = useMemo(() => [
@@ -796,6 +801,12 @@ function TimeGrid() {
         <div
           className="player-hook player-hook-md"
           dangerouslySetInnerHTML={{ __html: renderMarkdown(hookText) }}
+          onClick={(event) => {
+            const link = event.target.closest("a[href]");
+            if (!link) return;
+            event.preventDefault();
+            window.open(link.href, "_blank", "noopener,noreferrer");
+          }}
         />
       </div>
   ) : hookUrl ? (
@@ -814,7 +825,7 @@ function TimeGrid() {
             title="AMBA player hook"
             src="/api/player-hook"
             referrerPolicy="no-referrer"
-            sandbox=""
+            sandbox="allow-popups allow-popups-to-escape-sandbox"
           />
         </div>
       </div>

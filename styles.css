@@ -881,6 +881,31 @@ fieldset {
   border: 1px solid var(--warm);
 }
 
+.content-field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 6px;
+}
+
+.content-pop-out-btn {
+  font-size: 0.78rem;
+  padding: 0.2rem 0.55rem;
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.content-pop-out-btn:hover {
+  border-color: var(--accent);
+}
+
 .md-editor {
   display: grid;
   gap: 0;
@@ -923,6 +948,105 @@ fieldset {
   resize: vertical;
 }
 
+dialog.markdown-popout-dialog {
+  width: min(96vw, 80rem);
+  max-width: min(96vw, 80rem);
+  height: min(96vh, 100%);
+  max-height: 96vh;
+  margin: auto;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+}
+
+dialog.markdown-popout-dialog:not([open]) {
+  display: none;
+}
+
+dialog.markdown-popout-dialog::backdrop {
+  background: rgba(8, 14, 18, 0.62);
+}
+
+.markdown-popout-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.2rem;
+}
+
+.markdown-popout-intro {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+}
+
+.markdown-visual-editor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.markdown-popout-editor {
+  flex: 1;
+  min-height: 0;
+  grid-template-rows: auto 1fr;
+}
+
+.markdown-popout-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 0;
+  height: 100%;
+}
+
+.markdown-popout-live {
+  min-height: 20rem;
+  height: 100%;
+  overflow: auto;
+  outline: none;
+  border-right: 1px solid var(--line);
+}
+
+.markdown-popout-preview {
+  width: 100%;
+  height: 100%;
+  min-height: 20rem;
+  border: 0;
+  border-radius: 0;
+  resize: none;
+  background: var(--input-bg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92rem;
+  padding: 12px 16px 16px;
+}
+
+.markdown-popout-actions {
+  margin-top: 0.75rem;
+  justify-content: flex-end;
+}
+
+@media (max-width: 820px) {
+  .markdown-popout-split {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+
+  .markdown-popout-live {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    min-height: 12rem;
+  }
+
+  .markdown-popout-preview {
+    min-height: 12rem;
+  }
+}
+
 .player-hook-md {
   overflow: auto;
   padding: 12px 16px 16px;
@@ -939,6 +1063,17 @@ fieldset {
 .player-hook-md p,
 .player-hook-md li {
   margin: 0 0 0.65em;
+}
+
+.player-hook-md blockquote {
+  margin: 0.35em 0 0.75em;
+  padding: 0.1em 0 0.1em 1em;
+  border: 0;
+  border-left: 3px solid rgba(120, 90, 48, 0.38);
+  background: transparent;
+  color: #3a2e1c;
+  font-family: Georgia, "Times New Roman", serif;
+  font-style: italic;
 }
 
 .player-hook-wrap {
@@ -958,12 +1093,23 @@ fieldset {
   cursor: pointer;
 }
 
+.player-hook,
+.markdown-popout-live {
+  --parchment: #f0e4c9;
+  --parchment-deep: #e2d0aa;
+  background-color: var(--parchment);
+  background-image:
+    linear-gradient(165deg, rgba(255, 248, 230, 0.5), rgba(186, 154, 96, 0.16)),
+    repeating-linear-gradient(0deg, rgba(92, 64, 32, 0.04) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, rgba(92, 64, 32, 0.03) 0 1px, transparent 1px 4px);
+  box-shadow: inset 0 0 0 1px rgba(120, 90, 48, 0.2), inset 0 0 42px rgba(140, 100, 50, 0.12);
+}
+
 .player-hook {
   position: relative;
-  border: 1px solid rgba(31, 79, 67, 0.14);
+  border: 1px solid rgba(120, 90, 48, 0.28);
   border-radius: 12px;
   overflow: hidden;
-  background: #fff;
   height: min(52vh, 480px);
 }
 
@@ -979,7 +1125,7 @@ fieldset {
   left: 0;
   height: 72px;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0), #fff 88%);
+  background: linear-gradient(180deg, transparent, var(--parchment-deep) 88%);
 }
 
 .player-hook-wrap.is-expanded .player-hook {
@@ -991,6 +1137,7 @@ fieldset {
   width: 100%;
   height: 100%;
   border: 0;
+  background: transparent;
 }
 
 .add-row {
@@ -1489,6 +1636,33 @@ pre {
   accent-color: var(--accent-strong);
 }
 
+.party-slot-sliders {
+  display: grid;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.party-slot-sliders > label {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 12px;
+  align-items: center;
+}
+
+.party-slot-sliders output {
+  font-weight: 800;
+  color: var(--warm);
+}
+
+.party-slot-sliders input[type="range"] {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--warm);
+  box-shadow: none;
+}
+
 input:disabled,
 input:read-only {
   color: var(--muted);
@@ -1632,6 +1806,11 @@ th {
 .pcs-table th:last-child {
   text-align: center;
   width: 72px;
+}
+
+.pcs-glance tbody tr.pc-owned,
+.pcs-table tbody tr.pc-owned {
+  cursor: context-menu;
 }
 
 .pc-portrait {
@@ -1829,13 +2008,8 @@ body.is-logged-in .drop-band {
   list-style: none;
 }
 
-.file-list li {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-  align-items: baseline;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--line);
+.file-list li.sheet-addable {
+  cursor: context-menu;
 }
 
 .file-list span {
@@ -1948,24 +2122,25 @@ dialog.modal::backdrop {
   background: rgba(28, 36, 48, 0.48);
 }
 
-.small-modal {
+.small-modal:not(.admin-shell) {
   width: min(520px, 100%);
 }
 
-dialog.modal.small-modal {
+dialog.modal.small-modal:not(.admin-shell) {
   width: min(520px, calc(100% - var(--modal-inset)));
   max-width: min(520px, calc(100% - var(--modal-inset)));
 }
 
 dialog.modal.admin-shell {
-  width: min(var(--admin-width), calc(100% - var(--modal-inset)));
-  max-width: min(var(--admin-width), calc(100% - var(--modal-inset)));
+  width: min(var(--admin-width), calc(100vw - var(--modal-inset)));
+  min-width: min(var(--admin-width), calc(100vw - var(--modal-inset)));
+  max-width: min(var(--admin-width), calc(100vw - var(--modal-inset)));
   height: min(88vh, 88dvh);
   max-height: min(88vh, 88dvh);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 20px 22px 16px;
+  padding: 20px 24px 16px;
 }
 
 #adminAppHost {
@@ -1998,8 +2173,78 @@ dialog.modal.admin-shell {
   font-size: 1.45rem;
 }
 
+.admin-shell .admin-tabs {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.admin-shell .admin-tab {
+  min-width: 0;
+  padding: 8px 6px;
+  font-size: 0.78rem;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-shell .promote-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .admin-shell .questionnaire-admin-layout {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+}
+
+.admin-shell .setup-amba-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-shell .backup-grid {
+  overflow-x: hidden;
+}
+
+.admin-shell .backup-table {
+  table-layout: fixed;
+}
+
+.admin-shell .backup-table th:nth-child(1),
+.admin-shell .backup-table td:nth-child(1) {
+  width: 38%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-shell .backup-table th:nth-child(2),
+.admin-shell .backup-table td:nth-child(2) {
+  width: 22%;
+  white-space: nowrap;
+}
+
+.admin-shell .backup-table th:nth-child(3),
+.admin-shell .backup-table td:nth-child(3) {
+  width: 10%;
+  white-space: nowrap;
+}
+
+.admin-shell .backup-table th:nth-child(4),
+.admin-shell .backup-table td:nth-child(4) {
+  width: 30%;
+}
+
+.admin-shell .backup-actions {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+}
+
+.admin-shell .backup-actions .button {
+  padding: 6px 10px;
+  font-size: 0.82rem;
 }
 
 .admin-hero {
@@ -2111,6 +2356,24 @@ label.button.secondary {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.55);
+}
+
+.question-editor-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+}
+
+.question-gm-preference {
+  display: grid;
+  gap: 8px;
+}
+
+.questionnaire-gm-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
 }
 
 .question-editor-actions {
@@ -2423,7 +2686,6 @@ dialog.modal.admin-shell > .modal-close {
 }
 
 [data-theme="dark"] .attendee,
-[data-theme="dark"] .player-hook,
 [data-theme="dark"] .scheduler,
 [data-theme="dark"] .status-table-wrap,
 [data-theme="dark"] .grid-context-menu,
@@ -2442,8 +2704,28 @@ dialog.modal.admin-shell > .modal-close {
   background: linear-gradient(135deg, rgba(36, 48, 44, 0.9), rgba(30, 34, 42, 0.95));
 }
 
+[data-theme="dark"] .player-hook,
+[data-theme="dark"] .markdown-popout-live {
+  --parchment: #c4ae86;
+  --parchment-deep: #a89068;
+}
+
+[data-theme="dark"] .player-hook-md {
+  color: #2c2418;
+}
+
+[data-theme="dark"] .player-hook-md h1,
+[data-theme="dark"] .player-hook-md h2,
+[data-theme="dark"] .player-hook-md h3 {
+  color: #6b3a12;
+}
+
+[data-theme="dark"] .player-hook-md blockquote {
+  color: #2c2418;
+}
+
 [data-theme="dark"] .player-hook-wrap:not(.is-expanded) .player-hook::after {
-  background: linear-gradient(180deg, transparent, var(--panel) 88%);
+  background: linear-gradient(180deg, transparent, var(--parchment-deep) 88%);
 }
 
 [data-theme="dark"] .grid-context-menu button {

@@ -84,6 +84,13 @@
     const legend = document.createElement("legend");
     legend.textContent = question.required ? `${question.label} *` : question.label;
     wrap.append(legend);
+    const gmNote = gmPreferenceNote(question);
+    if (gmNote) {
+      const note = document.createElement("p");
+      note.className = "questionnaire-gm-note";
+      note.textContent = gmNote;
+      wrap.append(note);
+    }
 
     if (question.type === "text") {
       const textarea = document.createElement("textarea");
@@ -151,6 +158,16 @@
     });
     if (!response.ok) throw new Error(`Request failed: ${response.status}`);
     return response.json();
+  }
+
+  function gmPreferenceNote(question) {
+    if (question.type === "select" || !question.gmPersonalChoice) return "";
+    if (question.type === "checkbox") {
+      const values = (Array.isArray(question.gmPreference) ? question.gmPreference : []).map((item) => String(item || "").trim()).filter(Boolean);
+      return values.length ? `GM preference: ${values.join(", ")}` : "";
+    }
+    const text = String(question.gmPreference || "").trim();
+    return text ? `GM preference: ${text}` : "";
   }
 
   function cssEscape(value) {

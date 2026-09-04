@@ -169,7 +169,7 @@
           <button class="button primary" type="submit">Save settings</button>
         </section>
         <section class="settings-tab-panel" id="settingsPanelDiscord" data-settings-panel="discord" hidden>
-          <p class="modal-copy">Pick a saved Discord server or paste a server URL. That choice is the Discord page bot. If the server has not enabled Server Widget, the page shows a join link instead.</p>
+          <p class="modal-copy">Pick Chaos Goblins or AMBA, or paste a Discord URL. Admins can also set this under Admin → Discord. If Server Widget is off, the page shows a join link instead.</p>
           <label>Server
             <select name="discordHostName" id="discordHostSelect" title="">
               <option value="">Not set</option>

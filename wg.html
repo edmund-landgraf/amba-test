@@ -13,12 +13,13 @@
     <section class="page-hero">
       <p class="eyebrow">WGUI</p>
       <h1>Players log into WG here. They never log into AMBA.</h1>
-      <p class="lede">If you already build in Pathbuilder and fight on Foundry (or a Discord bot + a map), this is the same split: WG is the sheet, new UI is live combat, AMBA is GM-only prep. Build in old and/or new UI; combat on the call is new UI only. Two public characters, export JSON, drop files on Upload. We pick four of eight on Discord; the GM downloads those four from Upload.</p>
+      <p class="lede">If you already build in Pathbuilder and fight on Foundry (or a Discord bot + a map), this is the same split: WG is the sheet, new UI is live combat, AMBA is GM-only prep. Build in old and/or new UI; combat on the call is new UI only. Up to six public characters, export JSON, drop files on Upload. We consider two per player, pick four of eight on Discord; the GM downloads those four from Upload.</p>
     </section>
 
     <section class="band pcs-band">
       <p class="eyebrow">Party</p>
       <h2>PCs so far</h2>
+      <p class="form-note" id="pcsSlotNote"></p>
       <div class="table-wrap pcs-table-wrap">
         <table class="pcs-table">
           <thead>
@@ -37,12 +38,12 @@
     </section>
 
     <section class="doc login-required-panel">
-      <p>Log in on this site to paste your two public WG sheet links. We fetch the read-only sheet at <code>/sheet/…</code> after you turn on Public Character.</p>
+      <p>Log in on this site to paste up to six public WG sheet links. Right-click a link to add it to the party. Remove from the party on <a href="index.html">Signup</a>.</p>
     </section>
 
     <section class="doc logged-in-only">
       <h2>Your public sheet links</h2>
-      <p>Two links per player. Old UI: <a href="https://amba.wandersguide.site/">amba.wandersguide.site</a> <code>/sheet/…</code>. New UI: <a href="https://wgui.wandersguide.site/">wgui.wandersguide.site</a> <code>/sheet/…</code>. Same public, read-only sheet. You can edit or delete a link later.</p>
+      <p>Up to six links per player. Old UI: <a href="https://amba.wandersguide.site/">amba.wandersguide.site</a> <code>/sheet/…</code>. New UI: <a href="https://wgui.wandersguide.site/">wgui.wandersguide.site</a> <code>/sheet/…</code>. Same public, read-only sheet. Right-click a saved link to add it to the party (default two to consider). To swap one out, remove it on <a href="index.html">Signup</a> first. You can edit or delete a link later.</p>
       <form id="wgSheetForm" class="sheet-link-form">
         <label>Sheet link <input name="url" type="url" required placeholder="https://wgui.wandersguide.site/sheet/…"></label>
         <input type="hidden" name="replaceUrl" value="">

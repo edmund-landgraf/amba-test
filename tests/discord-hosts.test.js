@@ -15,6 +15,10 @@ describe("discord hosts", () => {
       "1534196054944121074"
     );
     assert.equal(
+      parseDiscordGuildId("https://discord.com/channels/1499020422358896660/1499022016148144208"),
+      "1499020422358896660"
+    );
+    assert.equal(
       parseDiscordGuildId("https://discord.com/widget?id=1534196054944121074&theme=dark"),
       "1534196054944121074"
     );
@@ -23,10 +27,10 @@ describe("discord hosts", () => {
 
   it("resolves a named record or a manual URL", () => {
     const hosts = [
-      { name: "AMBA Test", desc: "Table", inviteLink: "https://discord.com/channels/1534196054944121074/" }
+      { name: "AMBA", desc: "Table", inviteLink: "https://discord.com/channels/1534196054944121074/1534196055430795277" }
     ];
-    const preset = resolveDiscordHost({ name: "AMBA Test" }, hosts);
-    assert.equal(preset.name, "AMBA Test");
+    const preset = resolveDiscordHost({ name: "AMBA" }, hosts);
+    assert.equal(preset.name, "AMBA");
     assert.equal(preset.guildId, "1534196054944121074");
     const custom = resolveDiscordHost({
       name: MANUAL_HOST_VALUE,

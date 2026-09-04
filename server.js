@@ -27,6 +27,11 @@ const backup = require("./lib/runtime-backup");
 const questionnaire = require("./lib/questionnaire");
 const { provisionNewAdventure } = require("./lib/module-switch");
 const {
+  displayAdventureTitle,
+  isArtifactTitle,
+  moduleTitleFromSyndication
+} = require("./lib/adventure-title");
+const {
   DEFAULT_DISCORD_HOSTS,
   listDiscordHosts,
   parseDiscordGuildId,
@@ -106,6 +111,17 @@ function wallTimeToUtc(dateStr, timeStr, zoneLabel, zoneIana) {
 function desiredPlayerCount(adventure) {
   const n = Number(adventure?.targetPlayers);
   return Number.isFinite(n) && n > 0 ? Math.min(12, Math.round(n)) : 4;
+}
+
+function partySlotCounts(adventure) {
+  let max = Number(adventure?.maxPartyPcs);
+  let play = Number(adventure?.playPartyPcs);
+  let perPlayer = Number(adventure?.maxPcsPerPlayer);
+  max = Number.isFinite(max) && max > 0 ? Math.min(16, Math.round(max)) : 8;
+  play = Number.isFinite(play) && play > 0 ? Math.min(16, Math.round(play)) : 4;
+  perPlayer = Number.isFinite(perPlayer) && perPlayer > 0 ? Math.min(6, Math.round(perPlayer)) : 2;
+  if (play > max) play = max;
+  return { maxPartyPcs: max, playPartyPcs: play, maxPcsPerPlayer: perPlayer };
 }
 
 function yesCountForTime(adventure, timeId) {
@@ -269,7 +285,7 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 404, { error: code });
       return;
     }
-    if (code === "bad_filename" || code === "invalid_json" || code === "bad_sheet_url" || code === "sheet_limit" || code === "not_public" || code === "discord_url_required" || code === "discord_host_unknown" || code === "questionnaire_invalid") {
+    if (code === "bad_filename" || code === "invalid_json" || code === "bad_sheet_url" || code === "sheet_limit" || code === "not_public" || code === "party_per_player_limit" || code === "discord_url_required" || code === "discord_host_unknown" || code === "questionnaire_invalid") {
       sendJson(res, 400, { error: code, details: error.details || undefined });
       return;
     }
@@ -372,6 +388,21 @@ async function handleApi(req, res) {
       url: url.searchParams.get("url")
     });
     sendJson(res, 200, result);
+    return;
+  }
+
+  if (req.method === "DELETE" && url.pathname === "/api/party-pcs") {
+    const result = await excludePartyPc({
+      email: url.searchParams.get("email"),
+      url: url.searchParams.get("url")
+    });
+    sendJson(res, 200, result);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/party-pcs") {
+    const body = await readBody(req);
+    sendJson(res, 200, await includePartyPc(body));
     return;
   }
 
@@ -479,9 +510,49 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "POST" && url.pathname === "/api/party-slots") {
+    const body = await readBody(req);
+    sendJson(res, 200, await savePartySlots(body));
+    return;
+  }
+
   if (req.method === "POST" && url.pathname === "/api/discord-host") {
     const body = await readBody(req);
     sendJson(res, 200, await saveDiscordHost(body));
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/admin/discord-host") {
+    if (!requireAdmin(req, res)) return;
+    const session = await liveAdventure();
+    sendJson(res, 200, {
+      discordHost: coerceDiscordHost(session.discordHost),
+      discordHostChoices: await discordHostChoices()
+    });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/admin/discord-host") {
+    if (!requireAdmin(req, res)) return;
+    const body = await readBody(req);
+    try {
+      sendJson(res, 200, await saveDiscordHost(body, { requireUser: false }));
+    } catch (error) {
+      sendJson(res, 400, { error: error.message || "discord_host_failed" });
+    }
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/admin/party-slots") {
+    if (!requireAdmin(req, res)) return;
+    sendJson(res, 200, partySlotCounts(await liveAdventure()));
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/admin/party-slots") {
+    if (!requireAdmin(req, res)) return;
+    const body = await readBody(req);
+    sendJson(res, 200, await savePartySlots(body, { requireUser: false }));
     return;
   }
 
@@ -797,7 +868,15 @@ async function discordWidgetStatus(guildId) {
 }
 
 async function getState(email) {
-  const adventure = await applyPastSessionLocks(await liveAdventure());
+  let adventure = await applyPastSessionLocks(await liveAdventure());
+  if (isArtifactTitle(adventure.title)) {
+    const title = await scrapeModuleTitle(adventure);
+    if (title) {
+      adventure.title = title;
+      adventure.updatedAt = new Date().toISOString();
+      await writeAdventure(adventure);
+    }
+  }
   const signups = adventure.signups || [];
   const feedback = await readJson("feedback");
   const users = await readJson("users");
@@ -976,11 +1055,47 @@ function hookPreviewDocument(body, styles = "") {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    html, body { margin: 0; background: #fff; color: #1a1612; }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      color: #1a1612;
+      color-scheme: light;
+      background-color: #f0e4c9;
+      background-image:
+        linear-gradient(165deg, rgba(255, 248, 230, 0.5), rgba(186, 154, 96, 0.16)),
+        repeating-linear-gradient(0deg, rgba(92, 64, 32, 0.04) 0 1px, transparent 1px 3px),
+        repeating-linear-gradient(90deg, rgba(92, 64, 32, 0.03) 0 1px, transparent 1px 4px);
+    }
     body { font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    a { pointer-events: auto; }
     .preview-root { padding: 4px 8px 12px; }
   </style>
   ${styles}
+  <style>
+    .preview-root {
+      --amba-page: transparent;
+      --amba-bg: transparent;
+    }
+    html, body,
+    .embedded-document-root, .lore-box, .synd-content, .preview-root,
+    .preview, .preview-narrative, .artifact-detail-html,
+    .syndication-artifact, .module-overview, .outline-narrative-body,
+    .read-aloud, .readaloud, .boxed-text {
+      background: transparent !important;
+      background-color: transparent !important;
+      background-image: none !important;
+      box-shadow: none !important;
+      min-height: 0 !important;
+    }
+    html, body {
+      min-height: 100% !important;
+      background-color: #f0e4c9 !important;
+      background-image:
+        linear-gradient(165deg, rgba(255, 248, 230, 0.5), rgba(186, 154, 96, 0.16)),
+        repeating-linear-gradient(0deg, rgba(92, 64, 32, 0.04) 0 1px, transparent 1px 3px),
+        repeating-linear-gradient(90deg, rgba(92, 64, 32, 0.03) 0 1px, transparent 1px 4px) !important;
+    }
+  </style>
 </head>
 <body class="preview-root">${body}</body>
 </html>`;
@@ -1035,7 +1150,7 @@ function sliceBalancedTag(html, start, tag) {
 }
 
 function rewriteHookUrls(html, baseUrl) {
-  return html.replace(/\s(href|src)=["']([^"']+)["']/gi, (full, attr, value) => {
+  const rewritten = html.replace(/\s(href|src)=["']([^"']+)["']/gi, (full, attr, value) => {
     if (!value || value.startsWith("#") || value.startsWith("data:") || value.startsWith("mailto:") || value.startsWith("javascript:")) {
       return full;
     }
@@ -1044,6 +1159,12 @@ function rewriteHookUrls(html, baseUrl) {
     } catch {
       return full;
     }
+  });
+  return rewritten.replace(/<a\b([^>]*)>/gi, (full, attrs) => {
+    let next = attrs;
+    if (!/\btarget=/i.test(next)) next += ' target="_blank"';
+    if (!/\brel=/i.test(next)) next += ' rel="noopener noreferrer"';
+    return `<a${next}>`;
   });
 }
 
@@ -1098,28 +1219,23 @@ function stripSyndicationChrome(text) {
     .trim();
 }
 
-function moduleTitleFromSyndication(html) {
-  const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-  let raw = htmlToPlain(title ? title[1] : "");
-  raw = raw.replace(/\s*[·|].*$/, "").replace(/\s*[–—].*$/, "");
-  if (!raw) {
-    const h1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-    raw = htmlToPlain(h1 ? h1[1] : "");
+async function scrapeModuleTitle(session) {
+  const urls = [session.syndicationUrl, session.playerHookUrl].map(sanitizeHttpUrl).filter(Boolean);
+  for (const url of urls) {
+    try {
+      const title = moduleTitleFromSyndication(await fetchPageHtml(url));
+      if (title && !isArtifactTitle(title)) return title;
+    } catch {
+      // Try the next published URL.
+    }
   }
-  return raw.replace(/\s*\([^)]*\)\s*$/g, "").replace(/\s+/g, " ").trim();
+  return "";
 }
 
 async function refreshSessionFromLinks(session) {
-  const syndicationUrl = sanitizeHttpUrl(session.syndicationUrl);
   const playerHookUrl = sanitizeHttpUrl(session.playerHookUrl);
-  if (syndicationUrl) {
-    try {
-      const title = moduleTitleFromSyndication(await fetchPageHtml(syndicationUrl));
-      if (title) session.title = title;
-    } catch {
-      // Keep the last saved title if the syndication page cannot be read.
-    }
-  }
+  const title = await scrapeModuleTitle(session);
+  if (title) session.title = title;
   if (playerHookUrl) {
     try {
       const page = await fetchPageHtml(playerHookUrl);
@@ -1136,24 +1252,13 @@ async function refreshSessionFromLinks(session) {
   return session;
 }
 
-function displayAdventureTitle(value) {
-  return String(value || "").replace(/\s*\([^)]*\)\s*$/g, "").replace(/\s+/g, " ").trim();
-}
-
 async function sessionLinks() {
   const session = await liveAdventure();
-  const syndicationUrl = sanitizeHttpUrl(session.syndicationUrl);
-  if (syndicationUrl) {
-    try {
-      const title = moduleTitleFromSyndication(await fetchPageHtml(syndicationUrl));
-      if (title && title !== session.title) {
-        session.title = title;
-        session.updatedAt = new Date().toISOString();
-        await writeAdventure(session);
-      }
-    } catch {
-      // Keep the last saved title if the syndication page cannot be read.
-    }
+  const title = await scrapeModuleTitle(session);
+  if (title && title !== session.title) {
+    session.title = title;
+    session.updatedAt = new Date().toISOString();
+    await writeAdventure(session);
   }
   return {
     title: displayAdventureTitle(session.title) || session.title || "",
@@ -1194,8 +1299,10 @@ async function saveSession(data) {
   session.syndicationUrl = syndicationUrl;
   session.playerHookUrl = playerHookUrl;
   if (data.ambaModuleId) session.ambaModuleId = String(data.ambaModuleId).trim();
-  if (data.title) session.title = String(data.title).trim();
+  const apiTitle = displayAdventureTitle(data.title);
+  if (apiTitle && !isArtifactTitle(apiTitle)) session.title = apiTitle;
   await refreshSessionFromLinks(session);
+  if (apiTitle && !isArtifactTitle(apiTitle)) session.title = apiTitle;
   session.updatedAt = new Date().toISOString();
   await writeAdventure(session);
   return sessionLinks();
@@ -1211,6 +1318,25 @@ async function saveDesiredPlayers(data) {
   return { targetPlayers: session.targetPlayers };
 }
 
+async function savePartySlots(data, options = {}) {
+  if (options.requireUser !== false) {
+    const user = await findUserByEmail(data.email);
+    if (!user) throw new Error("login_required");
+  }
+  const session = await liveAdventure();
+  const slots = partySlotCounts({
+    maxPartyPcs: data.maxPartyPcs,
+    playPartyPcs: data.playPartyPcs,
+    maxPcsPerPlayer: data.maxPcsPerPlayer
+  });
+  session.maxPartyPcs = slots.maxPartyPcs;
+  session.playPartyPcs = slots.playPartyPcs;
+  session.maxPcsPerPlayer = slots.maxPcsPerPlayer;
+  session.updatedAt = new Date().toISOString();
+  await writeAdventure(session);
+  return slots;
+}
+
 async function discordHostChoices() {
   try {
     const raw = JSON.parse(await fs.readFile(path.join(dataDir, "discord-hosts.json"), "utf8"));
@@ -1222,9 +1348,11 @@ async function discordHostChoices() {
   return listDiscordHosts(DEFAULT_DISCORD_HOSTS);
 }
 
-async function saveDiscordHost(data) {
-  const user = await findUserByEmail(data.email);
-  if (!user) throw new Error("login_required");
+async function saveDiscordHost(data, options = {}) {
+  if (options.requireUser !== false) {
+    const user = await findUserByEmail(data.email);
+    if (!user) throw new Error("login_required");
+  }
   const name = String(data.name || "").trim();
   const session = await liveAdventure();
   if (!name) {
@@ -1448,6 +1576,7 @@ function publicSheet(sheet, handle) {
     level: sheet.level ?? "",
     imageUrl: sheet.imageUrl || "",
     handle: handle || sheet.handle || "",
+    inParty: sheet.inParty !== false,
     error: sheet.error || ""
   };
 }
@@ -1458,11 +1587,12 @@ function publicPcs(adventure, users) {
   for (const pack of adventure.wgSheets || []) {
     const handle = handles.get(pack.email) || "";
     for (const sheet of pack.sheets || []) {
+      if (sheet.inParty === false) continue;
       rows.push(publicSheet(sheet, handle));
     }
   }
   rows.sort((a, b) => String(a.name || a.url).localeCompare(String(b.name || b.url)));
-  return rows;
+  return rows.slice(0, partySlotCounts(adventure).maxPartyPcs);
 }
 
 function parseWgSheetUrl(value) {
@@ -1600,12 +1730,18 @@ async function saveWgSheet(data) {
     adventure.wgSheets.push(pack);
   }
   const replaceUrl = parseWgSheetUrl(data.replaceUrl)?.url || "";
+  const previous = (pack.sheets || []).find((sheet) => sheet.url === replaceUrl || sheet.url === parsed.url);
   const sheets = (pack.sheets || []).filter((sheet) => sheet.url !== replaceUrl && sheet.url !== parsed.url);
-  if (sheets.length >= 2) throw new Error("sheet_limit");
+  if (sheets.length >= 6) throw new Error("sheet_limit");
   const row = await fetchPublicCharacter(parsed.id);
   if (!row) throw new Error("not_public");
   if (!isPublicCharacter(row)) throw new Error("not_public");
-  sheets.push(summarizeCharacter(row, parsed.url));
+  const next = summarizeCharacter(row, parsed.url);
+  const inPartyCount = sheets.filter((sheet) => sheet.inParty !== false).length;
+  const perPlayer = partySlotCounts(adventure).maxPcsPerPlayer;
+  if (previous && previous.inParty !== false) next.inParty = true;
+  else next.inParty = inPartyCount < perPlayer;
+  sheets.push(next);
   pack.sheets = sheets;
   await writeAdventure(adventure);
   const users = await readJson("users");
@@ -1623,6 +1759,43 @@ async function deleteWgSheet(data) {
     pack.sheets = (pack.sheets || []).filter((sheet) => sheet.url !== parsed.url);
     await writeAdventure(adventure);
   }
+  const users = await readJson("users");
+  return { user: publicUser(user, adventure), pcs: publicPcs(adventure, users) };
+}
+
+async function excludePartyPc(data) {
+  const user = await findUserByEmail(data.email);
+  if (!user) throw new Error("login_required");
+  const parsed = parseWgSheetUrl(data.url);
+  if (!parsed) throw new Error("bad_sheet_url");
+  const adventure = await liveAdventure();
+  const pack = (adventure.wgSheets || []).find((item) => item.email === user.email);
+  const sheet = (pack?.sheets || []).find((item) => item.url === parsed.url);
+  if (!sheet) throw new Error("not_found");
+  sheet.inParty = false;
+  await writeAdventure(adventure);
+  const users = await readJson("users");
+  return { user: publicUser(user, adventure), pcs: publicPcs(adventure, users) };
+}
+
+async function includePartyPc(data) {
+  const user = await findUserByEmail(data.email);
+  if (!user) throw new Error("login_required");
+  const parsed = parseWgSheetUrl(data.url);
+  if (!parsed) throw new Error("bad_sheet_url");
+  const adventure = await liveAdventure();
+  const pack = (adventure.wgSheets || []).find((item) => item.email === user.email);
+  const sheet = (pack?.sheets || []).find((item) => item.url === parsed.url);
+  if (!sheet) throw new Error("not_found");
+  if (sheet.inParty !== false) {
+    const users = await readJson("users");
+    return { user: publicUser(user, adventure), pcs: publicPcs(adventure, users) };
+  }
+  const slots = partySlotCounts(adventure);
+  const inPartyCount = (pack.sheets || []).filter((item) => item.inParty !== false).length;
+  if (inPartyCount >= slots.maxPcsPerPlayer) throw new Error("party_per_player_limit");
+  sheet.inParty = true;
+  await writeAdventure(adventure);
   const users = await readJson("users");
   return { user: publicUser(user, adventure), pcs: publicPcs(adventure, users) };
 }
@@ -2042,8 +2215,11 @@ async function writeAdventure(adventure) {
 function publicSession(adventure) {
   return {
     id: adventure.id,
-    title: adventure.title,
+    title: displayAdventureTitle(adventure.title) || adventure.title || "An AMBA Adventure",
     targetPlayers: adventure.targetPlayers,
+    maxPartyPcs: partySlotCounts(adventure).maxPartyPcs,
+    playPartyPcs: partySlotCounts(adventure).playPartyPcs,
+    maxPcsPerPlayer: partySlotCounts(adventure).maxPcsPerPlayer,
     format: adventure.format,
     scope: adventure.scope,
     times: adventure.times || [],
