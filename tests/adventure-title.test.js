@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const {
   displayAdventureTitle,
   isArtifactTitle,
+  adoptScrapedTitle,
   moduleTitleFromSyndication,
   titleFromDocumentTitle
 } = require("../lib/adventure-title");
@@ -24,5 +25,14 @@ describe("adventure title", () => {
     );
     assert.equal(isArtifactTitle("Player Hook"), true);
     assert.equal(displayAdventureTitle("The Fivefold Horizon (PF2e)"), "The Fivefold Horizon");
+  });
+
+  it("does not replace a real module title with a stale syndication brand", () => {
+    assert.equal(
+      adoptScrapedTitle("The Price of Prophecy (Production)", "The Palakar Convergence"),
+      ""
+    );
+    assert.equal(adoptScrapedTitle("Player Hook", "The Price of Prophecy"), "The Price of Prophecy");
+    assert.equal(adoptScrapedTitle("", "The Palakar Convergence"), "The Palakar Convergence");
   });
 });

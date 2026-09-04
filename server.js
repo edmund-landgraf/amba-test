@@ -29,6 +29,7 @@ const { provisionNewAdventure } = require("./lib/module-switch");
 const {
   displayAdventureTitle,
   isArtifactTitle,
+  adoptScrapedTitle,
   moduleTitleFromSyndication
 } = require("./lib/adventure-title");
 const linkPreview = require("./lib/link-preview");
@@ -955,13 +956,11 @@ async function discordWidgetStatus(guildId) {
 
 async function getState(email) {
   let adventure = await applyPastSessionLocks(await liveAdventure());
-  if (isArtifactTitle(adventure.title)) {
-    const title = await scrapeModuleTitle(adventure);
-    if (title) {
-      adventure.title = title;
-      adventure.updatedAt = new Date().toISOString();
-      await writeAdventure(adventure);
-    }
+  const scraped = adoptScrapedTitle(adventure.title, await scrapeModuleTitle(adventure));
+  if (scraped) {
+    adventure.title = scraped;
+    adventure.updatedAt = new Date().toISOString();
+    await writeAdventure(adventure);
   }
   const signups = adventure.signups || [];
   const feedback = await readJson("feedback");
@@ -1329,7 +1328,7 @@ async function scrapeModuleTitle(session) {
 
 async function refreshSessionFromLinks(session) {
   const playerHookUrl = sanitizeHttpUrl(session.playerHookUrl);
-  const title = await scrapeModuleTitle(session);
+  const title = adoptScrapedTitle(session.title, await scrapeModuleTitle(session));
   if (title) session.title = title;
   if (playerHookUrl) {
     try {
@@ -1349,8 +1348,8 @@ async function refreshSessionFromLinks(session) {
 
 async function sessionLinks() {
   const session = await liveAdventure();
-  const title = await scrapeModuleTitle(session);
-  if (title && title !== session.title) {
+  const title = adoptScrapedTitle(session.title, await scrapeModuleTitle(session));
+  if (title) {
     session.title = title;
     session.updatedAt = new Date().toISOString();
     await writeAdventure(session);
