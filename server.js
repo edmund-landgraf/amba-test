@@ -1510,7 +1510,10 @@ async function saveSession(data) {
     return sessionLinks();
   }
   const playerHookUrl = sanitizeHttpUrl(data.playerHookUrl);
-  const syndicationUrl = sanitizeHttpUrl(data.syndicationUrl) || syndicationFromHook(playerHookUrl);
+  let syndicationUrl = sanitizeHttpUrl(data.syndicationUrl) || syndicationFromHook(playerHookUrl);
+  if (syndicationUrl && syndicationFromHook(syndicationUrl) !== syndicationUrl) {
+    syndicationUrl = syndicationFromHook(syndicationUrl);
+  }
   session.setupSource = "connect";
   session.syndicationUrl = syndicationUrl;
   session.playerHookUrl = playerHookUrl;

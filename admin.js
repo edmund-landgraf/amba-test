@@ -267,10 +267,42 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         || null;
     }
 
+    function isPlayerHookPath(url) {
+      try {
+        return /\/p\/[0-9a-f-]{36}\/?$/i.test(new URL(url).pathname);
+      } catch {
+        return /\/p\/[0-9a-f-]{36}\/?$/i.test(String(url || ""));
+      }
+    }
+
+    function adventureUrlFromHook(hook) {
+      try {
+        const parsed = new URL(hook);
+        parsed.search = "";
+        parsed.hash = "";
+        parsed.pathname = parsed.pathname.replace(/\/p\/[0-9a-f-]{36}\/?$/i, "");
+        return parsed.toString();
+      } catch {
+        return String(hook || "").trim();
+      }
+    }
+
     function applyAmbaModule(module) {
       if (!module) return;
-      syndicationUrl.value = module.adventureSummaryUrl || "";
-      playerHookUrl.value = module.playerHookUrl || "";
+      let summary = String(module.adventureSummaryUrl || "").trim();
+      let hook = String(module.playerHookUrl || "").trim();
+      if (isPlayerHookPath(summary) && !isPlayerHookPath(hook)) {
+        const swapped = summary;
+        summary = hook || adventureUrlFromHook(swapped);
+        hook = swapped;
+      } else if (isPlayerHookPath(summary)) {
+        hook = hook || summary;
+        summary = adventureUrlFromHook(summary);
+      } else if (!summary && hook) {
+        summary = adventureUrlFromHook(hook);
+      }
+      syndicationUrl.value = summary;
+      playerHookUrl.value = hook;
       adventureTitle = displayAdventureTitle(module.title) || module.title || adventureTitle;
       fillTitleSubtitleFrom(module);
       refreshPreviews();

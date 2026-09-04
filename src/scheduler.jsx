@@ -15,6 +15,33 @@ import {
   tokenIndexFor
 } from "../lib/token-colors.mjs";
 
+function isPlayerHookUrl(url) {
+  try {
+    return /\/p\/[0-9a-f-]{36}\/?$/i.test(new URL(url).pathname);
+  } catch {
+    return /\/p\/[0-9a-f-]{36}\/?$/i.test(String(url || ""));
+  }
+}
+
+function adventurePackUrl(summaryUrl, hookUrl) {
+  const stripHookNode = (url) => {
+    try {
+      const parsed = new URL(url);
+      parsed.search = "";
+      parsed.hash = "";
+      parsed.pathname = parsed.pathname.replace(/\/p\/[0-9a-f-]{36}\/?$/i, "");
+      return parsed.toString();
+    } catch {
+      return String(url || "").trim();
+    }
+  };
+  const summary = String(summaryUrl || "").trim();
+  const hook = String(hookUrl || "").trim();
+  if (summary && !isPlayerHookUrl(summary)) return summary;
+  if (summary) return stripHookNode(summary);
+  return hook ? stripHookNode(hook) : "";
+}
+
 function api(url, options = {}) {
   return fetch(url, {
     method: options.method || "GET",
@@ -434,7 +461,10 @@ function TimeGrid() {
     const zone = nextZone || state.user?.timezone || "";
     setUserZone(zone);
     const sessionTitle = state.session?.title || "AMBA session";
-    const nextSummary = state.session?.syndicationUrl || "";
+    const nextSummary = adventurePackUrl(
+      state.session?.syndicationUrl || "",
+      state.session?.playerHookUrl || ""
+    );
     const nextHook = state.session?.playerHookUrl || "";
     const playerHookText = state.session?.playerHookText || "";
     const discordInvite = String(state.session?.discordHost?.inviteLink || "").trim();
@@ -963,11 +993,11 @@ function TimeGrid() {
 
   useEffect(() => {
     if (!readingBand) return;
-    const showPack = setupSource !== "manual" && Boolean(summaryUrl);
+    const showPack = setupSource !== "manual" && Boolean(adventurePackUrl(summaryUrl, hookUrl));
     const showReading = showPack || readingLinks.length;
     readingBand.hidden = !showReading;
     if (readingMount) readingMount.hidden = !showReading;
-  }, [summaryUrl, readingLinks, setupSource, readingBand, readingMount]);
+  }, [summaryUrl, hookUrl, readingLinks, setupSource, readingBand, readingMount]);
 
   const zoneNote = email && !userZone
     ? "Set your time zone in Settings before you can mark times. Times will show in your zone."
@@ -1093,9 +1123,10 @@ function TimeGrid() {
     return link.title || readingHost(link.url);
   }
 
-  const showPack = setupSource !== "manual" && Boolean(summaryUrl);
+  const packUrl = adventurePackUrl(summaryUrl, hookUrl);
+  const showPack = setupSource !== "manual" && Boolean(packUrl);
   const readingItems = [
-    showPack ? { key: "player-pack", type: "pack", name: "Player Pack", url: summaryUrl } : null,
+    showPack ? { key: "player-pack", type: "pack", name: "Player Pack", url: packUrl } : null,
     ...readingLinks.map((link) => ({
       key: link.id || link.url,
       type: readingArtifactType(link),
