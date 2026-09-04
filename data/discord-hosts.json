@@ -10,6 +10,7 @@
     "name": "AMBA",
     "desc": "AMBA Discord. Enable Server Widget there to load the in-page bot.",
     "inviteLink": "https://discord.com/channels/1534196054944121074/1534196055430795277",
-    "bannerUrl": "/images/hosted-by-amba.jpg"
+    "bannerUrl": "/images/hosted-by-amba.jpg",
+    "bannerHalfUrl": "/images/hosted-by-amba-half.png"
   }
 ]

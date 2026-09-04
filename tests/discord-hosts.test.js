@@ -59,6 +59,7 @@ describe("discord hosts", () => {
     );
     const amba = resolveDiscordHost({ name: "AMBA" });
     assert.equal(amba.bannerUrl, "/images/hosted-by-amba.jpg");
+    assert.equal(amba.bannerHalfUrl, "/images/hosted-by-amba-half.png");
   });
 
   it("drops hosts with no invite", () => {
