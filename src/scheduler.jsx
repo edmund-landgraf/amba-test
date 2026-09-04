@@ -15,6 +15,29 @@ import {
   tokenIndexFor
 } from "../lib/token-colors.mjs";
 
+const PLAYER_HOOK_PARCHMENT_KEY = "amba-player-hook-parchment";
+
+function readHookParchment() {
+  try {
+    return localStorage.getItem(PLAYER_HOOK_PARCHMENT_KEY) !== "off";
+  } catch {
+    return true;
+  }
+}
+
+function writeHookParchment(on) {
+  try {
+    localStorage.setItem(PLAYER_HOOK_PARCHMENT_KEY, on ? "on" : "off");
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+function siteThemeName() {
+  if (typeof document === "undefined") return "light";
+  return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+}
+
 function isPlayerHookUrl(url) {
   try {
     return /\/p\/[0-9a-f-]{36}\/?$/i.test(new URL(url).pathname);
@@ -448,6 +471,10 @@ function TimeGrid() {
   const [hookExpanded, setHookExpanded] = useState(() =>
     !phoneLayout && (typeof window === "undefined" || !window.matchMedia("(max-width: 860px)").matches)
   );
+  const [hookParchment, setHookParchment] = useState(() =>
+    typeof window === "undefined" ? true : readHookParchment()
+  );
+  const [siteTheme, setSiteTheme] = useState(siteThemeName);
   const toastTimer = useRef(null);
 
   function showToast(message) {
@@ -981,6 +1008,7 @@ function TimeGrid() {
 
   const statusMount = typeof document !== "undefined" ? document.querySelector("#schedule-status") : null;
   const hookMount = typeof document !== "undefined" ? document.querySelector("#player-hook") : null;
+  const hookParchmentMount = typeof document !== "undefined" ? document.querySelector("#player-hook-parchment") : null;
   const hookBand = typeof document !== "undefined" ? document.querySelector("#player-hook-band") : null;
   const readingMount = typeof document !== "undefined" ? document.querySelector("#reading-grid") : null;
   const readingBand = typeof document !== "undefined" ? document.querySelector("#reading-band") : null;
@@ -990,6 +1018,15 @@ function TimeGrid() {
     const show = setupSource === "manual" ? Boolean(hookText.trim()) : Boolean(hookUrl);
     hookBand.hidden = !show;
   }, [hookUrl, hookText, setupSource, hookBand]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const sync = () => setSiteTheme(siteThemeName());
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!readingBand) return;
@@ -1058,8 +1095,42 @@ function TimeGrid() {
   );
 
   const manualPitch = setupSource === "manual" && hookText.trim();
+  const hookWrapClass = [
+    "player-hook-wrap",
+    !(narrowHook && !hookExpanded) && "is-expanded",
+    hookParchment && "is-parchment"
+  ].filter(Boolean).join(" ");
+  const parchmentToggle = (
+    <fieldset className="player-hook-parchment" aria-label="Player hook background">
+      <legend>Background</legend>
+      <label>
+        <input
+          type="radio"
+          name="playerHookParchment"
+          checked={hookParchment}
+          onChange={() => {
+            setHookParchment(true);
+            writeHookParchment(true);
+          }}
+        />
+        Parchment
+      </label>
+      <label>
+        <input
+          type="radio"
+          name="playerHookParchment"
+          checked={!hookParchment}
+          onChange={() => {
+            setHookParchment(false);
+            writeHookParchment(false);
+          }}
+        />
+        Off
+      </label>
+    </fieldset>
+  );
   const hookBlock = manualPitch ? (
-      <div className={`player-hook-wrap${narrowHook && !hookExpanded ? "" : " is-expanded"}`}>
+      <div className={hookWrapClass}>
         {narrowHook ? (
           <button
             className="player-hook-toggle"
@@ -1081,7 +1152,7 @@ function TimeGrid() {
         />
       </div>
   ) : hookUrl ? (
-      <div className={`player-hook-wrap${narrowHook && !hookExpanded ? "" : " is-expanded"}`}>
+      <div className={hookWrapClass}>
         {narrowHook ? (
           <button
             className="player-hook-toggle"
@@ -1094,7 +1165,7 @@ function TimeGrid() {
         <div className="player-hook">
           <iframe
             title="AMBA player hook"
-            src={`/api/player-hook?u=${encodeURIComponent(hookUrl)}`}
+            src={`/api/player-hook?u=${encodeURIComponent(hookUrl)}&parchment=${hookParchment ? "1" : "0"}&theme=${encodeURIComponent(siteTheme)}`}
             referrerPolicy="no-referrer"
             sandbox="allow-popups allow-popups-to-escape-sandbox"
           />
@@ -1158,6 +1229,7 @@ function TimeGrid() {
       {zoneNote ? <p className="form-note">{zoneNote}</p> : null}
       {statusMount ? createPortal(statusGrid, statusMount) : statusGrid}
       {hookMount && hookBlock ? createPortal(hookBlock, hookMount) : hookBlock}
+      {hookParchmentMount && hookBlock ? createPortal(parchmentToggle, hookParchmentMount) : null}
       {readingMount && readingBlock ? createPortal(readingBlock, readingMount) : readingBlock}
       <form id="mark-times" className="add-row" onSubmit={addRow}>
         <label>Date <input required type="date" value={draft.date} onChange={(event) => setDraft({ ...draft, date: event.target.value })} /></label>

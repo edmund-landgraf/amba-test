@@ -328,7 +328,10 @@ async function handleApi(req, res) {
 
   if (req.method === "GET" && url.pathname === "/api/player-hook") {
     const { playerHookUrl } = await sessionLinks();
-    const html = await playerHookPreviewHtml(playerHookUrl);
+    const html = await playerHookPreviewHtml(playerHookUrl, {
+      parchment: url.searchParams.get("parchment") !== "0",
+      theme: url.searchParams.get("theme") === "dark" ? "dark" : "light"
+    });
     res.writeHead(200, {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store"
@@ -1126,10 +1129,10 @@ function sanitizeHttpUrl(value) {
   }
 }
 
-async function playerHookPreviewHtml(hookUrl) {
+async function playerHookPreviewHtml(hookUrl, options = {}) {
   const url = sanitizeHttpUrl(hookUrl);
   if (!url) {
-    return hookPreviewDocument("<p>No player hook URL is saved yet.</p>");
+    return hookPreviewDocument("<p>No player hook URL is saved yet.</p>", "", options);
   }
   try {
     const page = await fetchPageHtml(url);
@@ -1137,13 +1140,38 @@ async function playerHookPreviewHtml(hookUrl) {
     const body = extractElementByClass(page, "embedded-document-root")
       || extractElementByClass(page, "synd-content")
       || "<p>Could not find the handout HTML on that page.</p>";
-    return hookPreviewDocument(rewriteHookUrls(body, url), styles);
+    return hookPreviewDocument(rewriteHookUrls(body, url), styles, options);
   } catch (error) {
-    return hookPreviewDocument(`<p>Could not load the player hook (${error.message}).</p>`);
+    return hookPreviewDocument(`<p>Could not load the player hook (${error.message}).</p>`, "", options);
   }
 }
 
-function hookPreviewDocument(body, styles = "") {
+function hookPreviewDocument(body, styles = "", options = {}) {
+  const parchment = options.parchment !== false;
+  const dark = !parchment && options.theme === "dark";
+  const ink = dark ? "#e8e4dc" : "#1a1612";
+  const scheme = dark ? "dark" : "light";
+  const parchmentFill = parchment
+    ? `background-color: #f0e4c9;
+      background-image:
+        linear-gradient(165deg, rgba(255, 248, 230, 0.5), rgba(186, 154, 96, 0.16)),
+        repeating-linear-gradient(0deg, rgba(92, 64, 32, 0.04) 0 1px, transparent 1px 3px),
+        repeating-linear-gradient(90deg, rgba(92, 64, 32, 0.03) 0 1px, transparent 1px 4px);`
+    : "background: transparent;";
+  const parchmentForce = parchment
+    ? `html, body {
+      min-height: 100% !important;
+      background-color: #f0e4c9 !important;
+      background-image:
+        linear-gradient(165deg, rgba(255, 248, 230, 0.5), rgba(186, 154, 96, 0.16)),
+        repeating-linear-gradient(0deg, rgba(92, 64, 32, 0.04) 0 1px, transparent 1px 3px),
+        repeating-linear-gradient(90deg, rgba(92, 64, 32, 0.03) 0 1px, transparent 1px 4px) !important;
+    }`
+    : `html, body {
+      min-height: 100% !important;
+      background: transparent !important;
+      color: ${ink} !important;
+    }`;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1153,13 +1181,9 @@ function hookPreviewDocument(body, styles = "") {
     html, body {
       margin: 0;
       min-height: 100%;
-      color: #1a1612;
-      color-scheme: light;
-      background-color: #f0e4c9;
-      background-image:
-        linear-gradient(165deg, rgba(255, 248, 230, 0.5), rgba(186, 154, 96, 0.16)),
-        repeating-linear-gradient(0deg, rgba(92, 64, 32, 0.04) 0 1px, transparent 1px 3px),
-        repeating-linear-gradient(90deg, rgba(92, 64, 32, 0.03) 0 1px, transparent 1px 4px);
+      color: ${ink};
+      color-scheme: ${scheme};
+      ${parchmentFill}
     }
     body { font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
     a { pointer-events: auto; }
@@ -1182,14 +1206,7 @@ function hookPreviewDocument(body, styles = "") {
       box-shadow: none !important;
       min-height: 0 !important;
     }
-    html, body {
-      min-height: 100% !important;
-      background-color: #f0e4c9 !important;
-      background-image:
-        linear-gradient(165deg, rgba(255, 248, 230, 0.5), rgba(186, 154, 96, 0.16)),
-        repeating-linear-gradient(0deg, rgba(92, 64, 32, 0.04) 0 1px, transparent 1px 3px),
-        repeating-linear-gradient(90deg, rgba(92, 64, 32, 0.03) 0 1px, transparent 1px 4px) !important;
-    }
+    ${parchmentForce}
   </style>
 </head>
 <body class="preview-root">${body}</body>

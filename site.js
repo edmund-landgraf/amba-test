@@ -501,10 +501,6 @@ async function restoreAdminSession() {
       return false;
     }
     writeStored("ambaAdminToken", token);
-    if (document.documentElement.dataset.layout === "phone") {
-      window.location.href = "admin.html";
-      return true;
-    }
     await openAdminShell();
     return true;
   } catch {
@@ -553,10 +549,6 @@ async function adminLogin(event) {
   try {
     const result = await api("/api/admin/login", { method: "POST", body: { password } });
     writeStored("ambaAdminToken", result.token);
-    if (document.documentElement.dataset.layout === "phone") {
-      window.location.href = "admin.html";
-      return;
-    }
     await openAdminShell();
   } catch {
     if (adminNote) adminNote.textContent = "Wrong password.";
