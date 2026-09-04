@@ -37,7 +37,8 @@ const {
   parseDiscordGuildId,
   sanitizeBannerUrl,
   resolveDiscordHost,
-  coerceDiscordHost
+  coerceDiscordHost,
+  hostedByBannerHeight
 } = require("./lib/discord-hosts");
 const discordGuildId = "1534196054944121074";
 
@@ -320,7 +321,7 @@ async function handleApi(req, res) {
     const html = await playerHookPreviewHtml(playerHookUrl);
     res.writeHead(200, {
       "content-type": "text/html; charset=utf-8",
-      "cache-control": "public, max-age=120"
+      "cache-control": "no-store"
     });
     res.end(html);
     return;
@@ -1292,7 +1293,8 @@ async function sessionLinks() {
     playerHookUrl: session.playerHookUrl || "",
     playerHookText: session.playerHookText || "",
     setupSource: session.setupSource === "manual" ? "manual" : "connect",
-    displayHostedByBanner: session.displayHostedByBanner !== false
+    displayHostedByBanner: session.displayHostedByBanner !== false,
+    hostedByBannerHeight: hostedByBannerHeight(session.hostedByBannerHeight)
   };
 }
 
@@ -1311,6 +1313,9 @@ async function saveSession(data) {
   const session = await liveAdventure();
   if (Object.prototype.hasOwnProperty.call(data || {}, "displayHostedByBanner")) {
     session.displayHostedByBanner = Boolean(data.displayHostedByBanner);
+  }
+  if (Object.prototype.hasOwnProperty.call(data || {}, "hostedByBannerHeight")) {
+    session.hostedByBannerHeight = hostedByBannerHeight(data.hostedByBannerHeight);
   }
   if (data.mode === "hostedBy") {
     session.updatedAt = new Date().toISOString();
@@ -1396,7 +1401,8 @@ async function saveDiscordHost(data, options = {}) {
     const selected = choices.find((item) => item.name === name);
     const host = resolveDiscordHost({
       ...data,
-      bannerUrl: data.clearBanner ? "" : (data.bannerUrl || selected?.bannerUrl || null)
+      bannerUrl: data.clearBanner ? "" : (data.bannerUrl || selected?.bannerUrl || null),
+      bannerHalfUrl: data.clearBanner ? "" : (data.bannerHalfUrl || selected?.bannerHalfUrl || null)
     }, choices);
     session.discordHost = host;
   }
@@ -1429,7 +1435,8 @@ async function saveDiscordBanner(data) {
   if (name) {
     host = resolveDiscordHost({
       ...data,
-      bannerUrl: data.clear ? "" : (host?.bannerUrl || "")
+      bannerUrl: data.clear ? "" : (host?.bannerUrl || ""),
+      bannerHalfUrl: data.clear ? "" : (host?.bannerHalfUrl || "")
     }, await discordHostChoices());
   }
   if (!host) throw new Error("discord_host_unknown");
@@ -1438,6 +1445,7 @@ async function saveDiscordBanner(data) {
     bannerUrl = await writeHostedBannerFile(host.name, data);
   }
   host.bannerUrl = bannerUrl;
+  if (data.clear) host.bannerHalfUrl = "";
   session.discordHost = host;
   session.updatedAt = new Date().toISOString();
   await writeAdventure(session);
@@ -1445,11 +1453,13 @@ async function saveDiscordBanner(data) {
   const named = choices.find((item) => item.name === host.name);
   if (named) {
     named.bannerUrl = bannerUrl;
+    if (data.clear) named.bannerHalfUrl = "";
     await writeDiscordHostsFile(choices.map((item) => ({
       name: item.name,
       desc: item.desc,
       inviteLink: item.inviteLink,
-      bannerUrl: item.bannerUrl || null
+      bannerUrl: item.bannerUrl || null,
+      bannerHalfUrl: item.bannerHalfUrl || null
     })));
   }
   return { discordHost: coerceDiscordHost(session.discordHost), discordHostChoices: await discordHostChoices() };
@@ -2319,6 +2329,7 @@ function publicSession(adventure) {
     setupSource: adventure.setupSource === "manual" ? "manual" : "connect",
     ambaModuleId: adventure.ambaModuleId || adventure.id,
     displayHostedByBanner: adventure.displayHostedByBanner !== false,
+    hostedByBannerHeight: hostedByBannerHeight(adventure.hostedByBannerHeight),
     discordHost: coerceDiscordHost(adventure.discordHost)
   };
 }
@@ -2902,7 +2913,8 @@ async function adminYesMail() {
     playerHookUrl: links.playerHookUrl,
     playerHookText: links.playerHookText,
     setupSource: links.setupSource,
-    displayHostedByBanner: links.displayHostedByBanner !== false
+    displayHostedByBanner: links.displayHostedByBanner !== false,
+    hostedByBannerHeight: hostedByBannerHeight(links.hostedByBannerHeight)
   };
 }
 

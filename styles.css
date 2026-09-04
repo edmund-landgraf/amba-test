@@ -338,7 +338,6 @@ main:has(.doc) .lede {
 .hosted-by-setup {
   display: grid;
   gap: 4px;
-  justify-items: start;
   margin: 0;
 }
 
@@ -346,11 +345,15 @@ main:has(.doc) .lede {
   display: flex;
   gap: 8px;
   align-items: center;
+  width: max-content;
+  max-width: 100%;
   font-weight: 700;
   color: var(--ink);
+  white-space: nowrap;
 }
 
-.hosted-by-setup-label input {
+.hosted-by-setup-label input,
+.promote-card .hosted-by-setup-label input {
   width: auto;
   margin: 0;
   padding: 0;
@@ -358,18 +361,35 @@ main:has(.doc) .lede {
   accent-color: var(--accent);
 }
 
+.hosted-by-height {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.hosted-by-height legend {
+  padding: 0;
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
 .hosted-by.has-banner {
   position: relative;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: var(--shadow);
+  width: 100%;
 }
 
 .hosted-by.has-banner .hosted-by-frame {
   display: block;
   width: 100%;
-  overflow: hidden;
   line-height: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
 }
 
 .hosted-by.has-banner img {
@@ -380,15 +400,8 @@ main:has(.doc) .lede {
 }
 
 .hosted-by.has-banner .hosted-by-label {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+  display: block;
+  margin: 8px 0 0;
 }
 
 .discord-panel {
@@ -837,8 +850,7 @@ select {
 }
 
 .discord-host-picker-toggle img,
-.discord-host-picker-menu li img,
-.discord-host-banner-preview img {
+.discord-host-picker-menu li img {
   width: 88px;
   height: 36px;
   object-fit: cover;
@@ -848,14 +860,37 @@ select {
 }
 
 .discord-host-banner-preview {
+  display: grid;
+  gap: 12px;
   margin: 8px 0 0;
 }
 
+.banner-preview-card {
+  margin: 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.banner-preview-card.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.banner-preview-card figcaption {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
 .discord-host-banner-preview img {
+  display: block;
   width: 100%;
   height: auto;
-  max-height: 120px;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
+  border-radius: 8px;
 }
 
 .discord-host-picker-menu {

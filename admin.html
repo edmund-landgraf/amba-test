@@ -125,9 +125,16 @@
           <label>Banner image
             <input id="adminDiscordHostBannerUrl" readonly placeholder="None">
           </label>
-          <p class="discord-host-banner-preview" id="adminDiscordHostBannerPreviewWrap" hidden>
-            <img id="adminDiscordHostBannerPreview" alt="">
-          </p>
+          <div class="discord-host-banner-preview" id="adminDiscordHostBannerPreviewWrap" hidden>
+            <figure class="banner-preview-card" data-banner-height="full">
+              <figcaption>Full height</figcaption>
+              <img id="adminDiscordHostBannerPreview" alt="Full height hosted-by banner">
+            </figure>
+            <figure class="banner-preview-card" data-banner-height="half" hidden>
+              <figcaption>1/2 height</figcaption>
+              <img id="adminDiscordHostBannerHalfPreview" alt="Half height hosted-by banner">
+            </figure>
+          </div>
           <p class="form-actions">
             <button class="button primary" type="submit">Save Discord server</button>
           </p>
@@ -143,7 +150,18 @@
             <input id="displayHostedByBanner" type="checkbox" checked>
             Display hosted by banner?
           </label>
-          <p class="form-note">When checked, signup shows the Discord host art. Unchecked keeps stylized “Hosted by” text only.</p>
+          <fieldset class="hosted-by-height" id="hostedByHeightWrap" hidden>
+            <legend>Banner height</legend>
+            <label class="hosted-by-setup-label">
+              <input type="radio" name="hostedByBannerHeight" value="full">
+              Full height
+            </label>
+            <label class="hosted-by-setup-label">
+              <input type="radio" name="hostedByBannerHeight" value="half" checked>
+              1/2 height
+            </label>
+          </fieldset>
+          <p class="form-note">When checked, signup shows the Discord host art. Unchecked keeps stylized “Hosted by” text only. Chaos Goblins has a full banner and a shorter 1/2-height banner; pick which signup uses.</p>
         </div>
         <p class="form-note" id="adminDiscordHostNote" aria-live="polite"></p>
       </div>

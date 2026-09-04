@@ -272,9 +272,9 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       return { origin, response };
     }
 
-    async function connectToAmba() {
+    async function connectToAmba(options = {}) {
       const origins = ambaApiOrigins();
-      setAmbaConnectNote(`Connecting to AMBA (${origins.join(", ")})…`);
+      if (!options.restore) setAmbaConnectNote(`Connecting to AMBA (${origins.join(", ")})…`);
       let lastOrigin = origins[0];
       let lastStatus = 0;
       let lastKind = "network";
@@ -325,6 +325,12 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
             ? `Connected to ${matched.origin}. ${matched.modules.length} published module${matched.modules.length === 1 ? "" : "s"}.`
             : `Connected to ${matched.origin}, but there are no published modules yet.`
         );
+        try {
+          await saveSessionLinks();
+          sessionLinksNote.textContent = "Saved. Signup shows the player hook from this AMBA module.";
+        } catch (error) {
+          sessionLinksNote.textContent = error.message;
+        }
       } catch {
         ambaModules = null;
         setAmbaConnectionStatus(false);
@@ -350,6 +356,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         }
         const data = await response.json();
         fillAdmin(data);
+        if (data.setupSource !== "manual") await connectToAmba({ restore: true });
         await loadPromote();
         const hash = location.hash.replace("#", "");
         if (hash === "setup" || hash === "party" || hash === "discord" || hash === "promote" || hash === "backup" || hash === "questionnaire") showTab(hash);
@@ -373,6 +380,8 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       setSetupMode(data.setupSource === "manual" ? "write" : setupMode, { silent: true });
       const hostedCheck = q("#displayHostedByBanner");
       if (hostedCheck) hostedCheck.checked = data.displayHostedByBanner !== false;
+      fillHostedByHeight(data.hostedByBannerHeight);
+      syncHostedByHeightUi();
     }
 
     function render(nextPeople) {
@@ -1067,7 +1076,46 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
     refreshPreviews();
 
     function hostedByPayload() {
-      return { displayHostedByBanner: Boolean(q("#displayHostedByBanner")?.checked) };
+      return {
+        displayHostedByBanner: Boolean(q("#displayHostedByBanner")?.checked),
+        hostedByBannerHeight: hostedByHeightValue()
+      };
+    }
+
+    function hostedByHeightValue() {
+      return q('input[name="hostedByBannerHeight"]:checked')?.value === "half" ? "half" : "full";
+    }
+
+    function fillHostedByHeight(height) {
+      const next = height === "half" ? "half" : "full";
+      root.querySelectorAll('input[name="hostedByBannerHeight"]').forEach((input) => {
+        input.checked = input.value === next;
+      });
+    }
+
+    function adminBannerUrls() {
+      const select = q("#adminDiscordHostSelect");
+      const name = select?.value || "";
+      const choice = adminDiscordChoices.find((item) => item.name === name);
+      const fallback = DEFAULT_ADMIN_DISCORD_HOSTS.find((item) => item.name === name);
+      return {
+        full: choice?.bannerUrl || fallback?.bannerUrl || "",
+        half: choice?.bannerHalfUrl || fallback?.bannerHalfUrl || ""
+      };
+    }
+
+    function adminPickBannerUrl() {
+      const urls = adminBannerUrls();
+      if (hostedByHeightValue() === "half") return urls.half || urls.full;
+      return urls.full || urls.half;
+    }
+
+    function syncHostedByHeightUi() {
+      const wrap = q("#hostedByHeightWrap");
+      const urls = adminBannerUrls();
+      const hasArt = Boolean(urls.full || urls.half);
+      const show = Boolean(q("#displayHostedByBanner")?.checked && hasArt);
+      if (wrap) wrap.hidden = !show;
     }
 
     async function saveHostedByBanner() {
@@ -1079,12 +1127,14 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         body: JSON.stringify({ mode: "hostedBy", ...hostedByPayload() })
       });
       const hostedCheck = q("#displayHostedByBanner");
-      if (hostedCheck) hostedCheck.checked = data.session?.displayHostedByBanner !== false;
+      if (hostedCheck) hostedCheck.checked = (data.session?.displayHostedByBanner ?? data.displayHostedByBanner) !== false;
+      fillHostedByHeight(data.session?.hostedByBannerHeight || data.hostedByBannerHeight);
       if (note) {
         note.textContent = hostedCheck?.checked
-          ? "Saved. Signup will show the hosted-by banner when a Discord host has art."
+          ? `Saved. Signup will show the ${hostedByHeightValue() === "half" ? "1/2-height" : "full-height"} hosted-by banner when a Discord host has art.`
           : "Saved. Signup will use stylized Hosted by text only.";
       }
+      syncAdminDiscordFields();
       return data;
     }
 
@@ -1139,7 +1189,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       setLinksEditing(setupMode === "manual");
       refreshPreviews();
       syncAdventurePicker();
-      sessionLinksNote.textContent = "Links saved. They show as hyperlinks on the signup page.";
+      sessionLinksNote.textContent = "Saved. Signup shows the player hook from these AMBA links.";
     }
 
     adventureSelect.addEventListener("change", async () => {
@@ -1285,15 +1335,11 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         }
         return;
       }
-      if (linksEditing) {
-        try {
-          await saveSessionLinks();
-        } catch (error) {
-          sessionLinksNote.textContent = error.message;
-        }
-        return;
+      try {
+        await saveSessionLinks();
+      } catch (error) {
+        sessionLinksNote.textContent = error.message;
       }
-      sessionLinksNote.textContent = "No link changes to save. Use Edit, Connect, or Manual.";
     });
 
     q("#adminLogout")?.addEventListener("click", () => {
@@ -1485,7 +1531,8 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         name: "Chaos Goblins",
         desc: "Chaos Goblins Discord. Enable Server Widget there to load the in-page bot.",
         inviteLink: "https://discord.com/channels/1499020422358896660/1499022016148144208",
-        bannerUrl: "/images/hosted-by-chaos-goblins.jpg"
+        bannerUrl: "/images/hosted-by-chaos-goblins.jpg",
+        bannerHalfUrl: "/images/hosted-by-chaos-goblins-half.jpg"
       },
       {
         name: "AMBA",
@@ -1495,6 +1542,20 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       }
     ];
     let adminDiscordChoices = DEFAULT_ADMIN_DISCORD_HOSTS;
+    function mergeAdminDiscordChoices(choices) {
+      const byName = new Map(DEFAULT_ADMIN_DISCORD_HOSTS.map((item) => [item.name, { ...item }]));
+      for (const item of Array.isArray(choices) ? choices : []) {
+        if (!item?.name) continue;
+        const prev = byName.get(item.name) || {};
+        byName.set(item.name, {
+          ...prev,
+          ...item,
+          bannerUrl: item.bannerUrl || prev.bannerUrl || null,
+          bannerHalfUrl: item.bannerHalfUrl || prev.bannerHalfUrl || null
+        });
+      }
+      return [...byName.values()];
+    }
     function fillAdminDiscordFields(host) {
       const select = q("#adminDiscordHostSelect");
       const url = q("#adminDiscordHostUrl");
@@ -1505,6 +1566,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         const option = new Option(choice.name, choice.name);
         option.title = choice.desc || "";
         if (choice.bannerUrl) option.dataset.banner = choice.bannerUrl;
+        if (choice.bannerHalfUrl) option.dataset.bannerHalf = choice.bannerHalfUrl;
         select.append(option);
       }
       select.append(new Option("Enter URL manually", ADMIN_DISCORD_MANUAL));
@@ -1522,9 +1584,14 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       const bannerInput = q("#adminDiscordHostBannerUrl");
       const previewWrap = q("#adminDiscordHostBannerPreviewWrap");
       const preview = q("#adminDiscordHostBannerPreview");
+      const halfPreview = q("#adminDiscordHostBannerHalfPreview");
+      const halfCard = root.querySelector('[data-banner-height="half"]');
+      const fullCard = root.querySelector('[data-banner-height="full"]');
       const name = select?.value || "";
       const choice = adminDiscordChoices.find((item) => item.name === name);
-      const bannerUrl = choice?.bannerUrl || "";
+      const urls = adminBannerUrls();
+      const height = hostedByHeightValue();
+      const bannerUrl = height === "half" ? (urls.half || urls.full) : (urls.full || urls.half);
       if (desc) {
         desc.textContent = choice?.desc
           || (name === ADMIN_DISCORD_MANUAL ? "Paste a Discord server, channel, or invite URL." : "");
@@ -1536,11 +1603,22 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       }
       if (bannerInput) bannerInput.value = bannerUrl || "";
       if (preview) {
-        if (bannerUrl) preview.src = bannerUrl;
+        if (urls.full) preview.src = urls.full;
         else preview.removeAttribute("src");
       }
-      if (previewWrap) previewWrap.hidden = !bannerUrl;
+      if (halfPreview) {
+        if (urls.half) halfPreview.src = urls.half;
+        else halfPreview.removeAttribute("src");
+      }
+      if (halfCard) halfCard.hidden = !urls.half;
+      if (fullCard) {
+        fullCard.hidden = !urls.full;
+        fullCard.classList.toggle("is-selected", height === "full");
+      }
+      if (halfCard) halfCard.classList.toggle("is-selected", height === "half" && Boolean(urls.half));
+      if (previewWrap) previewWrap.hidden = !(urls.full || urls.half);
       window.paintDiscordHostPicker?.(select);
+      syncHostedByHeightUi();
     }
     async function loadAdminDiscord() {
       const select = q("#adminDiscordHostSelect");
@@ -1551,8 +1629,10 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         const response = await fetch("/api/state");
         const data = await response.json().catch(() => ({}));
         const choices = Array.isArray(data.discordHostChoices) ? data.discordHostChoices : [];
-        adminDiscordChoices = choices.length ? choices : DEFAULT_ADMIN_DISCORD_HOSTS;
+        adminDiscordChoices = mergeAdminDiscordChoices(choices);
         fillAdminDiscordFields(data.session?.discordHost);
+        fillHostedByHeight(data.session?.hostedByBannerHeight);
+        syncHostedByHeightUi();
       } catch {
         adminDiscordChoices = DEFAULT_ADMIN_DISCORD_HOSTS;
         fillAdminDiscordFields(null);
@@ -1669,18 +1749,14 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       event.preventDefault();
       const note = q("#adminDiscordHostNote");
       if (note) note.textContent = "Saving…";
-      const payload = {
-        name: q("#adminDiscordHostSelect")?.value || "",
-        url: q("#adminDiscordHostUrl")?.value || "",
-        bannerUrl: q("#adminDiscordHostBannerUrl")?.value || null
-      };
+      const payload = adminDiscordHostPayload();
       try {
         const data = await promoteFetch("/api/admin/discord-host", {
           method: "POST",
           headers: headers(),
           body: JSON.stringify(payload)
         });
-        adminDiscordChoices = Array.isArray(data.discordHostChoices) ? data.discordHostChoices : adminDiscordChoices;
+        adminDiscordChoices = mergeAdminDiscordChoices(data.discordHostChoices);
         fillAdminDiscordFields(data.discordHost);
         if (note) {
           note.textContent = data.discordHost?.name
@@ -1697,10 +1773,12 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       }
     });
     function adminDiscordHostPayload() {
+      const urls = adminBannerUrls();
       return {
         name: q("#adminDiscordHostSelect")?.value || "",
         url: q("#adminDiscordHostUrl")?.value || "",
-        bannerUrl: q("#adminDiscordHostBannerUrl")?.value || null
+        bannerUrl: urls.full || null,
+        bannerHalfUrl: urls.half || null
       };
     }
     function bannerExtFromFile(file) {
@@ -1726,7 +1804,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
           credentials: "same-origin",
           body: JSON.stringify({ ...adminDiscordHostPayload(), ...body })
         });
-        adminDiscordChoices = Array.isArray(data.discordHostChoices) ? data.discordHostChoices : adminDiscordChoices;
+        adminDiscordChoices = mergeAdminDiscordChoices(data.discordHostChoices);
         fillAdminDiscordFields(data.discordHost);
         if (note) {
           note.textContent = body.clear
@@ -1774,12 +1852,24 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       postDiscordBanner({ clear: true });
     });
     q("#displayHostedByBanner")?.addEventListener("change", async () => {
+      syncHostedByHeightUi();
       try {
         await saveHostedByBanner();
       } catch (error) {
         const note = q("#adminDiscordHostNote");
         if (note) note.textContent = error.message || "Could not save the banner display setting.";
       }
+    });
+    root.querySelectorAll('input[name="hostedByBannerHeight"]').forEach((input) => {
+      input.addEventListener("change", async () => {
+        syncAdminDiscordFields();
+        try {
+          await saveHostedByBanner();
+        } catch (error) {
+          const note = q("#adminDiscordHostNote");
+          if (note) note.textContent = error.message || "Could not save banner height.";
+        }
+      });
     });
     function formatBackupBytes(bytes) {
       const n = Number(bytes) || 0;

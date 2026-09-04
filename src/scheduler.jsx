@@ -823,7 +823,7 @@ function TimeGrid() {
         <div className="player-hook">
           <iframe
             title="AMBA player hook"
-            src="/api/player-hook"
+            src={`/api/player-hook?u=${encodeURIComponent(hookUrl)}`}
             referrerPolicy="no-referrer"
             sandbox="allow-popups allow-popups-to-escape-sandbox"
           />

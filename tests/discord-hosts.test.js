@@ -6,7 +6,8 @@ const {
   sanitizeBannerUrl,
   resolveDiscordHost,
   coerceDiscordHost,
-  MANUAL_HOST_VALUE
+  MANUAL_HOST_VALUE,
+  pickHostBannerUrl
 } = require("../lib/discord-hosts");
 
 describe("discord hosts", () => {
@@ -47,6 +48,15 @@ describe("discord hosts", () => {
     assert.equal(sanitizeBannerUrl("https://evil.example/x.png"), "");
     const goblins = resolveDiscordHost({ name: "Chaos Goblins" });
     assert.equal(goblins.bannerUrl, "/images/hosted-by-chaos-goblins.jpg");
+    assert.equal(goblins.bannerHalfUrl, "/images/hosted-by-chaos-goblins-half.jpg");
+    assert.equal(
+      pickHostBannerUrl(goblins, "half"),
+      "/images/hosted-by-chaos-goblins-half.jpg"
+    );
+    assert.equal(
+      pickHostBannerUrl(goblins, "full"),
+      "/images/hosted-by-chaos-goblins.jpg"
+    );
     const amba = resolveDiscordHost({ name: "AMBA" });
     assert.equal(amba.bannerUrl, "/images/hosted-by-amba.jpg");
   });

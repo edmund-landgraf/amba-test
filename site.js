@@ -227,8 +227,14 @@ function renderHostedBy() {
   wrap.hidden = false;
   if (nameEl) nameEl.textContent = host.name;
   const fromHost = host.bannerUrl || "";
-  const fromChoice = (appState.discordHostChoices || []).find((item) => item.name === host.name)?.bannerUrl || "";
-  const bannerUrl = fromHost || fromChoice;
+  const fromHostHalf = host.bannerHalfUrl || "";
+  const named = (appState.discordHostChoices || []).find((item) => item.name === host.name);
+  const fromChoice = named?.bannerUrl || "";
+  const fromChoiceHalf = named?.bannerHalfUrl || "";
+  const full = fromHost || fromChoice;
+  const half = fromHostHalf || fromChoiceHalf;
+  const height = appState.session?.hostedByBannerHeight === "half" ? "half" : "full";
+  const bannerUrl = height === "half" ? (half || full) : (full || half);
   const showArt = Boolean(bannerUrl) && appState.session?.displayHostedByBanner !== false;
   wrap.classList.toggle("has-banner", showArt);
   if (frame) frame.hidden = !showArt;
