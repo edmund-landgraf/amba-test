@@ -591,6 +591,7 @@ async function saveIdentity(event) {
   } catch (error) {
     if (profileNote) profileNote.textContent = error.message || "Could not save profile.";
   }
+}
 
 async function login(event) {
   event.preventDefault();
