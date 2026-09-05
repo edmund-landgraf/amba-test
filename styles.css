@@ -1515,18 +1515,29 @@ dialog.markdown-popout-dialog::backdrop {
 
 .reading-type-icon {
   flex: 0 0 auto;
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
-  font-size: 0.62rem;
+  width: max-content;
+  min-width: 2.7rem;
+  height: 1.4rem;
+  padding: 0 0.42rem;
+  border-radius: 6px;
+  font-size: 0.58rem;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  white-space: nowrap;
   text-transform: uppercase;
   color: var(--ink);
   background: rgba(186, 154, 96, 0.28);
+}
+
+.reading-type-icon.is-long {
+  font-size: 0.5rem;
+  letter-spacing: 0.01em;
+  padding: 0 0.4rem;
 }
 
 .reading-type-icon.is-pdf {

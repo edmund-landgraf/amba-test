@@ -1190,6 +1190,14 @@ function TimeGrid() {
     return "handout";
   }
 
+  function readingTypeLabel(type) {
+    const key = String(type || "handout").trim().toLowerCase();
+    if (key === "pdf") return "PDF";
+    if (key === "pack") return "Pack";
+    if (key === "handout") return "Handout";
+    return key.replace(/[_-]+/g, " ").trim() || "Handout";
+  }
+
   function readingName(link) {
     return link.title || readingHost(link.url);
   }
@@ -1207,7 +1215,10 @@ function TimeGrid() {
   ].filter(Boolean);
   const readingBlock = readingItems.length ? (
     <>
-      {readingItems.map((item) => (
+      {readingItems.map((item) => {
+        const typeLabel = readingTypeLabel(item.type);
+        const longType = typeLabel.replace(/\s+/g, "").length > 4;
+        return (
         <a
           key={item.key}
           className={`reading-item${item.type === "pack" ? " is-pack" : ""}`}
@@ -1215,12 +1226,17 @@ function TimeGrid() {
           target="_blank"
           rel="noopener noreferrer"
         >
-          <span className={`reading-type-icon is-${item.type}`} aria-hidden="true">
-            {item.type === "pack" ? "pack" : item.type}
+          <span
+            className={`reading-type-icon is-${item.type}${longType ? " is-long" : ""}`}
+            title={typeLabel}
+            aria-hidden="true"
+          >
+            {typeLabel}
           </span>
           <strong className="reading-item-name">{item.name}</strong>
         </a>
-      ))}
+        );
+      })}
     </>
   ) : null;
 
