@@ -2646,6 +2646,10 @@ footer {
   border-top: 1px solid var(--line);
 }
 
+footer p + p {
+  margin-top: 8px;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;

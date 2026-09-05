@@ -109,7 +109,7 @@ function clearStored(key) {
   }
 }
 
-function askConfirm(message, { title = "Overwrite?", ok = "Overwrite" } = {}) {
+function askConfirm(message, { title = "Overwrite?", ok = "Overwrite", danger = false } = {}) {
   const dialog = document.querySelector("#confirmDialog");
   const copy = document.querySelector("#confirmCopy");
   const heading = document.querySelector("#confirmTitle");
@@ -121,11 +121,15 @@ function askConfirm(message, { title = "Overwrite?", ok = "Overwrite" } = {}) {
   if (heading) heading.textContent = title;
   copy.textContent = message;
   okBtn.textContent = ok;
+  okBtn.classList.toggle("danger", danger);
+  okBtn.classList.toggle("primary", !danger);
   return new Promise((resolve) => {
     function finish(value) {
       okBtn.removeEventListener("click", onOk);
       cancelBtn.removeEventListener("click", onCancel);
       dialog.removeEventListener("cancel", onCancel);
+      okBtn.classList.remove("danger");
+      okBtn.classList.add("primary");
       if (dialog.open) dialog.close();
       resolve(value);
     }
@@ -351,7 +355,6 @@ function wireEvents() {
   settingsModal?.querySelectorAll(".settings-tab").forEach((button) => {
     button.addEventListener("click", () => showSettingsTab(button.dataset.settingsTab));
   });
-  document.querySelector("#discordHostSelect")?.addEventListener("change", syncDiscordHostFields);
   loginForm?.addEventListener("submit", login);
   joinTest?.addEventListener("click", joinTheTest);
   openAdmin?.addEventListener("click", openAdminModal);
@@ -645,16 +648,28 @@ async function saveFeedback(event) {
 }
 
 async function deleteProfile() {
+  const note = document.querySelector("#settingsDeleteNote");
   if (!appState.user?.email) {
-    profileNote.textContent = "Log in to delete your profile.";
+    if (note) note.textContent = "Log in to delete your profile.";
     return;
   }
+
+  const ok = await askConfirm(
+    "This permanently deletes all of your past data: email, handle, time zone, Discord and Reddit IDs, token color, availability, questionnaire answers, feedback, party and WG data, and any other saved profile info. Download a backup from Export first if you want to keep anything. If you log in again later, you will get a different handle.",
+    {
+      title: "Delete profile?",
+      ok: "Delete profile",
+      danger: true
+    }
+  );
+  if (!ok) return;
 
   await api("/api/delete-account", { method: "POST", body: { email: appState.user.email } });
   currentEmail = "";
   clearStored("ambaEmail");
   appState.user = null;
   closeProfileModal();
+  if (settingsModal?.open) settingsModal.close();
   await loadState();
 }
 
@@ -721,7 +736,7 @@ function openProfileModal() {
   if (!profileModal) return;
   syncIdentity();
   if (profileNote) profileNote.textContent = appState.user
-    ? "Delete account removes this user, their availability, and their feedback."
+    ? ""
     : "Log in by email to view your profile.";
   const form = document.querySelector("#identityForm");
   if (form && appState.user) {
@@ -747,7 +762,7 @@ function openTimezoneModal() {
 }
 
 function showSettingsTab(name) {
-  const tab = name || "comms";
+  const tab = name || "general";
   settingsModal?.querySelectorAll(".settings-tab").forEach((button) => {
     const on = button.dataset.settingsTab === tab;
     button.classList.toggle("is-active", on);
@@ -757,60 +772,6 @@ function showSettingsTab(name) {
   settingsModal?.querySelectorAll(".settings-tab-panel").forEach((panel) => {
     panel.hidden = panel.dataset.settingsPanel !== tab;
   });
-}
-
-const DISCORD_HOST_MANUAL = "__manual__";
-
-function fillDiscordHostFields() {
-  const select = document.querySelector("#discordHostSelect");
-  const url = document.querySelector("#discordHostUrl");
-  if (!select) return;
-  const choices = appState.discordHostChoices || [];
-  const host = appState.session?.discordHost;
-  select.replaceChildren();
-  select.append(new Option("Not set", ""));
-  for (const choice of choices) {
-    const option = new Option(choice.name, choice.name);
-    option.title = choice.desc || "";
-    if (choice.bannerUrl) option.dataset.banner = choice.bannerUrl;
-    select.append(option);
-  }
-  select.append(new Option("Enter URL manually", DISCORD_HOST_MANUAL));
-  const matched = choices.find((choice) => choice.name === host?.name);
-  if (!host?.inviteLink) select.value = "";
-  else if (matched) select.value = matched.name;
-  else select.value = DISCORD_HOST_MANUAL;
-  if (url) url.value = host?.inviteLink || matched?.inviteLink || "";
-  syncDiscordHostFields();
-}
-
-function syncDiscordHostFields() {
-  const select = document.querySelector("#discordHostSelect");
-  const url = document.querySelector("#discordHostUrl");
-  const desc = document.querySelector("#discordHostDesc");
-  const bannerInput = document.querySelector("#discordHostBannerUrl");
-  const previewWrap = document.querySelector("#discordHostBannerPreviewWrap");
-  const preview = document.querySelector("#discordHostBannerPreview");
-  const choices = appState.discordHostChoices || [];
-  const name = select?.value || "";
-  const choice = choices.find((item) => item.name === name);
-  const bannerUrl = choice?.bannerUrl || "";
-  if (desc) {
-    desc.textContent = choice?.desc
-      || (name === DISCORD_HOST_MANUAL ? "Paste a Discord server, channel, or invite URL." : "");
-  }
-  if (select) select.title = choice?.desc || "";
-  if (url) {
-    url.readOnly = Boolean(choice);
-    if (choice) url.value = choice.inviteLink || "";
-  }
-  if (bannerInput) bannerInput.value = bannerUrl || "";
-  if (preview) {
-    if (bannerUrl) preview.src = bannerUrl;
-    else preview.removeAttribute("src");
-  }
-  if (previewWrap) previewWrap.hidden = !bannerUrl;
-  window.paintDiscordHostPicker?.(select);
 }
 
 async function renderDiscordPanel() {
@@ -887,7 +848,9 @@ function openSettingsModal() {
     openLoginModal();
     return;
   }
-  showSettingsTab("comms");
+  showSettingsTab("general");
+  const deleteNote = document.querySelector("#settingsDeleteNote");
+  if (deleteNote) deleteNote.textContent = "";
   if (settingsForm) {
     const emailField = settingsForm.querySelector('input[name="email"]');
     if (emailField) emailField.value = appState.user.email || "";
@@ -900,9 +863,7 @@ function openSettingsModal() {
     const desiredField = settingsForm.querySelector('input[name="desiredPlayers"]');
     if (desiredField) desiredField.value = String(appState.session?.targetPlayers || 4);
   }
-  fillDiscordHostFields();
   settingsModal.showModal();
-  settingsForm?.querySelector('input[name="discordUserId"]')?.focus({ preventScroll: true });
 }
 
 async function saveSettings(event) {
@@ -933,26 +894,8 @@ async function saveSettings(event) {
       desiredPlayers: data.desiredPlayers
     }
   });
-  const discordNote = document.querySelector("#settingsDiscordNote");
-  try {
-    await api("/api/discord-host", {
-      method: "POST",
-      body: {
-        email: appState.user.email,
-        name: data.discordHostName,
-        url: data.discordHostUrl,
-        bannerUrl: data.discordHostBannerUrl || null
-      }
-    });
-    if (discordNote) discordNote.textContent = "";
-  } catch {
-    if (discordNote) discordNote.textContent = "Could not save the Discord server. Check the URL, or pick a named host.";
-    showSettingsTab("discord");
-    return;
-  }
   if (settingsModal?.open) settingsModal.close();
   await loadState();
-  await renderDiscordPanel();
 }
 
 async function saveTimezone(event) {

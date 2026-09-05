@@ -20,7 +20,7 @@
       const current = href === page ? ' aria-current="page"' : "";
       return `<a href="${href}"${current}>${label}</a>`;
     })
-    .join("");
+    .join("") + `<a href="#privacy" id="navPrivacy">Privacy</a>`;
 
   const header = document.createElement("header");
   header.className = "site-header";
@@ -90,6 +90,41 @@
     window.toggleAmbaTheme?.();
     syncThemeToggle();
   });
+
+  if (!document.querySelector("#privacyModal")) {
+    document.body.insertAdjacentHTML("beforeend", `
+    <dialog class="modal small-modal" id="privacyModal" aria-labelledby="privacyTitle">
+      <button class="modal-close" id="closePrivacy" type="button" aria-label="Close privacy">x</button>
+      <p class="eyebrow">Privacy</p>
+      <h2 id="privacyTitle">We retain nothing</h2>
+      <p class="modal-copy">This is a signup sheet, not a place that keeps your data. Email is only used to log you back in. Delete your profile in Settings and we wipe it: email, handle, votes, and the rest.</p>
+    </dialog>`);
+  }
+  const privacyModal = document.querySelector("#privacyModal");
+  function openPrivacy(event) {
+    event?.preventDefault?.();
+    setNavOpen(false);
+    privacyModal?.showModal();
+  }
+  document.querySelector("#closePrivacy")?.addEventListener("click", () => privacyModal?.open && privacyModal.close());
+  privacyModal?.addEventListener("click", (event) => {
+    if (event.target === privacyModal) privacyModal.close();
+  });
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest('a[href="#privacy"]')) return;
+    openPrivacy(event);
+  });
+
+  let footer = document.querySelector("body > footer");
+  if (!footer) {
+    footer = document.createElement("footer");
+    document.body.append(footer);
+  }
+  footer.innerHTML = `
+    <p>A session signup sheet built to work with <a href="https://amba.unwhelm.online">AMBA</a>.</p>
+    <p><a href="#privacy" id="footerPrivacy">Privacy</a>: we retain nothing.</p>
+  `;
+  if (location.hash === "#privacy") openPrivacy();
 
   if (document.querySelector("#loginModal")) return;
 
@@ -162,20 +197,27 @@
           <button class="button secondary" id="closeProfileFooter" type="button">Close</button>
         </p>
       </form>
-      <button class="button danger" id="deleteAccount" type="button">Delete account</button>
-      <p class="form-note" id="profileNote">Deleting removes your profile, availability, and feedback.</p>
+      <p class="form-note" id="profileNote"></p>
     </dialog>
     <dialog class="modal small-modal" id="settingsModal" aria-labelledby="settingsTitle">
       <button class="modal-close" id="closeSettings" type="button" aria-label="Close settings">x</button>
       <p class="eyebrow">Account</p>
       <h2 id="settingsTitle">Settings</h2>
       <nav class="settings-tabs" aria-label="Settings sections">
-        <button type="button" class="settings-tab is-active" data-settings-tab="comms" aria-current="page">Comms</button>
-        <button type="button" class="settings-tab" data-settings-tab="discord">Discord</button>
+        <button type="button" class="settings-tab is-active" data-settings-tab="general" aria-current="page">General</button>
+        <button type="button" class="settings-tab" data-settings-tab="comms">Comms</button>
         <button type="button" class="settings-tab" data-settings-tab="export">Export</button>
       </nav>
+      <section class="settings-tab-panel" id="settingsPanelGeneral" data-settings-panel="general">
+        <p class="modal-copy">Delete your profile if you want to leave AMBA Test. This cannot be undone.</p>
+        <p class="form-note">All past data is deleted: your email, handle, and every other saved detail. Download a backup from Export first if you want to keep anything. If you rejoin later, you will get a different handle.</p>
+        <p class="form-actions">
+          <button class="button danger" id="deleteAccount" type="button">Delete profile</button>
+        </p>
+        <p class="form-note" id="settingsDeleteNote"></p>
+      </section>
       <form id="settingsForm">
-        <section class="settings-tab-panel" id="settingsPanelComms" data-settings-panel="comms">
+        <section class="settings-tab-panel" id="settingsPanelComms" data-settings-panel="comms" hidden>
           <p class="modal-copy">Email is from login and cannot be changed here. Optional Discord and Reddit IDs help us find you. Pick how you prefer to be reached.</p>
           <label>Email <input name="email" type="email" value="" readonly disabled autocomplete="off"></label>
           <label>Discord user ID <input name="discordUserId" inputmode="numeric" autocomplete="off" placeholder="17–19 digit ID"></label>
@@ -191,28 +233,6 @@
           </label>
           <p class="form-note">Used to mark a row Live, scheduled to play. It does not cap signups yet.</p>
           <button class="button primary" type="submit">Save settings</button>
-        </section>
-        <section class="settings-tab-panel" id="settingsPanelDiscord" data-settings-panel="discord" hidden>
-          <p class="modal-copy">Pick Chaos Goblins or AMBA, or paste a Discord URL. Admins can also set this under Admin → Discord. If Server Widget is off, the page shows a join link instead.</p>
-          <label>Server
-            <div class="discord-host-picker">
-              <select name="discordHostName" id="discordHostSelect" title="">
-                <option value="">Not set</option>
-              </select>
-            </div>
-          </label>
-          <p class="form-note" id="discordHostDesc"></p>
-          <label>Server URL
-            <input name="discordHostUrl" id="discordHostUrl" autocomplete="off" placeholder="https://discord.com/channels/… or discord.gg/…">
-          </label>
-          <label>Banner image
-            <input name="discordHostBannerUrl" id="discordHostBannerUrl" readonly placeholder="None">
-          </label>
-          <p class="discord-host-banner-preview" id="discordHostBannerPreviewWrap" hidden>
-            <img id="discordHostBannerPreview" alt="">
-          </p>
-          <button class="button primary" type="submit">Save settings</button>
-          <p class="form-note" id="settingsDiscordNote"></p>
         </section>
       </form>
       <section class="settings-tab-panel" id="settingsPanelExport" data-settings-panel="export" hidden>
