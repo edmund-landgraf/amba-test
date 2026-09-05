@@ -75,10 +75,41 @@ describe("link preview", () => {
     assert.equal(preview.image, "");
     assert.equal(pdfNeedsRescrape({
       url: "http://[::1]:3101/syndicate/x/n/9642441d-a3b9-4014-be2a-1c8af8d7e449",
+      title: "Druma & the Northern Shining Kingdoms - Player Reference",
+      artifactType: "pdf"
+    }), true);
+    assert.equal(pdfNeedsRescrape({
+      url: "http://[::1]:3101/syndicate/x/n/9642441d-a3b9-4014-be2a-1c8af8d7e449",
       title: "The Palakar Convergence",
       image: "http://[::1]:3101/images/rulesetImages/pf2e/pathfinder-second-edition.png",
-      artifactType: "pdf"
+      artifactType: "pdf",
+      linkPreviewVersion: 2
     }, "The Palakar Convergence"), true);
+  });
+
+  it("does not treat AMBA CSS selectors as a PDF artifact", () => {
+    const html = `<!doctype html>
+<html>
+<head>
+  <title>The Price of Prophecy - PC Guide · Player syndication | AMBA</title>
+  <style>
+    iframe.artifact-pdf-iframe { height: 70vh; }
+    .preview-root .syndication-artifact--pdf::before, .preview-root .artifact--pdf::before { content: "PDF"; }
+  </style>
+</head>
+<body>
+  <h1 class="page-title">The Price of Prophecy - PC Guide</h1>
+  <article class="embedded-document-root">
+    <h1>The Price of Prophecy</h1>
+    <p>A Player Primer to Macridi and the Palakar Forest.</p>
+  </article>
+</body>
+</html>`;
+    const url = "https://amba.unwhelm.online/syndicate/X-HD2YfzXpMs40_SxH3lFA/n/20ef0c3d-d4de-482e-a794-5ef3c3d80a06";
+    const preview = fromHtml(url, html);
+    assert.equal(preview.artifactType, "handout");
+    assert.equal(preview.title, "The Price of Prophecy - PC Guide");
+    assert.match(preview.description, /Palakar Forest/);
   });
 
   it("uses title tag when Open Graph is missing", () => {
