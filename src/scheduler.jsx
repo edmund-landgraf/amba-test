@@ -381,6 +381,10 @@ function slotIsPast(row) {
   return Boolean(start && start.getTime() <= Date.now());
 }
 
+function isArchiveSlot(row) {
+  return Boolean(row?.signupsDisabled) || slotIsPast(row);
+}
+
 const WANDERERS_GUIDE_NEW_UI_URL = "https://wgui.wandersguide.site/";
 
 function eventTitle(row) {
@@ -475,6 +479,7 @@ function TimeGrid() {
     typeof window === "undefined" ? true : readHookParchment()
   );
   const [siteTheme, setSiteTheme] = useState(siteThemeName);
+  const [gridView, setGridView] = useState("current");
   const toastTimer = useRef(null);
 
   function showToast(message) {
@@ -1006,7 +1011,16 @@ function TimeGrid() {
     }
   ], [openRowMenu, openTokenMenu, tokenMap]);
 
+  const visibleRows = useMemo(
+    () => rows.filter((row) => (gridView === "archive" ? isArchiveSlot(row) : !isArchiveSlot(row))),
+    [rows, gridView]
+  );
+  const emptyGridCopy = gridView === "archive"
+    ? "No past or closed sessions."
+    : "No recruiting sessions yet.";
+
   const statusMount = typeof document !== "undefined" ? document.querySelector("#schedule-status") : null;
+  const viewToggleMount = typeof document !== "undefined" ? document.querySelector("#schedule-view-toggle") : null;
   const hookMount = typeof document !== "undefined" ? document.querySelector("#player-hook") : null;
   const hookParchmentMount = typeof document !== "undefined" ? document.querySelector("#player-hook-parchment") : null;
   const hookBand = typeof document !== "undefined" ? document.querySelector("#player-hook-band") : null;
@@ -1054,7 +1068,7 @@ function TimeGrid() {
           </tr>
         </thead>
         <tbody>
-          {rows.length ? rows.map((row) => (
+          {visibleRows.length ? visibleRows.map((row) => (
             <tr
               key={row.id}
               className={row.signupsDisabled ? "is-signups-disabled" : row.scheduledToPlay ? "is-scheduled-live" : ""}
@@ -1086,7 +1100,7 @@ function TimeGrid() {
             </tr>
           )) : (
             <tr>
-              <td colSpan={4} className="status-table-empty">No session rows yet.</td>
+              <td colSpan={4} className="status-table-empty">{emptyGridCopy}</td>
             </tr>
           )}
         </tbody>
@@ -1100,6 +1114,29 @@ function TimeGrid() {
     !(narrowHook && !hookExpanded) && "is-expanded",
     hookParchment && "is-parchment"
   ].filter(Boolean).join(" ");
+  const viewToggle = (name) => (
+    <fieldset className="schedule-view-toggle" aria-label="Which session rows to show">
+      <legend>Show</legend>
+      <label>
+        <input
+          type="radio"
+          name={name}
+          checked={gridView === "current"}
+          onChange={() => setGridView("current")}
+        />
+        Current / Recruiting
+      </label>
+      <label>
+        <input
+          type="radio"
+          name={name}
+          checked={gridView === "archive"}
+          onChange={() => setGridView("archive")}
+        />
+        Past / Not enough players
+      </label>
+    </fieldset>
+  );
   const parchmentToggle = (
     <fieldset className="player-hook-parchment" aria-label="Player hook background">
       <legend>Background</legend>
@@ -1243,10 +1280,12 @@ function TimeGrid() {
   return (
     <section className="scheduler">
       {zoneNote ? <p className="form-note">{zoneNote}</p> : null}
+      {viewToggleMount ? createPortal(viewToggle("glanceScheduleView"), viewToggleMount) : null}
       {statusMount ? createPortal(statusGrid, statusMount) : statusGrid}
       {hookMount && hookBlock ? createPortal(hookBlock, hookMount) : hookBlock}
       {hookParchmentMount && hookBlock ? createPortal(parchmentToggle, hookParchmentMount) : null}
       {readingMount && readingBlock ? createPortal(readingBlock, readingMount) : readingBlock}
+      {viewToggle("timesScheduleView")}
       <form id="mark-times" className="add-row" onSubmit={addRow}>
         <label>Date <input required type="date" value={draft.date} onChange={(event) => setDraft({ ...draft, date: event.target.value })} /></label>
         <label>Time
@@ -1268,14 +1307,14 @@ function TimeGrid() {
       <div className="ag-theme-quartz scheduler-grid" onContextMenu={(event) => event.preventDefault()}>
         <AgGridReact
           theme="legacy"
-          rowData={rows}
+          rowData={visibleRows}
           columnDefs={columnDefs}
           defaultColDef={{ resizable: true, sortable: true, autoHeight: false }}
           sortingOrder={["asc", "desc"]}
           rowHeight={72}
           headerHeight={48}
           animateRows
-          overlayNoRowsTemplate="Grid is empty. Add a row."
+          overlayNoRowsTemplate={emptyGridCopy}
           getRowId={(params) => params.data.id}
           getRowClass={(params) => {
             if (params.data?.signupsDisabled) return "scheduler-row-disabled";
