@@ -14,6 +14,7 @@ import {
   overflowTokenStyle,
   tokenIndexFor
 } from "../lib/token-colors.mjs";
+import { resolveSessionEmail } from "../lib/session-email.mjs";
 
 const PLAYER_HOOK_PARCHMENT_KEY = "amba-player-hook-parchment";
 
@@ -153,7 +154,7 @@ function isPhoneLayout() {
 }
 
 function avatarClass(person) {
-  return `grid-avatar${person.mine ? " mine" : ""}${String(person.note || "").trim() ? " has-note" : ""}`;
+  return `grid-avatar${person.mine ? " mine" : ""}${person.gm ? " is-gm" : ""}${String(person.note || "").trim() ? " has-note" : ""}`;
 }
 
 function tokenAvatarProps(tokenMap, handle) {
@@ -450,7 +451,13 @@ function downloadIcal(row) {
 }
 
 function TimeGrid() {
-  const [email, setEmail] = useState(() => localStorage.getItem("ambaEmail") || sessionStorage.getItem("ambaEmail") || "");
+  const [email, setEmail] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return resolveSessionEmail(
+      localStorage.getItem("ambaEmail") || sessionStorage.getItem("ambaEmail") || "",
+      window.location.search
+    );
+  });
   const [userZone, setUserZone] = useState("");
   const [rows, setRows] = useState([]);
   const [draft, setDraft] = useState({ date: "", time: "19:00", lengthMinutes: "120" });
@@ -466,7 +473,9 @@ function TimeGrid() {
   const [toast, setToast] = useState("");
   const [tokenMap, setTokenMap] = useState(() => Object.create(null));
   const [selfHandle, setSelfHandle] = useState("");
-  const lastNoteRef = useRef("");
+  const [gmIsMe, setGmIsMe] = useState(false);
+  const [gmCandidates, setGmCandidates] = useState([]);
+  const [gmSubmenu, setGmSubmenu] = useState(false);
   const phoneLayout = isPhoneLayout();
   const [narrowHook, setNarrowHook] = useState(() =>
     phoneLayout
@@ -522,6 +531,8 @@ function TimeGrid() {
       selfTokenColor: state.user?.tokenColor
     }));
     setSelfHandle(state.user?.handle || "");
+    setGmIsMe(Boolean(state.session?.gmIsMe));
+    setGmCandidates(Array.isArray(state.session?.gmCandidates) ? state.session.gmCandidates : []);
     setTokenMap(nextMap);
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("amba-token-map", { detail: nextMap }));
@@ -534,11 +545,9 @@ function TimeGrid() {
       const slot = zone && instant
         ? [formatForUser(instant, zone), time.lengthMinutes ? `${time.lengthMinutes} min` : ""].filter(Boolean).join(" · ")
         : "Set your time zone to see this session";
-      const statusLabel = time.signupsDisabled
-        ? "Not enough players"
-        : time.scheduledToPlay
-          ? "Live, scheduled to play"
-          : "";
+      const statusLabel = time.scheduledToPlay
+        ? "Live, scheduled to play"
+        : "Not enough players";
       return {
         id: time.id,
         slot,
@@ -563,10 +572,6 @@ function TimeGrid() {
         scheduledToPlay: Boolean(time.scheduledToPlay)
       };
     }).sort((a, b) => (a.startIso || "").localeCompare(b.startIso || ""));
-    const latestMine = nextRows.findLast
-      ? nextRows.findLast((row) => String(row.mineNote || "").trim())
-      : [...nextRows].reverse().find((row) => String(row.mineNote || "").trim());
-    if (latestMine) lastNoteRef.current = String(latestMine.mineNote).trim();
     setRows(nextRows);
   }, [email, userZone]);
 
@@ -619,6 +624,7 @@ function TimeGrid() {
       if (event?.button && event.button !== 0) return;
       if (event?.target?.closest?.(".grid-context-menu")) return;
       setMenu(null);
+      setGmSubmenu(false);
     }
     function onKey(event) {
       if (event.key === "Escape") close();
@@ -706,11 +712,21 @@ function TimeGrid() {
     await load(email, userZone);
   }
 
-  function lastEditText(row, person) {
-    const here = String(person?.note || row?.mineNote || "").trim();
-    if (here) return here;
-    const fromRows = [...rows].reverse().find((item) => String(item.mineNote || "").trim());
-    return String(fromRows?.mineNote || lastNoteRef.current || "").trim();
+  async function transferGm(handle) {
+    if (!requireReady()) return;
+    setMenu(null);
+    setGmSubmenu(false);
+    try {
+      await api("/api/transfer-gm", { method: "POST", body: { email, handle } });
+      showToast(`${handle} is now the GM`);
+      await load(email, userZone);
+    } catch {
+      showToast("Could not transfer GM");
+    }
+  }
+
+  function noteForRow(row, person) {
+    return String(person?.note || row?.mineNote || "").trim();
   }
 
   function openViewNote(person) {
@@ -731,7 +747,7 @@ function TimeGrid() {
       mode: "edit",
       timeId,
       handle: person?.handle || selfHandle || "You",
-      text: lastEditText(row, person)
+      text: noteForRow(row, person)
     });
   }
 
@@ -741,7 +757,6 @@ function TimeGrid() {
     if (!noteDraft) return;
     if (!requireReady()) return;
     const voteNote = String(noteDraft.text || "").trim();
-    lastNoteRef.current = voteNote;
     setNoteDraft(null);
     showToast(voteNote ? "note saved" : "note cleared");
     await api("/api/slot", { method: "POST", body: { email, timeId: noteDraft.timeId, voteNote } });
@@ -796,7 +811,7 @@ function TimeGrid() {
       return {
         ...item,
         signupsDisabled: false,
-        statusLabel: item.scheduledToPlay ? "Live, scheduled to play" : ""
+        statusLabel: item.scheduledToPlay ? "Live, scheduled to play" : "Not enough players"
       };
     }));
   }
@@ -1344,9 +1359,6 @@ function TimeGrid() {
       {menu ? createPortal(
         <div
           className="grid-context-backdrop"
-          onPointerDown={(event) => {
-            if (event.target === event.currentTarget) setMenu(null);
-          }}
           onContextMenu={(event) => event.preventDefault()}
         >
         <div
@@ -1358,7 +1370,8 @@ function TimeGrid() {
           onContextMenu={(event) => event.preventDefault()}
         >
             {menu.kind === "token" ? (
-              menu.person?.mine ? (
+              <>
+              {menu.person?.mine ? (
                 <button
                   type="button"
                   onClick={() => openNote(menu.row || menu, menu.person)}
@@ -1372,7 +1385,42 @@ function TimeGrid() {
                 >
                   View note
                 </button>
-              )
+              )}
+              {gmIsMe ? (
+                <div
+                  className="grid-context-submenu"
+                  onPointerEnter={() => setGmSubmenu(true)}
+                  onPointerLeave={() => setGmSubmenu(false)}
+                >
+                  <button
+                    type="button"
+                    aria-haspopup="menu"
+                    aria-expanded={gmSubmenu}
+                    disabled={!gmCandidates.length}
+                    title={gmCandidates.length
+                      ? "Hand the GM role to another player"
+                      : "Nobody else has said yes to an upcoming session"}
+                    onClick={() => setGmSubmenu((open) => !open)}
+                  >
+                    Transfer GM
+                    <span aria-hidden="true">›</span>
+                  </button>
+                  {gmSubmenu && gmCandidates.length ? (
+                    <div className="grid-context-submenu-list" role="menu">
+                      {gmCandidates.map((handle) => (
+                        <button
+                          key={handle}
+                          type="button"
+                          onClick={() => transferGm(handle)}
+                        >
+                          {handle}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              </>
             ) : (
               <>
             <button

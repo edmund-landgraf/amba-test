@@ -6,6 +6,7 @@ import {
   collectTokenPreferences,
   tokenIndexFor
 } from "./lib/token-colors.mjs";
+import { resolveSessionEmail, strippedSessionUrl } from "./lib/session-email.mjs";
 
 let appState = {
   session: null,
@@ -16,7 +17,7 @@ let appState = {
   wgExports: null
 };
 
-let currentEmail = readStored("ambaEmail");
+let currentEmail = "";
 let tokenMap = Object.create(null);
 const isQuestionnairePage = location.pathname.endsWith("/questionnaire.html");
 
@@ -108,6 +109,16 @@ function clearStored(key) {
     document.cookie = `${key}=; Path=/; Max-Age=0; SameSite=Lax`;
   }
 }
+
+currentEmail = resolveSessionEmail(readStored("ambaEmail"), location.search);
+if (currentEmail) writeStored("ambaEmail", currentEmail);
+
+// Wait for DOMContentLoaded so other modules (the scheduler bundle) have already
+// read ?email= before it disappears. replaceState keeps it out of history too.
+document.addEventListener("DOMContentLoaded", () => {
+  const cleaned = strippedSessionUrl(location.href);
+  if (cleaned) history.replaceState(history.state, "", cleaned);
+});
 
 function askConfirm(message, { title = "Overwrite?", ok = "Overwrite", danger = false } = {}) {
   const dialog = document.querySelector("#confirmDialog");
@@ -355,9 +366,12 @@ function wireEvents() {
   settingsModal?.querySelectorAll(".settings-tab").forEach((button) => {
     button.addEventListener("click", () => showSettingsTab(button.dataset.settingsTab));
   });
-  loginForm?.addEventListener("submit", login);
-  joinTest?.addEventListener("click", joinTheTest);
-  openAdmin?.addEventListener("click", openAdminModal);
+  document.querySelector("#loginForm")?.addEventListener("submit", login);
+  window.__ambaJoinBound = true;
+  window.addEventListener("amba-join-in", joinTheTest);
+  window.addEventListener("amba-open-admin", () => {
+    openAdminModal();
+  });
   closeAdmin?.addEventListener("click", () => {
     adminModal?.close();
     resetAdminModal();
@@ -410,6 +424,8 @@ function wireEvents() {
   });
 
   deleteAccount?.addEventListener("click", deleteProfile);
+  window.addEventListener("resize", placeSettingsMenu);
+  window.addEventListener("scroll", placeSettingsMenu, true);
   document.addEventListener("click", (event) => {
     const accountButton = document.querySelector("#accountButton");
     const settingsMenu = document.querySelector("#settingsMenu");
@@ -473,6 +489,7 @@ function loadScriptOnce(src) {
 }
 
 function resetAdminModal() {
+  const adminModal = document.querySelector("#adminModal");
   if (!adminModal) return;
   adminModal.classList.remove("admin-shell");
   adminModal.classList.add("small-modal");
@@ -482,12 +499,19 @@ function resetAdminModal() {
 }
 
 async function openAdminModal() {
+  const adminModal = document.querySelector("#adminModal");
   if (!adminModal) return;
   resetAdminModal();
-  const input = adminForm?.querySelector('input[name="password"]');
+  const input = document.querySelector("#adminForm")?.querySelector('input[name="password"]');
+  const adminNote = document.querySelector("#adminNote");
   if (adminNote) adminNote.textContent = "";
   if (input) input.value = "";
-  adminModal.showModal();
+    try {
+      if (!adminModal.open && typeof adminModal.showModal === "function") adminModal.showModal();
+      else if (!adminModal.open) adminModal.setAttribute("open", "");
+    } catch {
+      adminModal.setAttribute("open", "");
+    }
   if (await restoreAdminSession()) return;
   input?.focus();
 }
@@ -572,6 +596,8 @@ function joinTheTest() {
     openLoginModal();
     return;
   }
+  const login = document.querySelector("#loginModal");
+  if (login?.open) login.close();
   if (!appState.user.timezone) {
     pendingTimesScroll = true;
     openTimezoneModal();
@@ -609,7 +635,9 @@ async function saveIdentity(event) {
 
 async function login(event) {
   event.preventDefault();
-  const data = Object.fromEntries(new FormData(loginForm).entries());
+  const form = event.currentTarget || document.querySelector("#loginForm");
+  if (!form) return;
+  const data = Object.fromEntries(new FormData(form).entries());
   const result = await api("/api/login", { method: "POST", body: data });
   currentEmail = result.user.email;
   writeStored("ambaEmail", currentEmail);
@@ -712,9 +740,16 @@ function syncIdentity() {
 }
 
 function openLoginModal() {
+  const loginModal = document.querySelector("#loginModal");
   if (!loginModal) return;
-  loginModal.showModal();
-  loginModal.querySelector("input")?.focus({ preventScroll: true });
+  try {
+    if (!loginModal.open) loginModal.showModal();
+  } catch {
+    /* already open */
+  }
+  const emailInput = loginModal.querySelector('input[name="email"]');
+  if (emailInput && !emailInput.value && currentEmail) emailInput.value = currentEmail;
+  emailInput?.focus({ preventScroll: true });
 }
 
 function closeLoginModal() {
@@ -932,12 +967,23 @@ function partySlotCounts(session = appState.session) {
   return { maxPartyPcs: max, playPartyPcs: play, maxPcsPerPlayer: perPlayer };
 }
 
+function placeSettingsMenu() {
+  const settingsMenu = document.querySelector("#settingsMenu");
+  const accountButton = document.querySelector("#accountButton");
+  if (!settingsMenu || !accountButton || settingsMenu.hidden) return;
+  const box = accountButton.getBoundingClientRect();
+  settingsMenu.style.top = `${Math.round(box.bottom + 8)}px`;
+  settingsMenu.style.right = `${Math.round(Math.max(8, window.innerWidth - box.right))}px`;
+  settingsMenu.style.left = "auto";
+}
+
 function toggleSettingsMenu() {
   const settingsMenu = document.querySelector("#settingsMenu");
   const accountButton = document.querySelector("#accountButton");
   if (!settingsMenu || !accountButton) return;
   settingsMenu.hidden = !settingsMenu.hidden;
   accountButton.setAttribute("aria-expanded", String(!settingsMenu.hidden));
+  placeSettingsMenu();
 }
 
 function closeSettingsMenu() {

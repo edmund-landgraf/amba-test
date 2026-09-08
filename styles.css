@@ -104,7 +104,9 @@ a {
 .site-header {
   position: sticky;
   top: 0;
-  z-index: 60;
+  z-index: 100;
+  isolation: isolate;
+  overflow: visible;
   width: 100%;
   min-height: 78px;
   padding: 14px 0;
@@ -174,6 +176,7 @@ nav a[aria-current="page"] {
 
 .account-menu {
   position: relative;
+  z-index: 61;
 }
 
 .theme-toggle {
@@ -231,10 +234,9 @@ nav a[aria-current="page"] {
 }
 
 .settings-menu {
-  position: absolute;
-  top: calc(100% + 12px);
-  right: 0;
-  z-index: 20;
+  position: fixed;
+  z-index: 200;
+  pointer-events: auto;
   width: 230px;
   padding: 8px;
   border: 1px solid rgba(31, 79, 67, 0.14);
@@ -365,9 +367,10 @@ main:has(.doc) .lede {
 
 .hero .button {
   position: relative;
-  z-index: 2;
+  z-index: 6;
   margin-top: 2px;
   flex: 0 0 auto;
+  pointer-events: auto;
 }
 
 .hosted-by {
@@ -1630,10 +1633,18 @@ dialog.markdown-popout-dialog::backdrop {
 }
 
 #scheduler {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+  overflow: hidden;
   min-height: 480px;
 }
 
 .scheduler-grid {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+  overflow: hidden;
   height: 420px;
   width: 100%;
   --ag-row-height: 72px;
@@ -1852,6 +1863,24 @@ dialog.markdown-popout-dialog::backdrop {
   outline: 2px solid var(--gold);
 }
 
+/* Not `outline`: .grid-avatar.mine already owns that, and the GM is usually
+   looking at their own token, so the two rings would overwrite each other. */
+.grid-avatar.is-gm {
+  position: relative;
+  margin: 4px;
+  overflow: visible;
+}
+
+/* ::before, because .grid-avatar.has-note already owns ::after. */
+.grid-avatar.is-gm::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border: 2px dotted rgba(31, 79, 67, 0.55);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
 .avatar-button[data-token="0"],
 .grid-avatar[data-token="0"] { background: var(--token-0); color: var(--token-0-ink); }
 .avatar-button[data-token="1"],
@@ -1899,11 +1928,13 @@ dialog.markdown-popout-dialog::backdrop {
   position: fixed;
   inset: 0;
   z-index: 40;
+  pointer-events: none;
 }
 
 .grid-context-menu {
   position: fixed;
   z-index: 41;
+  pointer-events: auto;
   margin: 0;
   padding: 6px;
   min-width: 160px;
@@ -1934,6 +1965,32 @@ dialog.markdown-popout-dialog::backdrop {
 .grid-context-menu button:disabled {
   color: #7a8490;
   cursor: not-allowed;
+}
+
+.grid-context-submenu {
+  position: relative;
+}
+
+.grid-context-submenu > button {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.grid-context-submenu-list {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  z-index: 42;
+  padding: 6px;
+  min-width: 160px;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid rgba(31, 79, 67, 0.18);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(28, 36, 48, 0.16);
 }
 
 .scheduler-grid .scheduler-row-disabled .ag-cell {
@@ -2712,6 +2769,12 @@ footer p + p {
   scrollbar-gutter: stable;
 }
 
+dialog[open],
+dialog.modal[open] {
+  display: block !important;
+  z-index: 10000;
+}
+
 dialog.modal {
   position: fixed;
   inset: 0;
@@ -2744,10 +2807,14 @@ dialog.modal.admin-shell {
   max-width: min(var(--admin-width), calc(100vw - var(--modal-inset)));
   height: min(88vh, 88dvh);
   max-height: min(88vh, 88dvh);
-  display: flex;
   flex-direction: column;
   overflow: hidden;
   padding: 20px 24px 16px;
+}
+
+dialog.modal.admin-shell[open] {
+  display: flex !important;
+  z-index: 10000;
 }
 
 #adminAppHost {
@@ -3364,6 +3431,7 @@ dialog.modal.admin-shell > .modal-close {
 [data-theme="dark"] .scheduler,
 [data-theme="dark"] .status-table-wrap,
 [data-theme="dark"] .grid-context-menu,
+[data-theme="dark"] .grid-context-submenu-list,
 [data-theme="dark"] .choice,
 [data-theme="dark"] pre,
 [data-theme="dark"] .email-list,
@@ -3416,7 +3484,8 @@ dialog.modal.admin-shell > .modal-close {
   background: rgba(88, 168, 142, 0.28);
 }
 
-[data-theme="dark"] .grid-context-menu button {
+[data-theme="dark"] .grid-context-menu button,
+[data-theme="dark"] .grid-context-submenu-list button {
   color: var(--ink);
 }
 
@@ -3427,6 +3496,10 @@ dialog.modal.admin-shell > .modal-close {
 
 [data-theme="dark"] .grid-avatar.has-note::after {
   box-shadow: 0 0 0 2px var(--parchment-deep);
+}
+
+[data-theme="dark"] .grid-avatar.is-gm::before {
+  border-color: rgba(232, 224, 204, 0.62);
 }
 
 [data-theme="dark"] .scheduler-grid {

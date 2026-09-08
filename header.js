@@ -136,7 +136,7 @@
       <p class="eyebrow">Email login</p>
       <h2 id="loginTitle">Log in by email</h2>
       <p class="modal-copy">No password. Enter your email and we assign a handle, or restore the one already tied to that address. This site does not ask for AMBA, WG, Owlbear, Discord, or API-key credentials.</p>
-      <form id="loginForm">
+      <form id="loginForm" method="post">
         <label>Email <input required type="email" name="email" autocomplete="email" placeholder="you@example.com"></label>
         <button class="button primary" type="submit">Get my handle</button>
         <p class="form-note" id="loginNote">Your public identity is the generated handle, not your email.</p>
@@ -160,7 +160,7 @@
       </dl>
       <p class="modal-copy">Your handle is used in the shared session sheet. Your email is private and used only to log back in.</p>
       <button class="button secondary" id="openTimezoneFromProfile" type="button">Set time zone</button>
-      <form id="identityForm">
+      <form id="identityForm" method="post">
         <fieldset class="token-choice">
           <legend>Token color</legend>
           <input type="hidden" name="tokenColor" id="profileTokenColor" value="auto">
@@ -216,7 +216,7 @@
         </p>
         <p class="form-note" id="settingsDeleteNote"></p>
       </section>
-      <form id="settingsForm">
+      <form id="settingsForm" method="post">
         <section class="settings-tab-panel" id="settingsPanelComms" data-settings-panel="comms" hidden>
           <p class="modal-copy">Email is from login and cannot be changed here. Optional Discord and Reddit IDs help us find you. Pick how you prefer to be reached.</p>
           <label>Email <input name="email" type="email" value="" readonly disabled autocomplete="off"></label>
@@ -231,7 +231,7 @@
           <label># of players desired
             <input name="desiredPlayers" type="number" min="1" max="12" step="1" value="4">
           </label>
-          <p class="form-note">Used to mark a row Live, scheduled to play. It does not cap signups yet.</p>
+          <p class="form-note">Live needs the GM Yes plus this many player Yes votes. It does not cap signups yet.</p>
           <button class="button primary" type="submit">Save settings</button>
         </section>
       </form>
@@ -260,7 +260,7 @@
       <p class="eyebrow">Your clock</p>
       <h2 id="timezoneTitle">Set time zone</h2>
       <p class="modal-copy">Session times are shown in this zone.</p>
-      <form id="timezoneForm">
+      <form id="timezoneForm" method="post">
         <label>Time zone
           <select required name="timezone" id="timezoneSelect">
             <option value="">Choose a time zone</option>
@@ -274,7 +274,7 @@
       <div id="adminGate">
       <p class="eyebrow">Admin</p>
       <h2 id="adminGateTitle">Admin password</h2>
-      <form id="adminForm">
+      <form id="adminForm" method="post">
         <label>Password <input required type="password" name="password" autocomplete="off"></label>
         <button class="button primary" type="submit">Open admin</button>
         <p class="form-note" id="adminNote"></p>
@@ -284,6 +284,48 @@
     </dialog>
   `;
   document.body.append(dialogs);
+  function openDialog(id) {
+    const modal = document.querySelector(id);
+    if (!modal) return;
+    try {
+      if (!modal.open) modal.showModal();
+    } catch {
+      /* already open or not a dialog */
+    }
+  }
+  document.querySelector("#openAdmin")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    openDialog("#adminModal");
+    window.dispatchEvent(new CustomEvent("amba-open-admin"));
+  });
+  const accountButton = header.querySelector("#accountButton");
+  const settingsMenu = header.querySelector("#settingsMenu");
+  accountButton?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!settingsMenu) return;
+    settingsMenu.hidden = !settingsMenu.hidden;
+    accountButton.setAttribute("aria-expanded", String(!settingsMenu.hidden));
+    if (settingsMenu.hidden) return;
+    const box = accountButton.getBoundingClientRect();
+    settingsMenu.style.position = "fixed";
+    settingsMenu.style.top = `${Math.round(box.bottom + 8)}px`;
+    settingsMenu.style.right = `${Math.round(Math.max(8, window.innerWidth - box.right))}px`;
+    settingsMenu.style.left = "auto";
+    settingsMenu.style.zIndex = "10001";
+  });
+  header.querySelector("#menuLogin")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    if (settingsMenu) settingsMenu.hidden = true;
+    openDialog("#loginModal");
+    window.dispatchEvent(new CustomEvent("amba-join-in"));
+  });
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest("#joinTest")) return;
+    event.preventDefault();
+    window.dispatchEvent(new CustomEvent("amba-join-in"));
+    if (!window.__ambaJoinBound) openDialog("#loginModal");
+  });
 })();
 
 window.paintDiscordHostPicker = function paintDiscordHostPicker(select) {

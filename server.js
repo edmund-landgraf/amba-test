@@ -135,8 +135,73 @@ function partySlotCounts(adventure) {
   return { maxPartyPcs: max, playPartyPcs: play, maxPcsPerPlayer: perPlayer };
 }
 
-function yesCountForTime(adventure, timeId) {
-  return (adventure.signups || []).filter((signup) => signup.votes?.[timeId] === "yes").length;
+// One GM per adventure, not one per timeslot. An explicit `gm` wins (that is what
+// a transfer writes); otherwise it falls back to whoever got here first -- the
+// earliest slot creator, else the first person who ever logged in.
+function adventureGm(adventure) {
+  const explicit = normalizeEmail(adventure?.gm);
+  if (explicit) return explicit;
+  const creators = (adventure?.times || [])
+    .filter((time) => normalizeEmail(time?.createdBy))
+    .sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")));
+  if (creators.length) return normalizeEmail(creators[0].createdBy);
+  return normalizeEmail((adventure?.signups || [])[0]?.email);
+}
+
+// Everyone who said yes to at least one slot that has not started yet, minus the
+// current GM. Past slots are ignored: they cannot tell us who is still around.
+async function gmTransferCandidates(adventure) {
+  const zoneIana = await zoneIanaMap();
+  const now = Date.now();
+  const upcoming = (adventure?.times || []).filter((time) => {
+    const start = wallTimeToUtc(time.date, time.time, time.timezone || "Pacific", zoneIana);
+    return start && !Number.isNaN(start.getTime()) && start.getTime() >= now;
+  });
+  const gm = adventureGm(adventure);
+  const seen = new Set();
+  const candidates = [];
+  for (const time of upcoming) {
+    for (const signup of adventure.signups || []) {
+      if (signup.votes?.[time.id] !== "yes") continue;
+      if (signup.email === gm || seen.has(signup.email)) continue;
+      seen.add(signup.email);
+      // Handle only. Emails are private, and the transfer resolves the handle server-side.
+      candidates.push(signup.handle);
+    }
+  }
+  return candidates.sort((a, b) => String(a).localeCompare(String(b)));
+}
+
+// Only the sitting GM may hand the role over, and only to someone the candidate
+// list already vouches for. Admin rights are a separate concern and untouched.
+async function transferGm({ email, handle } = {}) {
+  const from = normalizeEmail(email);
+  if (!from) throw new Error("Sign in first.");
+  const adventure = await liveAdventure();
+  if (adventureGm(adventure) !== from) throw new Error("Only the GM can transfer the GM role.");
+
+  const wanted = normalizeHandle(handle);
+  if (!wanted) throw new Error("Pick who should take over.");
+  const allowed = await gmTransferCandidates(adventure);
+  if (!allowed.includes(wanted)) throw new Error("That player is not available to take the GM role.");
+
+  const target = (adventure.signups || []).find((signup) => signup.handle === wanted);
+  if (!target?.email) throw new Error("That player is not available to take the GM role.");
+
+  adventure.gm = target.email;
+  adventure.updatedAt = new Date().toISOString();
+  await writeAdventure(adventure);
+  return { ok: true, gmHandle: target.handle };
+}
+
+function slotReadyToPlay(adventure, time, desired) {
+  const timeId = time?.id;
+  const yes = (adventure.signups || []).filter((signup) => signup.votes?.[timeId] === "yes");
+  const gm = adventureGm(adventure);
+  if (!gm) return yes.length >= desired;
+  const gmYes = yes.some((signup) => signup.email === gm);
+  const playerYes = yes.filter((signup) => signup.email !== gm).length;
+  return gmYes && playerYes >= desired;
 }
 
 async function applyPastSessionLocks(adventure) {
@@ -146,7 +211,7 @@ async function applyPastSessionLocks(adventure) {
   let changed = false;
   for (const time of adventure.times || []) {
     if (time.signupsDisabled) continue;
-    if (yesCountForTime(adventure, time.id) >= desired) continue;
+    if (slotReadyToPlay(adventure, time, desired)) continue;
     const start = wallTimeToUtc(time.date, time.time, time.timezone || "Pacific", zoneIana);
     if (!start || Number.isNaN(start.getTime())) continue;
     if (now < start.getTime() + PAST_SESSION_LOCK_MS) continue;
@@ -327,16 +392,33 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "GET" && url.pathname === "/api/player-hook") {
-    const { playerHookUrl } = await sessionLinks();
-    const html = await playerHookPreviewHtml(playerHookUrl, {
-      parchment: url.searchParams.get("parchment") !== "0",
-      theme: url.searchParams.get("theme") === "dark" ? "dark" : "light"
-    });
-    res.writeHead(200, {
-      "content-type": "text/html; charset=utf-8",
-      "cache-control": "no-store"
-    });
-    res.end(html);
+    try {
+      const { playerHookUrl } = await sessionLinks();
+      const requested = sanitizeHttpUrl(url.searchParams.get("u"));
+      const html = await playerHookPreviewHtml(requested || playerHookUrl, {
+        parchment: url.searchParams.get("parchment") !== "0",
+        theme: url.searchParams.get("theme") === "dark" ? "dark" : "light"
+      });
+      res.writeHead(200, {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store"
+      });
+      res.end(html);
+    } catch (error) {
+      const html = hookPreviewDocument(
+        `<p>Could not load the player hook${error?.message ? ` (${error.message})` : ""}.</p>`,
+        "",
+        {
+          parchment: url.searchParams.get("parchment") !== "0",
+          theme: url.searchParams.get("theme") === "dark" ? "dark" : "light"
+        }
+      );
+      res.writeHead(200, {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store"
+      });
+      res.end(html);
+    }
     return;
   }
 
@@ -440,6 +522,16 @@ async function handleApi(req, res) {
   if (req.method === "POST" && url.pathname === "/api/party-pcs") {
     const body = await readBody(req);
     sendJson(res, 200, await includePartyPc(body));
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/transfer-gm") {
+    const body = await readBody(req);
+    try {
+      sendJson(res, 200, await transferGm(body));
+    } catch (error) {
+      sendJson(res, 400, { error: error.message });
+    }
     return;
   }
 
@@ -972,6 +1064,7 @@ async function getState(email) {
   const user = email ? await findUserByEmail(email) : null;
   const tokenByEmail = new Map(users.map((item) => [item.email, item.tokenColor]));
   const desired = desiredPlayerCount(adventure);
+  const gmEmail = adventureGm(adventure);
   const times = (adventure.times || []).map((time) => {
     const { createdBy, ...publicTime } = time;
     const participants = signups
@@ -985,10 +1078,10 @@ async function getState(email) {
           status,
           note: String(signup.voteNotes?.[time.id] || "").trim(),
           mine,
+          gm: Boolean(gmEmail && signup.email === gmEmail),
           tokenColor: tokenColor === 0 || tokenColor ? tokenColor : ""
         };
       });
-    const yesCount = participants.filter((person) => person.status === "yes").length;
     const mineNote = user
       ? String(signups.find((signup) => signup.email === user.email)?.voteNotes?.[time.id] || "").trim()
       : "";
@@ -996,14 +1089,22 @@ async function getState(email) {
       ...publicTime,
       createdByMe: Boolean(user && createdBy && createdBy === user.email),
       signupsDisabled: Boolean(time.signupsDisabled),
-      scheduledToPlay: !time.signupsDisabled && yesCount >= desired,
+      scheduledToPlay: !time.signupsDisabled && slotReadyToPlay(adventure, time, desired),
       mineNote,
       participants
     };
   });
 
+  const gmSignup = signups.find((signup) => signup.email === gmEmail);
+  const gmIsMe = Boolean(user && gmEmail && user.email === gmEmail);
   return {
-    session: { ...publicSession(adventure), times },
+    session: {
+      ...publicSession(adventure),
+      times,
+      gmHandle: gmSignup?.handle || "",
+      gmIsMe,
+      gmCandidates: gmIsMe ? await gmTransferCandidates(adventure) : []
+    },
     discordHostChoices: await discordHostChoices(),
     user: user ? publicUser(user, adventure) : null,
     signups: signups.map(publicSignup),
@@ -3170,9 +3271,10 @@ async function yesEmails() {
 async function adminSelfEmail() {
   const fromEnv = normalizeEmail(process.env.ADMIN_EMAIL);
   if (fromEnv) return fromEnv;
-  const session = await liveAdventure();
-  const created = (session.times || []).map((time) => normalizeEmail(time.createdBy)).find(Boolean);
-  return created || "";
+  // Fall back to the GM rather than re-deriving from slot creators, so this stays
+  // in step with a transfer. This is only a default "from" address; admin access
+  // itself is the password, never the GM role.
+  return adventureGm(await liveAdventure());
 }
 
 async function leadingYesSlot() {
