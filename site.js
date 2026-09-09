@@ -120,6 +120,42 @@ document.addEventListener("DOMContentLoaded", () => {
   if (cleaned) history.replaceState(history.state, "", cleaned);
 });
 
+function askDiscordUsername() {
+  const dialog = document.querySelector("#discordNudgeModal");
+  const form = document.querySelector("#discordNudgeForm");
+  const input = document.querySelector("#discordNudgeInput");
+  const skip = document.querySelector("#discordNudgeSkip");
+  if (!dialog || !form || !input || !skip) return Promise.resolve("");
+  input.value = "";
+  return new Promise((resolve) => {
+    function finish(value) {
+      form.removeEventListener("submit", onSubmit);
+      skip.removeEventListener("click", onSkip);
+      dialog.removeEventListener("cancel", onSkip);
+      if (dialog.open) dialog.close();
+      resolve(String(value || "").trim());
+    }
+    function onSubmit(event) {
+      event.preventDefault();
+      finish(input.value);
+    }
+    function onSkip(event) {
+      event?.preventDefault?.();
+      finish("");
+    }
+    form.addEventListener("submit", onSubmit);
+    skip.addEventListener("click", onSkip);
+    dialog.addEventListener("cancel", onSkip);
+    try {
+      if (!dialog.open) dialog.showModal();
+    } catch {
+      resolve("");
+      return;
+    }
+    input.focus({ preventScroll: true });
+  });
+}
+
 function askConfirm(message, { title = "Overwrite?", ok = "Overwrite", danger = false } = {}) {
   const dialog = document.querySelector("#confirmDialog");
   const copy = document.querySelector("#confirmCopy");
@@ -652,7 +688,7 @@ function showHandleChoices(handles) {
   if (fieldset) fieldset.hidden = false;
   if (roll) roll.hidden = false;
   if (submit) submit.textContent = "Use this handle";
-  if (note) note.textContent = "Pick one public handle. Roll again for four new names.";
+  if (note) note.textContent = "Pick one public handle. Discord is optional, but it helps us find you. Roll again for four new names.";
   if (!list) return;
   const options = (handles || []).filter(Boolean).slice(0, 4);
   list.innerHTML = options.map((handle, index) => {
@@ -668,9 +704,11 @@ function resetLoginHandlePicker() {
   const submit = document.querySelector("#loginSubmit");
   const note = document.querySelector("#loginNote");
   const emailInput = document.querySelector("#loginForm")?.querySelector('input[name="email"]');
+  const discordInput = document.querySelector("#loginDiscord");
   if (emailInput) emailInput.readOnly = false;
   if (fieldset) fieldset.hidden = true;
   if (list) list.innerHTML = "";
+  if (discordInput) discordInput.value = "";
   if (roll) roll.hidden = true;
   if (submit) submit.textContent = "Get my handle";
   if (note) note.textContent = "Your public identity is the generated handle, not your email.";
@@ -688,6 +726,11 @@ async function login(event) {
   const note = document.querySelector("#loginNote");
   const data = Object.fromEntries(new FormData(form).entries());
   try {
+    const pickingHandle = Boolean(String(data.handle || "").trim());
+    if (pickingHandle && !String(data.discord || "").trim()) {
+      const extra = await askDiscordUsername();
+      if (extra) data.discord = extra;
+    }
     const result = await api("/api/login", { method: "POST", body: data });
     if (result.needsHandle) {
       showHandleChoices(result.handles);

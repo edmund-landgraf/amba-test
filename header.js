@@ -141,6 +141,7 @@
         <fieldset class="handle-choice" id="handleChoices" hidden>
           <legend>Pick a handle</legend>
           <div id="handleChoiceList" class="handle-choice-list" role="radiogroup" aria-label="Handle options"></div>
+          <label class="handle-discord">Discord username <input id="loginDiscord" name="discord" autocomplete="off" placeholder="Optional — name or name#0000"></label>
         </fieldset>
         <p class="form-actions">
           <button class="button primary" id="loginSubmit" type="submit">Get my handle</button>
@@ -252,6 +253,18 @@
         </p>
         <p class="form-note" id="settingsBackupNote"></p>
       </section>
+    </dialog>
+    <dialog class="modal small-modal" id="discordNudgeModal" aria-labelledby="discordNudgeTitle">
+      <p class="eyebrow">Discord</p>
+      <h2 id="discordNudgeTitle">A Discord name helps a lot</h2>
+      <p class="modal-copy">You can skip this if you want. It is just much easier to find you at the table when we have your Discord username. No pressure — we would only really appreciate it.</p>
+      <form id="discordNudgeForm" method="post">
+        <label>Discord username <input id="discordNudgeInput" name="discord" autocomplete="off" placeholder="name or name#0000"></label>
+        <p class="form-actions">
+          <button class="button secondary" id="discordNudgeSkip" type="button">Skip for now</button>
+          <button class="button primary" type="submit">Save Discord name</button>
+        </p>
+      </form>
     </dialog>
     <dialog class="modal small-modal" id="confirmDialog" aria-labelledby="confirmTitle">
       <p class="eyebrow">Confirm</p>

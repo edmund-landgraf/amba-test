@@ -80,6 +80,16 @@ describe("new handle picker", () => {
       assert.match(header, /id="handleChoices"/);
       assert.match(header, /role="radiogroup"/);
       assert.match(header, /id="rollHandles"/);
+      assert.match(header, /id="loginDiscord"/);
+      assert.match(header, /id="discordNudgeModal"/);
+
+      const claimed = await request(`${origin}/api/login`, {
+        method: "POST",
+        body: { email, handle: first.data.handles[0], discord: "MerryAnchor" }
+      });
+      assert.equal(claimed.status, 200);
+      assert.equal(claimed.data.user.handle, first.data.handles[0]);
+      assert.equal(claimed.data.user.discord, "MerryAnchor");
     } finally {
       child.kill();
     }

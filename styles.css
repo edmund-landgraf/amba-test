@@ -2267,6 +2267,13 @@ pre {
   color: var(--ink);
 }
 
+.handle-discord {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 0;
+  font-weight: 600;
+}
+
 .handle-choice-list input[type="radio"] {
   width: auto;
   margin: 0;

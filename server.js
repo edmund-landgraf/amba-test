@@ -1175,7 +1175,7 @@ async function loginWithEmail(data) {
     throw new Error("That handle was just taken. Pick another.");
   }
 
-  const user = await upsertUser({ email, handle });
+  const user = await upsertUser({ email, handle, discord: data.discord });
   return { user: publicUser(user, await liveAdventure()) };
 }
 
