@@ -190,11 +190,15 @@ function VoteCell({ people, tokenMap, row, onTokenMenu }) {
   );
 }
 
-function SessionLabel({ slot, statusLabel }) {
+function SessionLabel({ slot, statusLabel, scheduledToPlay }) {
   return (
     <span className="session-cell">
       <span className="session-when">{slot}</span>
-      {statusLabel ? <span className="session-status">{statusLabel}</span> : null}
+      {statusLabel ? (
+        <span className={scheduledToPlay ? "session-status is-live" : "session-status"}>
+          {statusLabel}
+        </span>
+      ) : null}
     </span>
   );
 }
@@ -214,6 +218,7 @@ function rowMenuFromEvent(event, row) {
     timeId: row.id,
     createdByMe: row.createdByMe,
     signupsDisabled: row.signupsDisabled,
+    liveOverride: Boolean(row.liveOverride),
     mineNote: row.mineNote || "",
     date: row.date,
     time: row.time,
@@ -490,6 +495,7 @@ function TimeGrid() {
   const [siteTheme, setSiteTheme] = useState(siteThemeName);
   const [gridView, setGridView] = useState("current");
   const toastTimer = useRef(null);
+  const loadGen = useRef(0);
 
   function showToast(message) {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -498,7 +504,9 @@ function TimeGrid() {
   }
 
   const load = useCallback(async (nextEmail = email, nextZone = userZone) => {
+    const gen = ++loadGen.current;
     const state = await api(`/api/state${nextEmail ? `?email=${encodeURIComponent(nextEmail)}` : ""}`);
+    if (gen !== loadGen.current) return;
     const zone = nextZone || state.user?.timezone || "";
     setUserZone(zone);
     const sessionTitle = state.session?.title || "AMBA session";
@@ -569,6 +577,8 @@ function TimeGrid() {
         mineNote: time.mineNote || people.find((person) => person.mine)?.note || "",
         createdByMe: Boolean(time.createdByMe),
         signupsDisabled: Boolean(time.signupsDisabled),
+        liveOverride: Boolean(time.liveOverride),
+        liveBlocked: Boolean(time.liveBlocked),
         scheduledToPlay: Boolean(time.scheduledToPlay)
       };
     }).sort((a, b) => (a.startIso || "").localeCompare(b.startIso || ""));
@@ -799,8 +809,8 @@ function TimeGrid() {
       return {
         ...item,
         signupsDisabled: true,
-        scheduledToPlay: false,
-        statusLabel: "Not enough players"
+        scheduledToPlay: Boolean(item.liveOverride),
+        statusLabel: item.liveOverride ? "Live, scheduled to play" : "Not enough players"
       };
     }));
   }
@@ -811,7 +821,7 @@ function TimeGrid() {
       return {
         ...item,
         signupsDisabled: false,
-        statusLabel: item.scheduledToPlay ? "Live, scheduled to play" : "Not enough players"
+        statusLabel: item.scheduledToPlay || item.liveOverride ? "Live, scheduled to play" : "Not enough players"
       };
     }));
   }
@@ -884,6 +894,42 @@ function TimeGrid() {
       await load(email, userZone);
     } catch (error) {
       showToast(error.message || "Could not reopen signups");
+      await load(email, userZone);
+    }
+  }
+
+  async function toggleLiveOverride(row) {
+    if (!requireReady()) return;
+    const timeId = row?.timeId || row?.id;
+    if (!timeId) return;
+    const current = rows.find((item) => item.id === timeId) || row;
+    const showingLive = Boolean(current.scheduledToPlay);
+    const nextOn = !showingLive;
+    setMenu(null);
+    loadGen.current += 1;
+    setRows((items) => items.map((item) => {
+      if (item.id !== timeId) return item;
+      return {
+        ...item,
+        liveOverride: nextOn,
+        liveBlocked: !nextOn,
+        scheduledToPlay: nextOn,
+        statusLabel: nextOn ? "Live, scheduled to play" : "Not enough players"
+      };
+    }));
+    try {
+      await api("/api/times/update", {
+        method: "POST",
+        body: {
+          email,
+          timeId,
+          liveOverride: nextOn,
+          liveBlocked: !nextOn
+        }
+      });
+      showToast(nextOn ? "Marked live, scheduled to play" : "Cleared live, scheduled to play");
+    } catch (error) {
+      showToast(error.message || "Could not update live status");
       await load(email, userZone);
     }
   }
@@ -964,7 +1010,11 @@ function TimeGrid() {
           className="session-cell-hit"
           onContextMenu={(event) => openRowMenu(event, params.data)}
         >
-          <SessionLabel slot={params.data?.slot} statusLabel={params.data?.statusLabel} />
+          <SessionLabel
+            slot={params.data?.slot}
+            statusLabel={params.data?.statusLabel}
+            scheduledToPlay={params.data?.scheduledToPlay}
+          />
         </span>
       ),
       comparator: (_a, _b, nodeA, nodeB) => {
@@ -1089,13 +1139,20 @@ function TimeGrid() {
           {visibleRows.length ? visibleRows.map((row) => (
             <tr
               key={row.id}
-              className={row.signupsDisabled ? "is-signups-disabled" : row.scheduledToPlay ? "is-scheduled-live" : ""}
+              className={[
+                row.signupsDisabled ? "is-signups-disabled" : "",
+                row.scheduledToPlay ? "is-scheduled-live" : ""
+              ].filter(Boolean).join(" ")}
             >
               <th
                 scope="row"
                 onContextMenu={(event) => openRowMenu(event, row)}
               >
-                <SessionLabel slot={row.slot} statusLabel={row.statusLabel} />
+                <SessionLabel
+                  slot={row.slot}
+                  statusLabel={row.statusLabel}
+                  scheduledToPlay={row.scheduledToPlay}
+                />
               </th>
               {phoneLayout ? VOTE_COLS.map((status) => (
                 <GlanceVoteCell
@@ -1335,9 +1392,10 @@ function TimeGrid() {
           overlayNoRowsTemplate={emptyGridCopy}
           getRowId={(params) => params.data.id}
           getRowClass={(params) => {
-            if (params.data?.signupsDisabled) return "scheduler-row-disabled";
-            if (params.data?.scheduledToPlay) return "scheduler-row-live";
-            return "";
+            const classes = [];
+            if (params.data?.signupsDisabled) classes.push("scheduler-row-disabled");
+            if (params.data?.scheduledToPlay) classes.push("scheduler-row-live");
+            return classes.join(" ");
           }}
           onCellClicked={(event) => {
             if (event.event?.button && event.event.button !== 0) return;
@@ -1445,6 +1503,20 @@ function TimeGrid() {
               }}
             >
               Save to iCal
+            </button>
+            <button
+              type="button"
+              aria-pressed={Boolean(menu.row?.scheduledToPlay)}
+              title={menu.row?.scheduledToPlay
+                ? "Remove live, scheduled to play"
+                : "Mark this row live even without enough players"}
+              onMouseDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                toggleLiveOverride(menu.row);
+              }}
+            >
+              {menu.row?.scheduledToPlay ? "Clear live, scheduled to play" : "Live, scheduled to play"}
             </button>
             <button
               type="button"

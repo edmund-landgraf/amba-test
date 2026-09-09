@@ -204,6 +204,12 @@ function slotReadyToPlay(adventure, time, desired) {
   return gmYes && playerYes >= desired;
 }
 
+function timeScheduledToPlay(adventure, time, desired) {
+  if (time?.liveBlocked) return false;
+  if (time?.liveOverride) return true;
+  return !time?.signupsDisabled && slotReadyToPlay(adventure, time, desired);
+}
+
 async function applyPastSessionLocks(adventure) {
   const zoneIana = await zoneIanaMap();
   const desired = desiredPlayerCount(adventure);
@@ -211,7 +217,7 @@ async function applyPastSessionLocks(adventure) {
   let changed = false;
   for (const time of adventure.times || []) {
     if (time.signupsDisabled) continue;
-    if (slotReadyToPlay(adventure, time, desired)) continue;
+    if (time.liveOverride || slotReadyToPlay(adventure, time, desired)) continue;
     const start = wallTimeToUtc(time.date, time.time, time.timezone || "Pacific", zoneIana);
     if (!start || Number.isNaN(start.getTime())) continue;
     if (now < start.getTime() + PAST_SESSION_LOCK_MS) continue;
@@ -542,10 +548,19 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/handle-options") {
+    const users = await readJson("users");
+    sendJson(res, 200, { handles: createHandles(users, 4) });
+    return;
+  }
+
   if (req.method === "POST" && url.pathname === "/api/login") {
     const body = await readBody(req);
-    const user = await upsertUser({ email: body.email });
-    sendJson(res, 200, { user: publicUser(user, await liveAdventure()) });
+    try {
+      sendJson(res, 200, await loginWithEmail(body));
+    } catch (error) {
+      sendJson(res, 400, { error: error.message });
+    }
     return;
   }
 
@@ -1089,7 +1104,9 @@ async function getState(email) {
       ...publicTime,
       createdByMe: Boolean(user && createdBy && createdBy === user.email),
       signupsDisabled: Boolean(time.signupsDisabled),
-      scheduledToPlay: !time.signupsDisabled && slotReadyToPlay(adventure, time, desired),
+      liveOverride: Boolean(time.liveOverride),
+      liveBlocked: Boolean(time.liveBlocked),
+      scheduledToPlay: timeScheduledToPlay(adventure, time, desired),
       mineNote,
       participants
     };
@@ -1111,6 +1128,28 @@ async function getState(email) {
     feedback: feedback.map(publicFeedback),
     pcs: publicPcs(adventure, users, user?.email || "")
   };
+}
+
+async function loginWithEmail(data) {
+  const email = normalizeEmail(data.email);
+  if (!email) throw new Error("Email is required.");
+
+  const existing = await findUserByEmail(email);
+  if (existing) {
+    return { user: publicUser(existing, await liveAdventure()) };
+  }
+
+  const handle = normalizeHandle(data.handle);
+  const users = await readJson("users");
+  if (!handle) {
+    return { needsHandle: true, handles: createHandles(users, 4) };
+  }
+  if (users.some((user) => user.handle === handle)) {
+    throw new Error("That handle was just taken. Pick another.");
+  }
+
+  const user = await upsertUser({ email, handle });
+  return { user: publicUser(user, await liveAdventure()) };
 }
 
 async function upsertUser(data) {
@@ -1806,7 +1845,11 @@ async function updateTime(data) {
   const session = await liveAdventure();
   const time = (session.times || []).find((item) => item.id === timeId);
   if (!time) throw new Error("not_found");
-  const lockOp = data.signupsDisabled === true || data.signupsDisabled === false || Boolean(data.convertYesToMaybe);
+  const liveToggle = data.liveOverride === true || data.liveOverride === false
+    || data.liveBlocked === true || data.liveBlocked === false;
+  const lockOp = data.signupsDisabled === true || data.signupsDisabled === false
+    || Boolean(data.convertYesToMaybe)
+    || liveToggle;
   if (!lockOp && (!time.createdBy || time.createdBy !== user.email)) throw new Error("forbidden");
 
   const date = String(data.date || "").trim();
@@ -1814,7 +1857,7 @@ async function updateTime(data) {
   const lengthMinutes = Number(data.lengthMinutes || data.length || 0);
   const hasSchedule = Boolean(date && clock && lengthMinutes);
   const disableToggle = data.signupsDisabled === true || data.signupsDisabled === false;
-  if (!hasSchedule && !disableToggle) throw new Error("Date, time, and session length are required.");
+  if (!hasSchedule && !disableToggle && !liveToggle) throw new Error("Date, time, and session length are required.");
 
   if (hasSchedule) {
     time.date = date;
@@ -1831,6 +1874,14 @@ async function updateTime(data) {
     }
   }
   if (disableToggle) time.signupsDisabled = Boolean(data.signupsDisabled);
+  if (data.liveOverride === true || data.liveOverride === false) {
+    time.liveOverride = Boolean(data.liveOverride);
+    if (time.liveOverride) time.liveBlocked = false;
+  }
+  if (data.liveBlocked === true || data.liveBlocked === false) {
+    time.liveBlocked = Boolean(data.liveBlocked);
+    if (time.liveBlocked) time.liveOverride = false;
+  }
   if (data.convertYesToMaybe) {
     time.signupsDisabled = false;
     for (const signup of session.signups || []) {
@@ -3218,6 +3269,17 @@ function createHandle(users) {
     if (!users.some((user) => user.handle === handle)) return handle;
   }
   return `${pick(adjectives)}-${pick(nouns)}-${crypto.randomInt(100, 999)}`;
+}
+
+function createHandles(users, count = 4) {
+  const batch = [];
+  const taken = [...(users || [])];
+  for (let i = 0; i < count; i += 1) {
+    const handle = createHandle(taken);
+    batch.push(handle);
+    taken.push({ handle });
+  }
+  return batch;
 }
 
 function pick(items) {

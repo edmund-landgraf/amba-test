@@ -2016,14 +2016,15 @@ dialog.markdown-popout-dialog::backdrop {
 .session-status {
   font-weight: 700;
   font-size: 0.92em;
+  color: var(--muted);
+}
+
+.session-status.is-live {
+  color: var(--gold);
 }
 
 .status-table tbody th .session-cell {
   height: auto;
-}
-
-.scheduler-grid .scheduler-row-live .ag-cell {
-  background: rgba(31, 79, 67, 0.08);
 }
 
 .status-table tr.is-signups-disabled th,
@@ -2033,7 +2034,29 @@ dialog.markdown-popout-dialog::backdrop {
 
 .status-table tr.is-scheduled-live th,
 .status-table tr.is-scheduled-live td {
-  background: rgba(31, 79, 67, 0.08);
+  border-top: 2px solid var(--gold);
+  border-bottom: 2px solid var(--gold);
+}
+
+.status-table tr.is-scheduled-live th:first-child {
+  border-left: 2px solid var(--gold);
+}
+
+.status-table tr.is-scheduled-live td:last-child {
+  border-right: 2px solid var(--gold);
+}
+
+.scheduler-grid .scheduler-row-live .ag-cell {
+  border-top: 2px solid var(--gold);
+  border-bottom: 2px solid var(--gold);
+}
+
+.scheduler-grid .scheduler-row-live .ag-cell:first-child {
+  border-left: 2px solid var(--gold);
+}
+
+.scheduler-grid .scheduler-row-live .ag-cell:last-child {
+  border-right: 2px solid var(--gold);
 }
 
 .edit-row {
@@ -2205,6 +2228,36 @@ pre {
 }
 
 .comm-choice input[type="radio"] {
+  width: auto;
+  margin: 0;
+  padding: 0;
+  box-shadow: none;
+  accent-color: var(--accent-strong);
+}
+
+.handle-choice {
+  margin: 8px 0 0;
+  padding: 12px;
+}
+
+.handle-choice legend {
+  padding: 0 4px;
+}
+
+.handle-choice-list {
+  display: grid;
+  gap: 8px;
+}
+
+.handle-choice-list label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.handle-choice-list input[type="radio"] {
   width: auto;
   margin: 0;
   padding: 0;
@@ -3415,6 +3468,27 @@ dialog.modal.admin-shell > .modal-close {
 
 [data-theme="dark"] .status-table tbody td:nth-child(4) {
   background: #6a4540;
+}
+
+[data-theme="dark"] .status-table tr.is-scheduled-live th,
+[data-theme="dark"] .status-table tr.is-scheduled-live td,
+[data-theme="dark"] .scheduler-grid .scheduler-row-live .ag-cell {
+  border-top-color: #e8c56a;
+  border-bottom-color: #e8c56a;
+}
+
+[data-theme="dark"] .status-table tr.is-scheduled-live th:first-child,
+[data-theme="dark"] .scheduler-grid .scheduler-row-live .ag-cell:first-child {
+  border-left-color: #e8c56a;
+}
+
+[data-theme="dark"] .status-table tr.is-scheduled-live td:last-child,
+[data-theme="dark"] .scheduler-grid .scheduler-row-live .ag-cell:last-child {
+  border-right-color: #e8c56a;
+}
+
+[data-theme="dark"] .session-status.is-live {
+  color: #e8c56a;
 }
 
 [data-theme="dark"] .pcs-glance thead th:nth-child(n) {

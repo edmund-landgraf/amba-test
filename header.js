@@ -135,10 +135,17 @@
       <button class="modal-close" id="closeLogin" type="button" aria-label="Close login">x</button>
       <p class="eyebrow">Email login</p>
       <h2 id="loginTitle">Log in by email</h2>
-      <p class="modal-copy">No password. Enter your email and we assign a handle, or restore the one already tied to that address. This site does not ask for AMBA, WG, Owlbear, Discord, or API-key credentials.</p>
+      <p class="modal-copy">No password. Enter your email. New addresses pick from four handles; the same email later restores the handle already tied to it. This site does not ask for AMBA, WG, Owlbear, Discord, or API-key credentials.</p>
       <form id="loginForm" method="post">
         <label>Email <input required type="email" name="email" autocomplete="email" placeholder="you@example.com"></label>
-        <button class="button primary" type="submit">Get my handle</button>
+        <fieldset class="handle-choice" id="handleChoices" hidden>
+          <legend>Pick a handle</legend>
+          <div id="handleChoiceList" class="handle-choice-list" role="radiogroup" aria-label="Handle options"></div>
+        </fieldset>
+        <p class="form-actions">
+          <button class="button primary" id="loginSubmit" type="submit">Get my handle</button>
+          <button class="button secondary" id="rollHandles" type="button" hidden>Roll again</button>
+        </p>
         <p class="form-note" id="loginNote">Your public identity is the generated handle, not your email.</p>
       </form>
     </dialog>

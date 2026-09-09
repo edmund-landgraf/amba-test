@@ -367,6 +367,7 @@ function wireEvents() {
     button.addEventListener("click", () => showSettingsTab(button.dataset.settingsTab));
   });
   document.querySelector("#loginForm")?.addEventListener("submit", login);
+  document.querySelector("#rollHandles")?.addEventListener("click", rollHandleOptions);
   window.__ambaJoinBound = true;
   window.addEventListener("amba-join-in", joinTheTest);
   window.addEventListener("amba-open-admin", () => {
@@ -633,23 +634,79 @@ async function saveIdentity(event) {
   }
 }
 
+function escapeHandleLabel(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/"/g, "&quot;");
+}
+
+function showHandleChoices(handles) {
+  const fieldset = document.querySelector("#handleChoices");
+  const list = document.querySelector("#handleChoiceList");
+  const roll = document.querySelector("#rollHandles");
+  const submit = document.querySelector("#loginSubmit");
+  const note = document.querySelector("#loginNote");
+  const emailInput = document.querySelector("#loginForm")?.querySelector('input[name="email"]');
+  if (emailInput) emailInput.readOnly = true;
+  if (fieldset) fieldset.hidden = false;
+  if (roll) roll.hidden = false;
+  if (submit) submit.textContent = "Use this handle";
+  if (note) note.textContent = "Pick one public handle. Roll again for four new names.";
+  if (!list) return;
+  const options = (handles || []).filter(Boolean).slice(0, 4);
+  list.innerHTML = options.map((handle, index) => {
+    const safe = escapeHandleLabel(handle);
+    return `<label><input type="radio" name="handle" value="${safe}"${index === 0 ? " checked" : ""}> ${safe}</label>`;
+  }).join("");
+}
+
+function resetLoginHandlePicker() {
+  const fieldset = document.querySelector("#handleChoices");
+  const list = document.querySelector("#handleChoiceList");
+  const roll = document.querySelector("#rollHandles");
+  const submit = document.querySelector("#loginSubmit");
+  const note = document.querySelector("#loginNote");
+  const emailInput = document.querySelector("#loginForm")?.querySelector('input[name="email"]');
+  if (emailInput) emailInput.readOnly = false;
+  if (fieldset) fieldset.hidden = true;
+  if (list) list.innerHTML = "";
+  if (roll) roll.hidden = true;
+  if (submit) submit.textContent = "Get my handle";
+  if (note) note.textContent = "Your public identity is the generated handle, not your email.";
+}
+
+async function rollHandleOptions() {
+  const result = await api("/api/handle-options");
+  showHandleChoices(result.handles);
+}
+
 async function login(event) {
   event.preventDefault();
   const form = event.currentTarget || document.querySelector("#loginForm");
   if (!form) return;
+  const note = document.querySelector("#loginNote");
   const data = Object.fromEntries(new FormData(form).entries());
-  const result = await api("/api/login", { method: "POST", body: data });
-  currentEmail = result.user.email;
-  writeStored("ambaEmail", currentEmail);
-  closeLoginModal();
-  await loadState();
-  if (isQuestionnairePage) return;
-  if (!appState.user?.timezone) {
-    pendingTimesScroll = true;
-    openTimezoneModal();
-    return;
+  try {
+    const result = await api("/api/login", { method: "POST", body: data });
+    if (result.needsHandle) {
+      showHandleChoices(result.handles);
+      return;
+    }
+    currentEmail = result.user.email;
+    writeStored("ambaEmail", currentEmail);
+    closeLoginModal();
+    await loadState();
+    if (isQuestionnairePage) return;
+    if (!appState.user?.timezone) {
+      pendingTimesScroll = true;
+      openTimezoneModal();
+      return;
+    }
+    if (pendingTimesScroll) scrollToTimes();
+  } catch (error) {
+    if (note) note.textContent = error.message || "Could not log in.";
   }
-  if (pendingTimesScroll) scrollToTimes();
 }
 
 async function logout() {
@@ -742,6 +799,7 @@ function syncIdentity() {
 function openLoginModal() {
   const loginModal = document.querySelector("#loginModal");
   if (!loginModal) return;
+  resetLoginHandlePicker();
   try {
     if (!loginModal.open) loginModal.showModal();
   } catch {
@@ -753,6 +811,7 @@ function openLoginModal() {
 }
 
 function closeLoginModal() {
+  resetLoginHandlePicker();
   if (loginModal?.open) loginModal.close();
 }
 
