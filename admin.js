@@ -471,8 +471,15 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
       for (const person of people) {
         const row = document.createElement("div");
         row.className = "email-row";
+        if (person.gm) row.classList.add("is-gm");
         const handle = document.createElement("span");
         handle.textContent = person.handle || "—";
+        if (person.gm) {
+          const badge = document.createElement("span");
+          badge.className = "gm-badge";
+          badge.textContent = "GM";
+          handle.append(" ", badge);
+        }
         const email = document.createElement("span");
         email.textContent = person.email;
         const remove = document.createElement("button");
@@ -480,9 +487,77 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         remove.type = "button";
         remove.textContent = "Delete";
         remove.addEventListener("click", () => deleteEmail(person));
+        row.addEventListener("contextmenu", (event) => {
+          event.preventDefault();
+          openGmRoleMenu(event, person);
+        });
         row.append(handle, email, remove);
         yesList.append(row);
       }
+    }
+
+    function closeGmRoleMenu() {
+      const menu = q("#gmRoleMenu");
+      if (menu) menu.hidden = true;
+    }
+
+    function ensureGmRoleMenu() {
+      let menu = q("#gmRoleMenu");
+      if (!menu) {
+        menu = document.createElement("div");
+        menu.id = "gmRoleMenu";
+        menu.className = "schedule-context-menu";
+        menu.hidden = true;
+        menu.setAttribute("role", "menu");
+        const item = document.createElement("button");
+        item.type = "button";
+        item.setAttribute("role", "menuitem");
+        item.textContent = "Assign GM role";
+        item.addEventListener("mousedown", (event) => event.preventDefault());
+        item.addEventListener("click", () => {
+          const handle = menu.dataset.handle || "";
+          closeGmRoleMenu();
+          if (handle) assignGmRole(handle);
+        });
+        menu.appendChild(item);
+        document.addEventListener("mousedown", (event) => {
+          if (!menu.contains(event.target)) closeGmRoleMenu();
+        });
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "Escape") closeGmRoleMenu();
+        });
+        window.addEventListener("scroll", closeGmRoleMenu, true);
+      }
+      const host = menuHost();
+      if (menu.parentNode !== host) host.appendChild(menu);
+      return menu;
+    }
+
+    function openGmRoleMenu(event, person) {
+      const handle = String(person.handle || "").trim();
+      const menu = ensureGmRoleMenu();
+      const item = menu.querySelector("button");
+      menu.dataset.handle = handle;
+      item.disabled = !handle || Boolean(person.gm);
+      item.textContent = person.gm ? "Already the GM" : "Assign GM role";
+      menu.hidden = false;
+      menu.style.left = `${event.clientX}px`;
+      menu.style.top = `${event.clientY}px`;
+    }
+
+    async function assignGmRole(handle) {
+      const response = await fetch("/api/admin/assign-gm", {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ handle })
+      });
+      if (!response.ok) {
+        copyNote.textContent = "Could not assign the GM role.";
+        return;
+      }
+      const data = await response.json();
+      fillAdmin(data);
+      copyNote.textContent = `${data.gmHandle || handle} is now the GM.`;
     }
 
     async function deleteEmail(person) {

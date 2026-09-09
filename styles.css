@@ -1727,6 +1727,7 @@ dialog.markdown-popout-dialog::backdrop {
   justify-content: center;
   gap: 3px;
   cursor: default;
+  overflow: visible;
 }
 
 .status-table .grid-avatar {
@@ -1867,22 +1868,14 @@ dialog.markdown-popout-dialog::backdrop {
   outline: 2px solid var(--gold);
 }
 
-/* Not `outline`: .grid-avatar.mine already owns that, and the GM is usually
-   looking at their own token, so the two rings would overwrite each other. */
+/* Border on the token itself: collapsed glance cells clip overflow, so a
+   ::before ring outside the circle never shows. Not `outline`: .mine already
+   owns that, and the GM is usually looking at their own token. */
 .grid-avatar.is-gm {
   position: relative;
-  margin: 4px;
-  overflow: visible;
-}
-
-/* ::before, because .grid-avatar.has-note already owns ::after. */
-.grid-avatar.is-gm::before {
-  content: "";
-  position: absolute;
-  inset: -4px;
-  border: 2px dotted rgba(31, 79, 67, 0.55);
-  border-radius: 50%;
-  pointer-events: none;
+  margin: 2px;
+  box-sizing: border-box;
+  border: 2px dotted var(--gold);
 }
 
 .avatar-button[data-token="0"],
@@ -2165,6 +2158,23 @@ pre {
   text-transform: uppercase;
   color: var(--muted);
   background: var(--sky);
+}
+
+.email-row:not(.email-head) {
+  cursor: context-menu;
+}
+
+.email-row .gm-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  vertical-align: middle;
 }
 
 .email-row .button {
@@ -3576,8 +3586,8 @@ dialog.modal.admin-shell > .modal-close {
   box-shadow: 0 0 0 2px var(--parchment-deep);
 }
 
-[data-theme="dark"] .grid-avatar.is-gm::before {
-  border-color: rgba(232, 224, 204, 0.62);
+[data-theme="dark"] .grid-avatar.is-gm {
+  border-color: var(--gold);
 }
 
 [data-theme="dark"] .scheduler-grid {

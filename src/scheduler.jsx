@@ -157,6 +157,12 @@ function avatarClass(person) {
   return `grid-avatar${person.mine ? " mine" : ""}${person.gm ? " is-gm" : ""}${String(person.note || "").trim() ? " has-note" : ""}`;
 }
 
+function handleTitle(person) {
+  const handle = String(person?.handle || "").trim();
+  if (!handle) return "";
+  return person.gm ? `${handle} (GM)` : handle;
+}
+
 function tokenAvatarProps(tokenMap, handle) {
   const index = tokenIndexFor(tokenMap, handle);
   const extra = overflowTokenStyle(index);
@@ -179,7 +185,7 @@ function VoteCell({ people, tokenMap, row, onTokenMenu }) {
         <span
           className={avatarClass(person)}
           key={person.handle}
-          title={person.handle || ""}
+          title={handleTitle(person)}
           {...tokenAvatarProps(tokenMap, person.handle)}
           onContextMenu={(event) => stopTokenMenu(event, row, person, onTokenMenu)}
         >
@@ -335,7 +341,7 @@ function GlanceVoteCell({ people, status, row, onActivate, tokenMap, selfHandle,
           <span
             className={avatarClass(person)}
             key={person.handle}
-            title={person.handle || ""}
+            title={handleTitle(person)}
             {...tokenAvatarProps(tokenMap, person.handle)}
             onContextMenu={(event) => stopTokenMenu(event, row, person, onTokenMenu)}
           >
@@ -345,7 +351,7 @@ function GlanceVoteCell({ people, status, row, onActivate, tokenMap, selfHandle,
         {mine ? (
           <span
             className={avatarClass(mine)}
-            title={mine.handle || ""}
+            title={handleTitle(mine)}
             {...tokenAvatarProps(tokenMap, mine.handle)}
             onContextMenu={(event) => stopTokenMenu(event, row, mine, onTokenMenu)}
           >
@@ -402,10 +408,37 @@ function signupSiteUrl() {
   return `${window.location.origin}/`;
 }
 
+function flowCalendarText(text) {
+  const lines = String(text || "").replace(/\r\n/g, "\n").split("\n").map((line) => line.trim());
+  const paragraphs = [];
+  let current = [];
+
+  function flush() {
+    const para = current.join(" ").replace(/[ \t]{2,}/g, " ").trim();
+    if (para) paragraphs.push(para);
+    current = [];
+  }
+
+  for (const line of lines) {
+    if (!line) {
+      flush();
+      continue;
+    }
+    const prev = current[current.length - 1] || "";
+    const prevIsTitle = current.length === 1 && prev.length < 80 && !/[.!?]"?$/.test(prev);
+    const lineStartsSentence = /^["“]?[A-Z]/.test(line) && line.length > 40;
+    if (prevIsTitle && lineStartsSentence) flush();
+    current.push(line);
+    if (line.length < 55 && /[.!?]"?$/.test(line)) flush();
+  }
+  flush();
+  return paragraphs.join("\n\n");
+}
+
 function eventDetails(row) {
   return [
     row.slot,
-    row.playerHookText,
+    flowCalendarText(row.playerHookText),
     row.syndicationUrl ? `Player packet: ${row.syndicationUrl}` : "",
     `Signup: ${signupSiteUrl()}`,
     row.discordInvite ? `Discord: ${row.discordInvite}` : "",

@@ -150,6 +150,38 @@ describe("transfer GM endpoint", () => {
     );
   });
 
+  it("marks the sitting GM on public participants so glance tokens can ring", () => {
+    assert.match(source, /gm: Boolean\(gmEmail && signup\.email === gmEmail\)/);
+    const scheduler = fs.readFileSync(path.join(__dirname, "..", "src", "scheduler.jsx"), "utf8");
+    assert.match(scheduler, /\$\{person\.gm \? " is-gm" : ""\}/);
+  });
+
+  it("token hover injects (GM) on the sitting GM handle", () => {
+    const scheduler = fs.readFileSync(path.join(__dirname, "..", "src", "scheduler.jsx"), "utf8");
+    assert.match(scheduler, /function handleTitle\(person\)/);
+    assert.match(scheduler, /person\.gm \? `\$\{handle\} \(GM\)` : handle/);
+    assert.match(scheduler, /title=\{handleTitle\(person\)\}/);
+    assert.match(scheduler, /title=\{handleTitle\(mine\)\}/);
+  });
+
+  it("lets admin reassign the single GM field by handle", () => {
+    assert.match(source, /url\.pathname === "\/api\/admin\/assign-gm"/, "admin assign route should exist");
+    assert.match(source, /async function assignGm\(\{ handle \} = \{\}\) \{[\s\S]*?adventure\.gm = target\.email/, "assign writes the one GM field");
+    assert.doesNotMatch(
+      source.slice(source.indexOf("async function assignGm"), source.indexOf("function slotReadyToPlay")),
+      /Only the GM can transfer/,
+      "admin assign must not require the sitting GM"
+    );
+    assert.match(
+      extract("yesEmails"),
+      /gm: normalizeEmail\(signup\.email\) === gm/,
+      "yes-email rows should mark the sitting GM"
+    );
+    const admin = fs.readFileSync(path.join(__dirname, "..", "admin.js"), "utf8");
+    assert.match(admin, /Assign GM role/);
+    assert.match(admin, /\/api\/admin\/assign-gm/);
+  });
+
   it("never exposes player emails to non-GM callers", () => {
     assert.match(
       source,

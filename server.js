@@ -197,6 +197,22 @@ async function transferGm({ email, handle } = {}) {
   return { ok: true, gmHandle: target.handle };
 }
 
+// Admin may point the single GM field at any yes-listed handle. Writing `gm`
+// unassigns whoever held it before; there is never more than one GM.
+async function assignGm({ handle } = {}) {
+  const wanted = normalizeHandle(handle);
+  if (!wanted) throw new Error("Pick who should take over.");
+  const adventure = await liveAdventure();
+  const target = (adventure.signups || []).find((signup) => signup.handle === wanted);
+  if (!target?.email || !Object.values(target.votes || {}).includes("yes")) {
+    throw new Error("That player is not available to take the GM role.");
+  }
+  adventure.gm = target.email;
+  adventure.updatedAt = new Date().toISOString();
+  await writeAdventure(adventure);
+  return { ok: true, gmHandle: target.handle, ...(await adminYesMail()) };
+}
+
 function slotReadyToPlay(adventure, time, desired) {
   const timeId = time?.id;
   const yes = (adventure.signups || []).filter((signup) => signup.votes?.[timeId] === "yes");
@@ -392,11 +408,12 @@ async function handleApi(req, res) {
 
   if (req.method === "GET" && url.pathname === "/api/player-hook") {
     try {
-      const { playerHookUrl } = await sessionLinks();
+      const adventure = await liveAdventure();
       const requested = sanitizeHttpUrl(url.searchParams.get("u"));
-      const html = await playerHookPreviewHtml(requested || playerHookUrl, {
+      const html = await playerHookPreviewHtml(requested || adventure.playerHookUrl, {
         parchment: url.searchParams.get("parchment") !== "0",
-        theme: url.searchParams.get("theme") === "dark" ? "dark" : "light"
+        theme: url.searchParams.get("theme") === "dark" ? "dark" : "light",
+        fallbackText: adventure.playerHookText
       });
       res.writeHead(200, {
         "content-type": "text/html; charset=utf-8",
@@ -787,6 +804,17 @@ async function handleApi(req, res) {
   if (req.method === "GET" && url.pathname === "/api/admin/yes-emails") {
     if (!requireAdmin(req, res)) return;
     sendJson(res, 200, await adminYesMail());
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/admin/assign-gm") {
+    if (!requireAdmin(req, res)) return;
+    const body = await readBody(req);
+    try {
+      sendJson(res, 200, await assignGm(body));
+    } catch (error) {
+      sendJson(res, 400, { error: error.message });
+    }
     return;
   }
 
@@ -1272,10 +1300,64 @@ function sanitizeHttpUrl(value) {
   }
 }
 
+function fetchUrlCandidates(url) {
+  const out = [];
+  const seen = new Set();
+  function add(value) {
+    const next = String(value || "");
+    if (!next || seen.has(next)) return;
+    seen.add(next);
+    out.push(next);
+  }
+  add(url);
+  try {
+    const parsed = new URL(url);
+    const port = parsed.port || (parsed.protocol === "https:" ? "443" : "80");
+    const loopback = parsed.hostname === "::1" || parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost";
+    // Cursor/VS Code can forward 127.0.0.1:3101 to production. Local AMBA
+    // listens on [::1]:3101, so prefer that and do not tunnel IPv4:3101.
+    if (loopback && port === "3101") {
+      parsed.hostname = "::1";
+      add(parsed.toString());
+      return out;
+    }
+    if (parsed.hostname === "::1") {
+      parsed.hostname = "127.0.0.1";
+      add(parsed.toString());
+    } else if (parsed.hostname === "127.0.0.1") {
+      parsed.hostname = "::1";
+      add(parsed.toString());
+    } else if (parsed.hostname === "localhost") {
+      parsed.hostname = "127.0.0.1";
+      add(parsed.toString());
+      parsed.hostname = "::1";
+      add(parsed.toString());
+    }
+  } catch {
+    /* keep the original URL */
+  }
+  return out;
+}
+
+function escapeHookText(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function cachedHookHtml(text) {
+  const fallback = String(text || "").trim();
+  if (!fallback) return "";
+  return `<p>${escapeHookText(fallback).replace(/\n/g, "<br>")}</p>`;
+}
+
 async function playerHookPreviewHtml(hookUrl, options = {}) {
   const url = sanitizeHttpUrl(hookUrl);
+  const cached = cachedHookHtml(options.fallbackText);
   if (!url) {
-    return hookPreviewDocument("<p>No player hook URL is saved yet.</p>", "", options);
+    return hookPreviewDocument(cached || "<p>No player hook URL is saved yet.</p>", "", options);
   }
   try {
     const page = await fetchPageHtml(url);
@@ -1285,6 +1367,7 @@ async function playerHookPreviewHtml(hookUrl, options = {}) {
       || "<p>Could not find the handout HTML on that page.</p>";
     return hookPreviewDocument(rewriteHookUrls(body, url), styles, options);
   } catch (error) {
+    if (cached) return hookPreviewDocument(cached, "", options);
     return hookPreviewDocument(`<p>Could not load the player hook (${error.message}).</p>`, "", options);
   }
 }
@@ -1436,13 +1519,24 @@ function syndicationFromHook(hookUrl) {
 }
 
 async function fetchPageHtml(url) {
-  const response = await fetch(url, {
-    redirect: "follow",
-    headers: { accept: "text/html", "user-agent": "amba-test-hook-preview" },
-    signal: AbortSignal.timeout(12000)
-  });
-  if (!response.ok) throw new Error(`Could not load page (${response.status})`);
-  return response.text();
+  let lastError = new Error("Could not load page");
+  for (const candidate of fetchUrlCandidates(url)) {
+    try {
+      const response = await fetch(candidate, {
+        redirect: "follow",
+        headers: { accept: "text/html", "user-agent": "amba-test-hook-preview" },
+        signal: AbortSignal.timeout(12000)
+      });
+      if (!response.ok) {
+        lastError = new Error(`Could not load page (${response.status})`);
+        continue;
+      }
+      return response.text();
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
 }
 
 function htmlToPlain(html) {
@@ -3337,7 +3431,9 @@ function passwordsMatch(given, expected) {
 }
 
 async function yesEmails() {
-  const signups = (await liveAdventure()).signups || [];
+  const adventure = await liveAdventure();
+  const gm = adventureGm(adventure);
+  const signups = adventure.signups || [];
   const seen = new Set();
   const emails = [];
   for (const signup of signups) {
@@ -3346,7 +3442,8 @@ async function yesEmails() {
     seen.add(signup.email);
     emails.push({
       email: signup.email,
-      handle: signup.handle || ""
+      handle: signup.handle || "",
+      gm: normalizeEmail(signup.email) === gm
     });
   }
   emails.sort((a, b) => a.handle.localeCompare(b.handle) || a.email.localeCompare(b.email));
