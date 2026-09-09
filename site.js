@@ -404,6 +404,10 @@ function wireEvents() {
   });
   document.querySelector("#loginForm")?.addEventListener("submit", login);
   document.querySelector("#rollHandles")?.addEventListener("click", rollHandleOptions);
+  document.querySelector("#handleSource")?.addEventListener("change", () => {
+    const fieldset = document.querySelector("#handleChoices");
+    if (fieldset && !fieldset.hidden) rollHandleOptions();
+  });
   window.__ambaJoinBound = true;
   window.addEventListener("amba-join-in", joinTheTest);
   window.addEventListener("amba-open-admin", () => {
@@ -461,6 +465,23 @@ function wireEvents() {
   });
 
   deleteAccount?.addEventListener("click", deleteProfile);
+  document.querySelector("#rerollHandle")?.addEventListener("click", startRerollHandle);
+  document.querySelector("#rerollHandleAgain")?.addEventListener("click", () => {
+    rollRerollHandleOptions().catch((error) => {
+      const note = document.querySelector("#rerollHandleNote");
+      if (note) note.textContent = error.message || "Could not roll new handles.";
+    });
+  });
+  document.querySelector("#rerollHandleForm")?.addEventListener("submit", submitRerollHandle);
+  document.querySelector("#rerollHandleForm")?.addEventListener("change", (event) => {
+    if (event.target?.name === "rerollHandleSource") {
+      rollRerollHandleOptions().catch(() => {});
+    }
+  });
+  document.querySelector("#closeRerollHandle")?.addEventListener("click", closeRerollHandleModal);
+  document.querySelector("#rerollHandleModal")?.addEventListener("click", (event) => {
+    if (event.target?.id === "rerollHandleModal") closeRerollHandleModal();
+  });
   window.addEventListener("resize", placeSettingsMenu);
   window.addEventListener("scroll", placeSettingsMenu, true);
   document.addEventListener("click", (event) => {
@@ -715,7 +736,8 @@ function resetLoginHandlePicker() {
 }
 
 async function rollHandleOptions() {
-  const result = await api("/api/handle-options");
+  const source = document.querySelector("#loginForm")?.querySelector('input[name="handleSource"]:checked')?.value || "list";
+  const result = await api(`/api/handle-options?source=${encodeURIComponent(source)}`);
   showHandleChoices(result.handles);
 }
 
@@ -773,6 +795,102 @@ async function saveFeedback(event) {
   });
   feedbackForm.reset();
   feedbackNote.textContent = "Note saved.";
+}
+
+function showRerollHandleChoices(handles) {
+  const list = document.querySelector("#rerollHandleChoiceList");
+  if (!list) return;
+  const options = (handles || []).filter(Boolean).slice(0, 4);
+  list.innerHTML = options.map((handle, index) => {
+    const safe = escapeHandleLabel(handle);
+    return `<label><input type="radio" name="rerollHandle" value="${safe}"${index === 0 ? " checked" : ""}> ${safe}</label>`;
+  }).join("");
+}
+
+async function rollRerollHandleOptions() {
+  const source = document.querySelector("#rerollHandleForm")?.querySelector('input[name="rerollHandleSource"]:checked')?.value || "list";
+  const email = appState.user?.email || "";
+  const query = new URLSearchParams({ source });
+  if (email) query.set("email", email);
+  const result = await api(`/api/handle-options?${query}`);
+  showRerollHandleChoices(result.handles);
+}
+
+function closeRerollHandleModal() {
+  const modal = document.querySelector("#rerollHandleModal");
+  const list = document.querySelector("#rerollHandleChoiceList");
+  const note = document.querySelector("#rerollHandleNote");
+  if (list) list.innerHTML = "";
+  if (note) note.textContent = "";
+  if (modal?.open) modal.close();
+}
+
+async function startRerollHandle() {
+  const note = document.querySelector("#settingsHandleNote");
+  const oldHandle = appState.user?.handle || "";
+  if (!appState.user?.email || !oldHandle) {
+    if (note) note.textContent = "Log in to reroll your handle.";
+    return;
+  }
+  const ok = await askConfirm(
+    `Switch your public handle? Your current handle is ${oldHandle}. Next you can roll new names until you like one.`,
+    { title: "Reroll handle?", ok: "Pick a new handle" }
+  );
+  if (!ok) return;
+  const oldLabel = document.querySelector("#rerollOldHandle");
+  if (oldLabel) oldLabel.textContent = oldHandle;
+  if (note) note.textContent = "";
+  const modal = document.querySelector("#rerollHandleModal");
+  try {
+    await rollRerollHandleOptions();
+    if (modal && !modal.open) modal.showModal();
+  } catch (error) {
+    if (note) note.textContent = error.message || "Could not roll new handles.";
+  }
+}
+
+async function submitRerollHandle(event) {
+  event.preventDefault();
+  const form = event.currentTarget || document.querySelector("#rerollHandleForm");
+  const note = document.querySelector("#rerollHandleNote");
+  const oldHandle = appState.user?.handle || "";
+  const data = Object.fromEntries(new FormData(form).entries());
+  const nextHandle = String(data.rerollHandle || "").trim();
+  if (!nextHandle) {
+    if (note) note.textContent = "Pick a handle first.";
+    return;
+  }
+  const confirmed = await askConfirm(
+    `Switch from ${oldHandle} to ${nextHandle}? This is the name other people will see on this signup sheet.`,
+    { title: "Use this handle?", ok: "Switch handle" }
+  );
+  if (!confirmed) return;
+  try {
+    const result = await api("/api/signup", {
+      method: "POST",
+      body: {
+        email: appState.user.email,
+        handle: nextHandle,
+        handleSource: data.rerollHandleSource,
+        discord: appState.user.discord,
+        discordUserId: appState.user.discordUserId,
+        redditUserId: appState.user.redditUserId,
+        preferredComm: appState.user.preferredComm,
+        tokenColor: appState.user.tokenColor,
+        timezone: appState.user.timezone,
+        characterStatus: appState.user.characterStatus
+      }
+    });
+    appState.user = result.user;
+    closeRerollHandleModal();
+    const settingsNote = document.querySelector("#settingsHandleNote");
+    if (settingsNote) settingsNote.textContent = `Handle switched from ${oldHandle} to ${result.user.handle}.`;
+    const current = document.querySelector("#settingsCurrentHandle");
+    if (current) current.textContent = result.user.handle || "—";
+    await loadState();
+  } catch (error) {
+    if (note) note.textContent = error.message || "Could not switch handle.";
+  }
 }
 
 async function deleteProfile() {
@@ -988,6 +1106,10 @@ function openSettingsModal() {
   showSettingsTab("general");
   const deleteNote = document.querySelector("#settingsDeleteNote");
   if (deleteNote) deleteNote.textContent = "";
+  const handleNote = document.querySelector("#settingsHandleNote");
+  if (handleNote) handleNote.textContent = "";
+  const currentHandle = document.querySelector("#settingsCurrentHandle");
+  if (currentHandle) currentHandle.textContent = appState.user.handle || "—";
   if (settingsForm) {
     const emailField = settingsForm.querySelector('input[name="email"]');
     if (emailField) emailField.value = appState.user.email || "";

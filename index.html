@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>An AMBA Adventure</title>
-  <meta name="description" content="A new way for GMs to play adventures with AMBA, Wanderer's Guide, Owlbear, and live combat.">
+  <meta name="description" content="An indie way for GMs to play adventures with AMBA, Wanderer's Guide, Owlbear, and live combat.">
   <link rel="stylesheet" href="styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,12 +23,15 @@
         <span class="hosted-by-label">Hosted by <strong id="hostedByName"></strong></span>
       </a>
       <div class="hero-copy">
-        <p class="eyebrow">A new way for GMs to play adventures</p>
+        <p class="eyebrow">An indie way for GMs to play adventures</p>
         <h1 id="adventureTitle">An AMBA Adventure</h1>
         <p class="hero-subtitle" id="adventureSubtitle" hidden></p>
         <p class="lede">Thank you for checking out our adventure. Stay a minute: read the player hook, mark when you can play, and Join in so we can save you a seat. Want the table setup? Session, Videos, and the rest of the guide are just below.</p>
       </div>
-      <button class="button primary" id="joinTest" type="button">Join in</button>
+      <div class="hero-aside">
+        <button class="button primary" id="joinTest" type="button">Join in</button>
+        <div id="live-countdown"></div>
+      </div>
     </section>
 
     <section id="status" class="band">
@@ -36,6 +39,10 @@
       <div class="band-heading">
         <h2>Schedule at a glance</h2>
         <div class="band-heading-actions">
+          <span class="gm-key" title="Dotted gold ring marks the GM">
+            <span class="gm-key-ring" aria-hidden="true"></span>
+            GM
+          </span>
           <div id="schedule-view-toggle"></div>
           <a class="jump-link" href="#times">sign up / add time</a>
         </div>

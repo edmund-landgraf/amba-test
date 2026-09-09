@@ -553,13 +553,21 @@ async function handleApi(req, res) {
 
   if (req.method === "POST" && url.pathname === "/api/signup") {
     const body = await readBody(req);
-    const user = await upsertUser(body);
-    sendJson(res, 200, { user: publicUser(user, await liveAdventure()) });
+    try {
+      const user = await upsertUser(body);
+      sendJson(res, 200, { user: publicUser(user, await liveAdventure()) });
+    } catch (error) {
+      sendJson(res, 400, { error: error.message });
+    }
     return;
   }
 
   if (req.method === "GET" && url.pathname === "/api/handle-options") {
-    sendJson(res, 200, { handles: await suggestHandles(4) });
+    sendJson(res, 200, {
+      handles: await suggestHandles(4, url.searchParams.get("source"), {
+        exceptEmail: url.searchParams.get("email")
+      })
+    });
     return;
   }
 
@@ -1169,10 +1177,20 @@ async function loginWithEmail(data) {
   const handle = normalizeHandle(data.handle);
   const users = await readJson("users");
   if (!handle) {
-    return { needsHandle: true, handles: await suggestHandles(4) };
+    return { needsHandle: true, handles: await suggestHandles(4, data.handleSource) };
   }
   if (users.some((user) => user.handle === handle)) {
     throw new Error("That handle was just taken. Pick another.");
+  }
+  const sheet = await liveAdventure();
+  const letters = handleKeylist.handleInitials(handle);
+  if (
+    letters
+    && (sheet.signups || []).some((signup) => (
+      signup.email !== email && handleKeylist.handleInitials(signup.handle) === letters
+    ))
+  ) {
+    throw new Error("That two-letter token is already on this signup sheet. Pick another.");
   }
 
   const user = await upsertUser({ email, handle, discord: data.discord });
@@ -1187,7 +1205,31 @@ async function upsertUser(data) {
   const existing = users.find((user) => user.email === email);
   const previous = existing?.handle || "";
   const keylist = await loadHandleKeylist(users);
-  const handle = normalizeHandle(data.handle) || existing?.handle || handleKeylist.createHandle(keylist, users);
+  if (!normalizeHandle(data.handle) && !existing?.handle) {
+    await handleKeylist.ensurePools(data.handleSource);
+  }
+  const handle = normalizeHandle(data.handle)
+    || existing?.handle
+    || handleKeylist.createHandle(keylist, users, {
+      source: data.handleSource,
+      initials: await sheetInitialsExcept(email)
+    });
+
+  if (existing && handle && handle !== previous) {
+    if (users.some((user) => user.email !== email && user.handle === handle)) {
+      throw new Error("That handle was just taken. Pick another.");
+    }
+    const letters = handleKeylist.handleInitials(handle);
+    const sheet = await liveAdventure();
+    if (
+      letters
+      && (sheet.signups || []).some((signup) => (
+        signup.email !== email && handleKeylist.handleInitials(signup.handle) === letters
+      ))
+    ) {
+      throw new Error("That two-letter token is already on this signup sheet. Pick another.");
+    }
+  }
 
   if (existing) {
     existing.handle = handle;
@@ -1205,7 +1247,10 @@ async function upsertUser(data) {
     existing.role = "admin";
     existing.updatedAt = new Date().toISOString();
     await writeJson("users", users);
-    if (handle && handle !== previous) await rememberHandleParts(handle);
+    if (handle && handle !== previous) {
+      await rememberHandleParts(handle);
+      await renameHandleOnAdventures(email, handle);
+    }
     if (data.characterStatus !== undefined) {
       await upsertAdventureSignup(existing, { characterStatus: existing.characterStatus });
     }
@@ -3391,10 +3436,52 @@ async function loadHandleKeylist(users) {
   return keylist;
 }
 
-async function suggestHandles(count = 4) {
+async function sheetInitialsExcept(exceptEmail) {
+  const adventure = await liveAdventure();
+  const skip = normalizeEmail(exceptEmail);
+  return new Set(
+    (adventure.signups || [])
+      .filter((signup) => signup.email !== skip)
+      .map((signup) => handleKeylist.handleInitials(signup.handle))
+      .filter(Boolean)
+  );
+}
+
+async function renameHandleOnAdventures(email, handle) {
+  const normalized = normalizeEmail(email);
+  const nextHandle = handleKeylist.normalizeHandle(handle);
+  if (!normalized || !nextHandle) return;
+  const names = await fs.readdir(adventuresDir);
+  for (const name of names) {
+    if (!name.endsWith(".json")) continue;
+    const adventure = JSON.parse(await fs.readFile(path.join(adventuresDir, name), "utf8"));
+    let changed = false;
+    for (const signup of adventure.signups || []) {
+      if (signup.email !== normalized) continue;
+      signup.handle = nextHandle;
+      changed = true;
+    }
+    if (changed) await writeAdventure(adventure);
+  }
+  const questionnaireData = await readQuestionnaire();
+  let qChanged = false;
+  for (const response of questionnaireData.responses || []) {
+    if (response.email !== normalized) continue;
+    response.handle = nextHandle;
+    qChanged = true;
+  }
+  if (qChanged) await writeQuestionnaire(questionnaireData);
+}
+
+async function suggestHandles(count = 4, source, { exceptEmail } = {}) {
+  const mode = handleKeylist.normalizeSource(source);
+  await handleKeylist.ensurePools(mode);
   const users = await readJson("users");
   const keylist = await loadHandleKeylist(users);
-  return handleKeylist.createHandles(keylist, users, count);
+  return handleKeylist.createHandles(keylist, users, count, {
+    source: mode,
+    initials: await sheetInitialsExcept(exceptEmail)
+  });
 }
 
 async function rememberHandleParts(handle) {

@@ -57,7 +57,7 @@ describe("new handle picker", () => {
     });
     try {
       await waitForServer(`${origin}/`);
-      const options = await request(`${origin}/api/handle-options`);
+      const options = await request(`${origin}/api/handle-options?source=list`);
       assert.equal(options.status, 200);
       assert.equal(options.data.handles.length, 4);
       assert.equal(new Set(options.data.handles).size, 4);
@@ -65,7 +65,7 @@ describe("new handle picker", () => {
       const email = `handle-picker-${Date.now()}@example.com`;
       const first = await request(`${origin}/api/login`, {
         method: "POST",
-        body: { email }
+        body: { email, handleSource: "list" }
       });
       assert.equal(first.status, 200);
       assert.equal(first.data.needsHandle, true);
@@ -73,15 +73,20 @@ describe("new handle picker", () => {
       assert.equal(new Set(first.data.handles).size, 4);
       assert.equal(first.data.user, undefined);
 
-      const rolled = await request(`${origin}/api/handle-options`);
+      const rolled = await request(`${origin}/api/handle-options?source=list`);
       assert.equal(rolled.data.handles.length, 4);
 
       const header = fs.readFileSync(path.join(root, "header.js"), "utf8");
       assert.match(header, /id="handleChoices"/);
+      assert.match(header, /name="handleSource"/);
+      assert.match(header, /value="list"/);
+      assert.match(header, /value="datamuse"/);
       assert.match(header, /role="radiogroup"/);
       assert.match(header, /id="rollHandles"/);
       assert.match(header, /id="loginDiscord"/);
-      assert.match(header, /id="discordNudgeModal"/);
+      assert.match(header, /id="rerollHandleModal"/);
+      assert.match(header, /id="rerollHandle"/);
+      assert.match(header, /id="rerollOldHandle"/);
 
       const claimed = await request(`${origin}/api/login`, {
         method: "POST",
@@ -90,6 +95,18 @@ describe("new handle picker", () => {
       assert.equal(claimed.status, 200);
       assert.equal(claimed.data.user.handle, first.data.handles[0]);
       assert.equal(claimed.data.user.discord, "MerryAnchor");
+
+      const rerolled = await request(`${origin}/api/handle-options?source=list&email=${encodeURIComponent(email)}`);
+      assert.equal(rerolled.status, 200);
+      const nextHandle = rerolled.data.handles.find((handle) => handle !== claimed.data.user.handle);
+      assert.ok(nextHandle);
+      const switched = await request(`${origin}/api/signup`, {
+        method: "POST",
+        body: { email, handle: nextHandle }
+      });
+      assert.equal(switched.status, 200);
+      assert.equal(switched.data.user.handle, nextHandle);
+      assert.notEqual(switched.data.user.handle, first.data.handles[0]);
     } finally {
       child.kill();
     }

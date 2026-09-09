@@ -597,7 +597,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         when ? `We have critical mass for ${when}.` : "We have critical mass for a sit-down.",
         handles.length ? `Yes so far: ${handles.join(", ")}.` : "",
         "",
-        "A new way for GMs to play adventures: sheets in WG, the map in Owlbear, GM prep in AMBA. Bring two public characters; on Discord we'll pick four of eight to play.",
+        "An indie way for GMs to play adventures: sheets in WG, the map in Owlbear, GM prep in AMBA. Bring two public characters; on Discord we'll pick four of eight to play.",
         "",
         packet ? `Player packet: ${packet}` : "",
         `Signup: ${origin}/`,

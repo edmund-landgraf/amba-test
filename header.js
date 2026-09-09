@@ -138,6 +138,13 @@
       <p class="modal-copy">No password. Enter your email. New addresses pick from four handles; the same email later restores the handle already tied to it. This site does not ask for AMBA, WG, Owlbear, Discord, or API-key credentials.</p>
       <form id="loginForm" method="post">
         <label>Email <input required type="email" name="email" autocomplete="email" placeholder="you@example.com"></label>
+        <fieldset class="handle-source" id="handleSource">
+          <legend>Handle words</legend>
+          <div class="handle-source-list" role="radiogroup" aria-label="Handle word source">
+            <label><input type="radio" name="handleSource" value="list" checked> Fixed list</label>
+            <label><input type="radio" name="handleSource" value="datamuse"> Datamuse</label>
+          </div>
+        </fieldset>
         <fieldset class="handle-choice" id="handleChoices" hidden>
           <legend>Pick a handle</legend>
           <div id="handleChoiceList" class="handle-choice-list" role="radiogroup" aria-label="Handle options"></div>
@@ -217,6 +224,11 @@
         <button type="button" class="settings-tab" data-settings-tab="export">Export</button>
       </nav>
       <section class="settings-tab-panel" id="settingsPanelGeneral" data-settings-panel="general">
+        <p class="modal-copy">Your public name on this signup sheet is <strong id="settingsCurrentHandle">—</strong>.</p>
+        <p class="form-actions">
+          <button class="button secondary" id="rerollHandle" type="button">Reroll handle</button>
+        </p>
+        <p class="form-note" id="settingsHandleNote"></p>
         <p class="modal-copy">Delete your profile if you want to leave AMBA Test. This cannot be undone.</p>
         <p class="form-note">All past data is deleted: your email, handle, and every other saved detail. Download a backup from Export first if you want to keep anything. If you rejoin later, you will get a different handle.</p>
         <p class="form-actions">
@@ -254,7 +266,30 @@
         <p class="form-note" id="settingsBackupNote"></p>
       </section>
     </dialog>
-    <dialog class="modal small-modal" id="discordNudgeModal" aria-labelledby="discordNudgeTitle">
+    <dialog class="modal" id="rerollHandleModal" aria-labelledby="rerollHandleTitle">
+      <button class="modal-close" id="closeRerollHandle" type="button" aria-label="Close handle reroll">x</button>
+      <p class="eyebrow">Handle</p>
+      <h2 id="rerollHandleTitle">Pick a new handle</h2>
+      <p class="modal-copy">Current handle: <strong id="rerollOldHandle"></strong>. Roll until you like one, then confirm the switch.</p>
+      <form id="rerollHandleForm" method="post">
+        <fieldset class="handle-source">
+          <legend>Handle words</legend>
+          <div class="handle-source-list" role="radiogroup" aria-label="Handle word source">
+            <label><input type="radio" name="rerollHandleSource" value="list" checked> Fixed list</label>
+            <label><input type="radio" name="rerollHandleSource" value="datamuse"> Datamuse</label>
+          </div>
+        </fieldset>
+        <fieldset class="handle-choice">
+          <legend>New handle</legend>
+          <div id="rerollHandleChoiceList" class="handle-choice-list" role="radiogroup" aria-label="New handle options"></div>
+        </fieldset>
+        <p class="form-actions">
+          <button class="button secondary" id="rerollHandleAgain" type="button">Roll again</button>
+          <button class="button primary" id="rerollHandleUse" type="submit">Use this handle</button>
+        </p>
+        <p class="form-note" id="rerollHandleNote"></p>
+      </form>
+    </dialog>
       <p class="eyebrow">Discord</p>
       <h2 id="discordNudgeTitle">A Discord name helps a lot</h2>
       <p class="modal-copy">You can skip this if you want. It is just much easier to find you at the table when we have your Discord username. No pressure — we would only really appreciate it.</p>

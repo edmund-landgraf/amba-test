@@ -15,6 +15,7 @@ import {
   tokenIndexFor
 } from "../lib/token-colors.mjs";
 import { resolveSessionEmail } from "../lib/session-email.mjs";
+import { countdownParts, formatCountdown, pickNextLiveStart } from "../lib/live-countdown.mjs";
 
 const PLAYER_HOOK_PARCHMENT_KEY = "amba-player-hook-parchment";
 
@@ -206,6 +207,31 @@ function SessionLabel({ slot, statusLabel, scheduledToPlay }) {
         </span>
       ) : null}
     </span>
+  );
+}
+
+function LiveSessionCountdown({ rows }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  const startMs = pickNextLiveStart(rows, now);
+  if (startMs == null) return null;
+  const remainingMs = startMs - now;
+  const remaining = formatCountdown(remainingMs);
+  const lines = countdownParts(remainingMs);
+  return (
+    <div className="live-countdown" role="timer" aria-label={`Live session in ${remaining}`}>
+      <p className="live-countdown-kicker">Live in</p>
+      <ul>
+        {lines.map((line, index) => (
+          <li key={index}>
+            <strong>{line}</strong>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -1120,6 +1146,7 @@ function TimeGrid() {
     : "No recruiting sessions yet.";
 
   const statusMount = typeof document !== "undefined" ? document.querySelector("#schedule-status") : null;
+  const countdownMount = typeof document !== "undefined" ? document.querySelector("#live-countdown") : null;
   const viewToggleMount = typeof document !== "undefined" ? document.querySelector("#schedule-view-toggle") : null;
   const hookMount = typeof document !== "undefined" ? document.querySelector("#player-hook") : null;
   const hookParchmentMount = typeof document !== "undefined" ? document.querySelector("#player-hook-parchment") : null;
@@ -1388,6 +1415,7 @@ function TimeGrid() {
     <section className="scheduler">
       {zoneNote ? <p className="form-note">{zoneNote}</p> : null}
       {viewToggleMount ? createPortal(viewToggle("glanceScheduleView"), viewToggleMount) : null}
+      {countdownMount ? createPortal(<LiveSessionCountdown rows={rows} />, countdownMount) : null}
       {statusMount ? createPortal(statusGrid, statusMount) : statusGrid}
       {hookMount && hookBlock ? createPortal(hookBlock, hookMount) : hookBlock}
       {hookParchmentMount && hookBlock ? createPortal(parchmentToggle, hookParchmentMount) : null}

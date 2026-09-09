@@ -365,12 +365,22 @@ main:has(.doc) .lede {
   margin: 10px 0 0;
 }
 
+.hero-aside {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  flex: 0 0 auto;
+  min-width: 8.75rem;
+}
+
 .hero .button {
   position: relative;
   z-index: 6;
   margin-top: 2px;
   flex: 0 0 auto;
   pointer-events: auto;
+  align-self: flex-end;
 }
 
 .hosted-by {
@@ -677,12 +687,37 @@ h3 {
   margin: 0 0 8px;
 }
 
+.gm-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--gold);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+
+.gm-key-ring {
+  width: 11px;
+  height: 11px;
+  border: 1.5px dotted var(--gold);
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
 .band-heading-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 14px;
   margin-left: auto;
+}
+
+.band-heading-actions .schedule-view-toggle {
+  margin: 0;
 }
 
 .jump-link {
@@ -2016,6 +2051,42 @@ dialog.markdown-popout-dialog::backdrop {
   color: var(--gold);
 }
 
+.live-countdown {
+  margin: 0;
+  padding: 7px 10px 8px;
+  border: 2px solid var(--gold);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--gold) 14%, transparent);
+  text-align: center;
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+.live-countdown-kicker {
+  margin: 0 0 4px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.72em;
+  color: var(--muted);
+}
+
+.live-countdown ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.live-countdown li {
+  margin: 0;
+}
+
+.live-countdown strong {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
 .status-table tbody th .session-cell {
   height: auto;
 }
@@ -2238,6 +2309,37 @@ pre {
 }
 
 .comm-choice input[type="radio"] {
+  width: auto;
+  margin: 0;
+  padding: 0;
+  box-shadow: none;
+  accent-color: var(--accent-strong);
+}
+
+.handle-source {
+  margin: 12px 0 0;
+  padding: 12px;
+}
+
+.handle-source legend {
+  padding: 0 4px;
+}
+
+.handle-source-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+}
+
+.handle-source-list label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.handle-source-list input[type="radio"] {
   width: auto;
   margin: 0;
   padding: 0;
@@ -3506,6 +3608,11 @@ dialog.modal.admin-shell > .modal-close {
 
 [data-theme="dark"] .session-status.is-live {
   color: #e8c56a;
+}
+
+[data-theme="dark"] .live-countdown {
+  border-color: #e8c56a;
+  background: color-mix(in srgb, #e8c56a 16%, transparent);
 }
 
 [data-theme="dark"] .pcs-glance thead th:nth-child(n) {
