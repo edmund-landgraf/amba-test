@@ -979,6 +979,7 @@ function TimeGrid() {
       field: "yes",
       flex: 1,
       minWidth: 140,
+      autoHeight: true,
       sortable: true,
       comparator: (a, b) => (a?.length || 0) - (b?.length || 0),
       cellRenderer: (params) => (
@@ -996,6 +997,7 @@ function TimeGrid() {
       field: "maybe",
       flex: 1,
       minWidth: 140,
+      autoHeight: true,
       sortable: true,
       comparator: (a, b) => (a?.length || 0) - (b?.length || 0),
       cellRenderer: (params) => (
@@ -1013,6 +1015,7 @@ function TimeGrid() {
       field: "no",
       flex: 1,
       minWidth: 140,
+      autoHeight: true,
       sortable: true,
       comparator: (a, b) => (a?.length || 0) - (b?.length || 0),
       cellRenderer: (params) => (
