@@ -903,8 +903,7 @@ function TimeGrid() {
     const timeId = row?.timeId || row?.id;
     if (!timeId) return;
     const current = rows.find((item) => item.id === timeId) || row;
-    const showingLive = Boolean(current.scheduledToPlay);
-    const nextOn = !showingLive;
+    const nextOn = !Boolean(current.liveOverride);
     setMenu(null);
     loadGen.current += 1;
     setRows((items) => items.map((item) => {
@@ -912,24 +911,24 @@ function TimeGrid() {
       return {
         ...item,
         liveOverride: nextOn,
-        liveBlocked: !nextOn,
+        liveBlocked: false,
         scheduledToPlay: nextOn,
         statusLabel: nextOn ? "Live, scheduled to play" : "Not enough players"
       };
     }));
     try {
-      await api("/api/times/update", {
+      await api("/api/times/live-override", {
         method: "POST",
         body: {
           email,
           timeId,
-          liveOverride: nextOn,
-          liveBlocked: !nextOn
+          liveOverride: nextOn
         }
       });
-      showToast(nextOn ? "Marked live, scheduled to play" : "Cleared live, scheduled to play");
+      showToast(nextOn ? "Live override on" : "Live override off");
+      await load(email, userZone);
     } catch (error) {
-      showToast(error.message || "Could not update live status");
+      showToast(error.message || "Could not update live override");
       await load(email, userZone);
     }
   }
@@ -1506,17 +1505,17 @@ function TimeGrid() {
             </button>
             <button
               type="button"
-              aria-pressed={Boolean(menu.row?.scheduledToPlay)}
-              title={menu.row?.scheduledToPlay
-                ? "Remove live, scheduled to play"
-                : "Mark this row live even without enough players"}
+              aria-pressed={Boolean(menu.liveOverride || menu.row?.liveOverride)}
+              title={menu.liveOverride || menu.row?.liveOverride
+                ? "Return this row to automatic live status"
+                : "Force this row live even without enough players"}
               onMouseDown={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation();
-                toggleLiveOverride(menu.row);
+                toggleLiveOverride(rows.find((item) => item.id === menu.timeId) || menu.row);
               }}
             >
-              {menu.row?.scheduledToPlay ? "Clear live, scheduled to play" : "Live, scheduled to play"}
+              {menu.liveOverride || menu.row?.liveOverride ? "Remove live override" : "Set live override"}
             </button>
             <button
               type="button"

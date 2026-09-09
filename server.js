@@ -24,6 +24,7 @@ const {
   mergePromote
 } = require("./lib/adventure-defaults");
 const backup = require("./lib/runtime-backup");
+const handleKeylist = require("./lib/handle-keylist");
 const questionnaire = require("./lib/questionnaire");
 const { provisionNewAdventure } = require("./lib/module-switch");
 const {
@@ -54,13 +55,15 @@ const discordGuildId = "1534196054944121074";
 const jsonFiles = {
   users: path.join(runtimeDir, "users.json"),
   feedback: path.join(runtimeDir, "feedback.json"),
-  questionnaire: path.join(runtimeDir, "questionnaire.json")
+  questionnaire: path.join(runtimeDir, "questionnaire.json"),
+  handleKeylist: path.join(runtimeDir, "handle-keylist.json")
 };
 
 const jsonDefaults = {
   users: [],
   feedback: [],
-  questionnaire: questionnaire.defaultQuestionnaire
+  questionnaire: questionnaire.defaultQuestionnaire,
+  handleKeylist: handleKeylist.emptyKeylist()
 };
 
 const PAST_SESSION_LOCK_MS = 15 * 60 * 1000;
@@ -333,16 +336,6 @@ const mime = {
   ".zip": "application/zip"
 };
 
-const adjectives = [
-  "Brisk", "Copper", "Clever", "Dusky", "Gentle", "Hidden", "Lucky", "Merry",
-  "Nimble", "Quiet", "Rapid", "Silver", "Slippery", "Sturdy", "Velvet", "Witty"
-];
-
-const nouns = [
-  "Anchor", "Banner", "Beacon", "Beetle", "Candle", "Comet", "Compass", "Ember",
-  "Lantern", "Maple", "Orbit", "Pebble", "Quill", "Riddle", "Signal", "Thimble"
-];
-
 const server = http.createServer(async (req, res) => {
   try {
     if (req.url.startsWith("/api/")) {
@@ -549,8 +542,7 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "GET" && url.pathname === "/api/handle-options") {
-    const users = await readJson("users");
-    sendJson(res, 200, { handles: createHandles(users, 4) });
+    sendJson(res, 200, { handles: await suggestHandles(4) });
     return;
   }
 
@@ -721,6 +713,13 @@ async function handleApi(req, res) {
   if (req.method === "POST" && url.pathname === "/api/times") {
     const body = await readBody(req);
     const time = await addTime(body);
+    sendJson(res, 200, { time });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/times/live-override") {
+    const body = await readBody(req);
+    const time = await setTimeLiveOverride(body);
     sendJson(res, 200, { time });
     return;
   }
@@ -1142,7 +1141,7 @@ async function loginWithEmail(data) {
   const handle = normalizeHandle(data.handle);
   const users = await readJson("users");
   if (!handle) {
-    return { needsHandle: true, handles: createHandles(users, 4) };
+    return { needsHandle: true, handles: await suggestHandles(4) };
   }
   if (users.some((user) => user.handle === handle)) {
     throw new Error("That handle was just taken. Pick another.");
@@ -1158,7 +1157,9 @@ async function upsertUser(data) {
 
   const users = await readJson("users");
   const existing = users.find((user) => user.email === email);
-  const handle = normalizeHandle(data.handle) || existing?.handle || createHandle(users);
+  const previous = existing?.handle || "";
+  const keylist = await loadHandleKeylist(users);
+  const handle = normalizeHandle(data.handle) || existing?.handle || handleKeylist.createHandle(keylist, users);
 
   if (existing) {
     existing.handle = handle;
@@ -1176,6 +1177,7 @@ async function upsertUser(data) {
     existing.role = "admin";
     existing.updatedAt = new Date().toISOString();
     await writeJson("users", users);
+    if (handle && handle !== previous) await rememberHandleParts(handle);
     if (data.characterStatus !== undefined) {
       await upsertAdventureSignup(existing, { characterStatus: existing.characterStatus });
     }
@@ -1198,6 +1200,7 @@ async function upsertUser(data) {
   };
   users.push(user);
   await writeJson("users", users);
+  await rememberHandleParts(handle);
   if (data.characterStatus !== undefined) {
     await upsertAdventureSignup(user, { characterStatus: user.characterStatus });
   }
@@ -1831,6 +1834,29 @@ async function addTime(data) {
   };
 
   session.times.push(time);
+  await writeAdventure(session);
+  return time;
+}
+
+async function setTimeLiveOverride(data) {
+  const user = await findUserByEmail(data.email);
+  if (!user) throw new Error("login_required");
+
+  const timeId = String(data.timeId || "").trim();
+  if (!timeId) throw new Error("Time is required.");
+
+  const session = await liveAdventure();
+  const time = (session.times || []).find((item) => item.id === timeId);
+  if (!time) throw new Error("not_found");
+
+  if (data.liveOverride === true) {
+    time.liveOverride = true;
+    delete time.liveBlocked;
+  } else {
+    delete time.liveOverride;
+    delete time.liveBlocked;
+  }
+  time.updatedAt = new Date().toISOString();
   await writeAdventure(session);
   return time;
 }
@@ -3263,27 +3289,24 @@ async function redditDelete(thingId) {
   await redditForm("/api/del", { id: thingId });
 }
 
-function createHandle(users) {
-  for (let i = 0; i < 80; i += 1) {
-    const handle = `${pick(adjectives)}-${pick(nouns)}`;
-    if (!users.some((user) => user.handle === handle)) return handle;
-  }
-  return `${pick(adjectives)}-${pick(nouns)}-${crypto.randomInt(100, 999)}`;
+async function loadHandleKeylist(users) {
+  const keylist = handleKeylist.coerceKeylist(await readJson("handleKeylist"));
+  const rotation = keylist.rotation;
+  handleKeylist.seedFromUsers(keylist, users || []);
+  if (keylist.rotation !== rotation) await writeJson("handleKeylist", keylist);
+  return keylist;
 }
 
-function createHandles(users, count = 4) {
-  const batch = [];
-  const taken = [...(users || [])];
-  for (let i = 0; i < count; i += 1) {
-    const handle = createHandle(taken);
-    batch.push(handle);
-    taken.push({ handle });
-  }
-  return batch;
+async function suggestHandles(count = 4) {
+  const users = await readJson("users");
+  const keylist = await loadHandleKeylist(users);
+  return handleKeylist.createHandles(keylist, users, count);
 }
 
-function pick(items) {
-  return items[crypto.randomInt(0, items.length)];
+async function rememberHandleParts(handle) {
+  const keylist = handleKeylist.coerceKeylist(await readJson("handleKeylist"));
+  handleKeylist.recordHandle(keylist, handle);
+  await writeJson("handleKeylist", keylist);
 }
 
 function loadEnv() {
