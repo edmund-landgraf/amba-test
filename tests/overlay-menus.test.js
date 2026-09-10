@@ -55,4 +55,21 @@ describe("overlay menus", () => {
     assert.match(site, /function toggleSettingsMenu\(/);
     assert.match(site, /function placeSettingsMenu\(/);
   });
+
+  it("strips non-digits from the Discord user ID field", () => {
+    const header = read("header.js");
+    const site = read("site.js");
+    assert.match(header, /name="discordUserId"[^>]*pattern="\[0-9\]\*"/);
+    assert.match(site, /input\[name="discordUserId"\]/);
+    assert.equal(site.includes('.replace(/\\D/g, "")'), true);
+    assert.match(site, /discordUserId:\s*String\(data\.discordUserId \|\| ""\)\.replace\(\/\\D\/g,\s*""\)/);
+  });
+
+  it("keeps the Discord username nudge inside a dialog", () => {
+    const header = read("header.js");
+    assert.match(
+      header,
+      /<dialog[^>]*id="discordNudgeModal"[^>]*>[\s\S]*id="discordNudgeTitle"[\s\S]*<\/dialog>/
+    );
+  });
 });

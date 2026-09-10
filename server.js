@@ -3521,6 +3521,13 @@ async function yesEmails() {
   const adventure = await liveAdventure();
   const gm = adventureGm(adventure);
   const signups = adventure.signups || [];
+  const users = await readJson("users");
+  const discordByEmail = new Map(
+    (Array.isArray(users) ? users : []).map((user) => [
+      normalizeEmail(user.email),
+      String(user.discord || "").trim()
+    ])
+  );
   const seen = new Set();
   const emails = [];
   for (const signup of signups) {
@@ -3530,6 +3537,7 @@ async function yesEmails() {
     emails.push({
       email: signup.email,
       handle: signup.handle || "",
+      discord: String(signup.discord || discordByEmail.get(normalizeEmail(signup.email)) || "").trim(),
       gm: normalizeEmail(signup.email) === gm
     });
   }

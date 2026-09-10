@@ -465,7 +465,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
 
       const header = document.createElement("div");
       header.className = "email-row email-head";
-      header.innerHTML = "<span>Handle</span><span>Email</span><span></span>";
+      header.innerHTML = "<span>Handle</span><span>Email</span><span>Discord</span><span></span>";
       yesList.append(header);
 
       for (const person of people) {
@@ -482,6 +482,8 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
         }
         const email = document.createElement("span");
         email.textContent = person.email;
+        const discord = document.createElement("span");
+        discord.textContent = person.discord || "—";
         const remove = document.createElement("button");
         remove.className = "button danger";
         remove.type = "button";
@@ -491,7 +493,7 @@ window.mountAmbaAdmin = function mountAmbaAdmin(root, options = {}) {
           event.preventDefault();
           openGmRoleMenu(event, person);
         });
-        row.append(handle, email, remove);
+        row.append(handle, email, discord, remove);
         yesList.append(row);
       }
     }

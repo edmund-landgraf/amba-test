@@ -240,7 +240,7 @@
         <section class="settings-tab-panel" id="settingsPanelComms" data-settings-panel="comms" hidden>
           <p class="modal-copy">Email is from login and cannot be changed here. Optional Discord and Reddit IDs help us find you. Pick how you prefer to be reached.</p>
           <label>Email <input name="email" type="email" value="" readonly disabled autocomplete="off"></label>
-          <label>Discord user ID <input name="discordUserId" inputmode="numeric" autocomplete="off" placeholder="17–19 digit ID"></label>
+          <label>Discord user ID <input name="discordUserId" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="17–19 digit ID"></label>
           <label>Reddit user ID <input name="redditUserId" autocomplete="off" placeholder="u/username or t2_…"></label>
           <fieldset class="comm-choice">
             <legend>Preferred contact</legend>
@@ -290,6 +290,7 @@
         <p class="form-note" id="rerollHandleNote"></p>
       </form>
     </dialog>
+    <dialog class="modal small-modal" id="discordNudgeModal" aria-labelledby="discordNudgeTitle">
       <p class="eyebrow">Discord</p>
       <h2 id="discordNudgeTitle">A Discord name helps a lot</h2>
       <p class="modal-copy">You can skip this if you want. It is just much easier to find you at the table when we have your Discord username. No pressure — we would only really appreciate it.</p>

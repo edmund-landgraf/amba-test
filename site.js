@@ -7,6 +7,7 @@ import {
   tokenIndexFor
 } from "./lib/token-colors.mjs";
 import { resolveSessionEmail, strippedSessionUrl } from "./lib/session-email.mjs";
+import { wgUrlsClipboardText } from "./lib/wg-urls.mjs";
 
 let appState = {
   session: null,
@@ -340,6 +341,11 @@ function wireEvents() {
     setProfileTokenColor(button.dataset.tokenValue);
   });
   settingsForm?.addEventListener("submit", saveSettings);
+  settingsForm?.querySelector('input[name="discordUserId"]')?.addEventListener("input", (event) => {
+    const field = event.target;
+    const next = String(field.value || "").replace(/\D/g, "");
+    if (field.value !== next) field.value = next;
+  });
   document.querySelector("#settingsDownloadExport")?.addEventListener("click", async () => {
     const note = document.querySelector("#settingsBackupNote");
     if (!appState.user?.email) {
@@ -525,6 +531,7 @@ function wireEvents() {
   });
   wireWgDrop();
   wireWgSheets();
+  wireCopyWgUrls();
   wirePcContextMenu();
   window.addEventListener("amba-token-map", (event) => {
     refreshTokenColors(event.detail);
@@ -1140,7 +1147,7 @@ async function saveSettings(event) {
       timezone: appState.user.timezone,
       discord: appState.user.discord,
       characterStatus: appState.user.characterStatus,
-      discordUserId: data.discordUserId,
+      discordUserId: String(data.discordUserId || "").replace(/\D/g, ""),
       redditUserId: data.redditUserId,
       preferredComm: data.preferredComm
     }
@@ -1256,6 +1263,8 @@ function renderPcs() {
   }
   if (empty) empty.hidden = pcs.length > 0;
   if (wrap) wrap.hidden = pcs.length === 0;
+  const copyBtn = document.querySelector("#copyWgUrls");
+  if (copyBtn) copyBtn.disabled = !wgUrlsClipboardText(pcs);
   for (const body of bodies) {
     body.replaceChildren();
     if (!pcs.length && body.id === "signupPcsBody") {
@@ -1527,6 +1536,29 @@ function wireWgSheets() {
   if (!form) return;
   form.addEventListener("submit", saveWgSheet);
   cancel?.addEventListener("click", cancelEditWgSheet);
+}
+
+function wireCopyWgUrls() {
+  const button = document.querySelector("#copyWgUrls");
+  if (!button) return;
+  button.addEventListener("click", copyWgUrls);
+}
+
+async function copyWgUrls() {
+  const note = document.querySelector("#copyWgUrlsNote");
+  const slots = partySlotCounts();
+  const text = wgUrlsClipboardText((appState.pcs || []).slice(0, slots.maxPartyPcs));
+  if (!text) {
+    if (note) note.textContent = "No public WG sheet URLs in the party list.";
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    const count = text.split("\r\n").length;
+    if (note) note.textContent = `Copied ${count} WG URL${count === 1 ? "" : "s"} (one per line).`;
+  } catch {
+    if (note) note.textContent = "Could not copy. Select the URLs another way.";
+  }
 }
 
 async function saveWgSheet(event) {
