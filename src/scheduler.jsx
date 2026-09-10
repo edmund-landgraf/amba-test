@@ -221,16 +221,21 @@ function LiveSessionCountdown({ rows }) {
   const remainingMs = startMs - now;
   const remaining = formatCountdown(remainingMs);
   const lines = countdownParts(remainingMs);
+  const compact = isPhoneLayout();
   return (
-    <div className="live-countdown" role="timer" aria-label={`Live session in ${remaining}`}>
+    <div className={`live-countdown${compact ? " is-compact" : ""}`} role="timer" aria-label={`Live session in ${remaining}`}>
       <p className="live-countdown-kicker">Live in</p>
-      <ul>
-        {lines.map((line, index) => (
-          <li key={index}>
-            <strong>{line}</strong>
-          </li>
-        ))}
-      </ul>
+      {compact ? (
+        <p className="live-countdown-line"><strong>{remaining}</strong></p>
+      ) : (
+        <ul>
+          {lines.map((line, index) => (
+            <li key={index}>
+              <strong>{line}</strong>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -1146,6 +1151,7 @@ function TimeGrid() {
     : "No recruiting sessions yet.";
 
   const statusMount = typeof document !== "undefined" ? document.querySelector("#schedule-status") : null;
+  const addRowMount = typeof document !== "undefined" ? document.querySelector("#schedule-add-row") : null;
   const countdownMount = typeof document !== "undefined" ? document.querySelector("#live-countdown") : null;
   const viewToggleMount = typeof document !== "undefined" ? document.querySelector("#schedule-view-toggle") : null;
   const hookMount = typeof document !== "undefined" ? document.querySelector("#player-hook") : null;
@@ -1384,6 +1390,26 @@ function TimeGrid() {
       url: link.url
     }))
   ].filter(Boolean);
+  const addRowForm = (
+      <form id="mark-times" className="add-row" onSubmit={addRow}>
+        {phoneLayout && zoneNote ? <p className="form-note">{zoneNote}</p> : null}
+        <label>Date <input required type="date" value={draft.date} onChange={(event) => setDraft({ ...draft, date: event.target.value })} /></label>
+        <label>Time
+          <select required value={draft.time} onChange={(event) => setDraft({ ...draft, time: event.target.value })}>
+            {TIME_STEPS.map((value) => <option key={value} value={value}>{value}</option>)}
+          </select>
+        </label>
+        <label>Session length
+          <select required value={draft.lengthMinutes} onChange={(event) => setDraft({ ...draft, lengthMinutes: event.target.value })}>
+            <option value="60">60 minutes</option>
+            <option value="90">90 minutes</option>
+            <option value="120">120 minutes</option>
+            <option value="180">180 minutes</option>
+          </select>
+        </label>
+        <button className="button primary" type="submit">Add row</button>
+      </form>
+  );
   const readingBlock = readingItems.length ? (
     <>
       {readingItems.map((item) => {
@@ -1420,24 +1446,8 @@ function TimeGrid() {
       {hookMount && hookBlock ? createPortal(hookBlock, hookMount) : hookBlock}
       {hookParchmentMount && hookBlock ? createPortal(parchmentToggle, hookParchmentMount) : null}
       {readingMount && readingBlock ? createPortal(readingBlock, readingMount) : readingBlock}
-      {viewToggle("timesScheduleView")}
-      <form id="mark-times" className="add-row" onSubmit={addRow}>
-        <label>Date <input required type="date" value={draft.date} onChange={(event) => setDraft({ ...draft, date: event.target.value })} /></label>
-        <label>Time
-          <select required value={draft.time} onChange={(event) => setDraft({ ...draft, time: event.target.value })}>
-            {TIME_STEPS.map((value) => <option key={value} value={value}>{value}</option>)}
-          </select>
-        </label>
-        <label>Session length
-          <select required value={draft.lengthMinutes} onChange={(event) => setDraft({ ...draft, lengthMinutes: event.target.value })}>
-            <option value="60">60 minutes</option>
-            <option value="90">90 minutes</option>
-            <option value="120">120 minutes</option>
-            <option value="180">180 minutes</option>
-          </select>
-        </label>
-        <button className="button primary" type="submit">Add row</button>
-      </form>
+      {phoneLayout && addRowMount ? createPortal(addRowForm, addRowMount) : addRowForm}
+      {phoneLayout ? null : viewToggle("timesScheduleView")}
       {phoneLayout ? null : (
       <div className="ag-theme-quartz scheduler-grid" onContextMenu={(event) => event.preventDefault()}>
         <AgGridReact

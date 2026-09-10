@@ -652,7 +652,7 @@ let pendingTimesScroll = false;
 
 function scrollToTimes() {
   pendingTimesScroll = false;
-  document.querySelector("#times")?.scrollIntoView({ behavior: "smooth" });
+  document.querySelector("#mark-times")?.scrollIntoView({ behavior: "smooth" });
 }
 
 function joinTheTest() {
